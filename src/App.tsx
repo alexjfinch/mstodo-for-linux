@@ -122,6 +122,30 @@ export default function App() {
     lastSyncTime,
   } = useTasks(accessToken, currentListId, db, activeAccountId);
 
+  // Compute uncompleted task counts for sidebar badges
+  const taskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const defaultListId = (
+      lists.find(l => l.wellknownListName === "defaultList") ||
+      lists.find(l => l.displayName === "Tasks")
+    )?.id;
+    const flaggedListId = lists.find(l => l.wellknownListName === "flaggedEmails")?.id;
+
+    for (const task of tasks) {
+      if (task.completed) continue;
+      // Built-in virtual views
+      if (task.isInMyDay) counts["My Day"] = (counts["My Day"] || 0) + 1;
+      if (task.importance === "high") counts["Important"] = (counts["Important"] || 0) + 1;
+      if (task.dueDateTime) counts["Planned"] = (counts["Planned"] || 0) + 1;
+      if (task.listId === "__assigned__") counts["Assigned to Me"] = (counts["Assigned to Me"] || 0) + 1;
+      // Real list counts
+      if (task.listId === defaultListId) counts["Tasks"] = (counts["Tasks"] || 0) + 1;
+      if (task.listId === flaggedListId) counts["Flagged Emails"] = (counts["Flagged Emails"] || 0) + 1;
+      if (task.listId) counts[task.listId] = (counts[task.listId] || 0) + 1;
+    }
+    return counts;
+  }, [tasks, lists]);
+
   const rawFilteredTasks = useFilteredTasks(tasks, activeList, lists);
 
   // Search across all tasks when query is active
@@ -497,6 +521,7 @@ export default function App() {
           syncing={syncing}
           syncError={syncError}
           lastSyncTime={lastSyncTime}
+          taskCounts={taskCounts}
         />
         <main className="main">
           <Settings

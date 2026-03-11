@@ -267,6 +267,24 @@ body {
   color: white;
 }
 
+.sidebar-task-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.sidebar li.active .sidebar-task-count {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sidebar.collapsed .sidebar-task-count {
+  display: none;
+}
+
 .sidebar-section-header {
   padding: 12px 12px 4px 12px;
   font-size: 12px;

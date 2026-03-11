@@ -22,6 +22,7 @@ type Props = {
   syncing: boolean;
   syncError: string | null;
   lastSyncTime: Date | null;
+  taskCounts?: Record<string, number>;
 };
 
 export const Sidebar = ({
@@ -42,6 +43,7 @@ export const Sidebar = ({
   syncing,
   syncError,
   lastSyncTime,
+  taskCounts = {},
 }: Props) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCreatingList, setIsCreatingList] = useState(false);
@@ -170,6 +172,9 @@ export const Sidebar = ({
             >
               <span className="sidebar-list-icon">{getListIcon(list)}</span>
               <span className="sidebar-list-name">{list}</span>
+              {taskCounts[list] > 0 && (
+                <span className="sidebar-task-count">{taskCounts[list]}</span>
+              )}
             </li>
           ))}
         </ul>
@@ -240,6 +245,9 @@ export const Sidebar = ({
                     >
                       <span className="sidebar-list-icon">📝</span>
                       <span className="sidebar-list-name">{sub.displayName}</span>
+                      {taskCounts[sub.id] > 0 && (
+                        <span className="sidebar-task-count">{taskCounts[sub.id]}</span>
+                      )}
                       {onDeleteList && (
                         <button
                           className="delete-list-btn"
@@ -306,6 +314,9 @@ export const Sidebar = ({
             >
               <span className="sidebar-list-icon">📝</span>
               <span className="sidebar-list-name">{list.displayName}</span>
+              {taskCounts[list.id] > 0 && (
+                <span className="sidebar-task-count">{taskCounts[list.id]}</span>
+              )}
               {!isCollapsed && (
                 <>
                   <button
