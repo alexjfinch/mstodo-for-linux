@@ -349,7 +349,6 @@ fn open_quick_add(app: &tauri::AppHandle) {
         .inner_size(480.0, 180.0)
         .resizable(false)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .center()
         .focused(true)

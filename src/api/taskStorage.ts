@@ -65,21 +65,28 @@ export async function initializeTables(db: Database): Promise<void> {
   const rows = await db.select<{ version: number }[]>("SELECT version FROM schema_version WHERE id = 1");
   let currentVersion = rows[0]?.version ?? 0;
 
-  const migrations: string[] = [
+  // Helper: check if a column already exists (handles fresh installs where the
+  // CREATE TABLE already includes columns that older migrations would add).
+  async function hasColumn(table: string, column: string): Promise<boolean> {
+    const info = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
+    return info.some((col) => col.name === column);
+  }
+
+  const migrations: (() => Promise<void>)[] = [
     // v1: add listId to tasks
-    "ALTER TABLE tasks ADD COLUMN listId TEXT",
+    async () => { if (!(await hasColumn("tasks", "listId"))) await db.execute("ALTER TABLE tasks ADD COLUMN listId TEXT"); },
     // v2: add recurrence to tasks
-    "ALTER TABLE tasks ADD COLUMN recurrence TEXT",
+    async () => { if (!(await hasColumn("tasks", "recurrence"))) await db.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT"); },
     // v3: add categories to tasks
-    "ALTER TABLE tasks ADD COLUMN categories TEXT",
+    async () => { if (!(await hasColumn("tasks", "categories"))) await db.execute("ALTER TABLE tasks ADD COLUMN categories TEXT"); },
     // v4: add isGroup to lists
-    "ALTER TABLE lists ADD COLUMN isGroup INTEGER DEFAULT 0",
+    async () => { if (!(await hasColumn("lists", "isGroup"))) await db.execute("ALTER TABLE lists ADD COLUMN isGroup INTEGER DEFAULT 0"); },
     // v5: add parentGroupId to lists
-    "ALTER TABLE lists ADD COLUMN parentGroupId TEXT",
+    async () => { if (!(await hasColumn("lists", "parentGroupId"))) await db.execute("ALTER TABLE lists ADD COLUMN parentGroupId TEXT"); },
   ];
 
   for (let i = currentVersion; i < migrations.length; i++) {
-    await db.execute(migrations[i]);
+    await migrations[i]();
     await db.execute("UPDATE schema_version SET version = ?", [i + 1]);
   }
 }
