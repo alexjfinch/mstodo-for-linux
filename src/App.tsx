@@ -87,6 +87,7 @@ export default function App() {
     loading: listsLoading,
     createList,
     createSubList,
+    createGroup,
     convertToGroup,
     moveToGroup,
     deleteList,
@@ -466,9 +467,7 @@ export default function App() {
   };
 
   const handleCreateGroup = async (name: string) => {
-    const newList = await createList(name);
-    if (newList) await convertToGroup(newList.id);
-    // Do NOT navigate — groups are not task lists
+    await createGroup(name);
   };
 
   const handleConvertToGroup = async (listId: string) => {

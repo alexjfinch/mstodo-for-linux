@@ -285,6 +285,26 @@ body {
   display: none;
 }
 
+/* List action buttons container — hidden until hover */
+.sidebar-list-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Show actions and hide count badge on hover */
+.custom-lists li:hover .sidebar-list-actions,
+.sidebar-sublist-item:hover .sidebar-list-actions {
+  display: flex;
+}
+
+.custom-lists li:hover .sidebar-task-count,
+.sidebar-sublist-item:hover .sidebar-task-count {
+  display: none;
+}
+
 .sidebar-section-header {
   padding: 12px 12px 4px 12px;
   font-size: 12px;
@@ -329,8 +349,6 @@ body {
 }
 
 .delete-list-btn {
-  position: absolute;
-  right: 8px;
   width: 20px;
   height: 20px;
   border: none;
@@ -345,9 +363,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.custom-lists li:hover .delete-list-btn {
+.sidebar-list-actions .delete-list-btn {
   opacity: 1;
 }
 
@@ -2347,7 +2366,7 @@ kbd {
   font-weight: 500;
 }
 
-.sidebar-sublist-item:hover .delete-list-btn {
+.sidebar-sublist-item:hover .sidebar-list-actions .delete-list-btn {
   opacity: 1;
 }
 
@@ -2374,7 +2393,7 @@ kbd {
   flex-shrink: 0;
 }
 
-.custom-lists li:hover .sidebar-convert-btn {
+.sidebar-list-actions .sidebar-convert-btn {
   opacity: 1;
 }
 

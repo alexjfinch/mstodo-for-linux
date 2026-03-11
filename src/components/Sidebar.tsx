@@ -249,19 +249,21 @@ export const Sidebar = ({
                         <span className="sidebar-task-count">{taskCounts[sub.id]}</span>
                       )}
                       {onDeleteList && (
-                        <button
-                          className="delete-list-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            showConfirm(
-                              `Delete "${sub.displayName}"?`,
-                              () => onDeleteList!(sub.id)
-                            );
-                          }}
-                          aria-label={`Delete ${sub.displayName}`}
-                        >
-                          ×
-                        </button>
+                        <span className="sidebar-list-actions">
+                          <button
+                            className="delete-list-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              showConfirm(
+                                `Delete "${sub.displayName}"?`,
+                                () => onDeleteList!(sub.id)
+                              );
+                            }}
+                            aria-label={`Delete ${sub.displayName}`}
+                          >
+                            ×
+                          </button>
+                        </span>
                       )}
                     </li>
                   ))}
@@ -318,7 +320,7 @@ export const Sidebar = ({
                 <span className="sidebar-task-count">{taskCounts[list.id]}</span>
               )}
               {!isCollapsed && (
-                <>
+                <span className="sidebar-list-actions">
                   <button
                     className="sidebar-convert-btn"
                     onClick={(e) => {
@@ -349,7 +351,7 @@ export const Sidebar = ({
                       ×
                     </button>
                   )}
-                </>
+                </span>
               )}
             </li>
           ))}

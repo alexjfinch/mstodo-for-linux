@@ -142,6 +142,30 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     }
   }, [isOnline]);
 
+  // Create an empty local-only group heading
+  const createGroup = useCallback(async (displayName: string) => {
+    const database = dbRef.current;
+    if (!database || !displayName.trim()) return;
+
+    const groupId = `local-group-${crypto.randomUUID()}`;
+    const newGroup: TaskList = {
+      id: groupId,
+      displayName: displayName.trim(),
+      isOwner: true,
+      isShared: false,
+      isGroup: true,
+    };
+
+    setLists((prev) => [...prev, newGroup]);
+
+    try {
+      await saveListToDB(database, newGroup);
+    } catch (err) {
+      logger.error("Failed to create group", err);
+      setLists((prev) => prev.filter((l) => l.id !== groupId));
+    }
+  }, []);
+
   // Convert an existing task list into a local group heading.
   // Creates a local-only group and moves the original list under it as a sub-list.
   const convertToGroup = useCallback(async (listId: string) => {
@@ -287,6 +311,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     loading,
     createList,
     createSubList,
+    createGroup,
     convertToGroup,
     moveToGroup,
     deleteList,
