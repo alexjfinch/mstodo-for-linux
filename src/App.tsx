@@ -34,7 +34,6 @@ import {
   importFromGenericCsv,
   ImportResult,
 } from "./api/importExport";
-import { clearAllData } from "./api/taskStorage";
 
 export default function App() {
   const {
@@ -64,18 +63,6 @@ export default function App() {
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
-  const prevAccountIdRef = useRef<string | null>(null);
-
-  // Clear cached DB data when switching accounts
-  useEffect(() => {
-    if (!db || !activeAccountId) return;
-    // Skip the initial load — only clear on actual account switches
-    if (prevAccountIdRef.current !== null && prevAccountIdRef.current !== activeAccountId) {
-      clearAllData(db).catch((err) => logger.error("Failed to clear data on account switch", err));
-    }
-    prevAccountIdRef.current = activeAccountId;
-  }, [db, activeAccountId]);
-
   // Fetch/update account profile info (handles migrated accounts too)
   useEffect(() => {
     if (!accessToken || !activeAccountId || profileFetched.current) return;
@@ -305,23 +292,29 @@ export default function App() {
     if (lists.find(l => l.id === activeList)?.isGroup) setActiveList("Tasks");
   }, [lists, activeList]);
 
+  // Keep stable refs to sync functions to avoid retriggering effects
+  const syncListsRef = useRef(syncLists);
+  const syncWithGraphRef = useRef(syncWithGraph);
+  useEffect(() => { syncListsRef.current = syncLists; }, [syncLists]);
+  useEffect(() => { syncWithGraphRef.current = syncWithGraph; }, [syncWithGraph]);
+
   // Sync when user signs in or comes back online
   useEffect(() => {
     if (accessToken && dbReady) {
-      syncLists();
-      syncWithGraph();
+      syncListsRef.current();
+      syncWithGraphRef.current();
     }
-  }, [accessToken, dbReady, syncLists, syncWithGraph]);
+  }, [accessToken, dbReady]);
 
   // Auto-sync based on syncInterval setting (0 = manual only)
   useEffect(() => {
     if (!accessToken || !dbReady || syncInterval === 0) return;
     const interval = setInterval(() => {
-      syncWithGraph();
-      syncLists();
+      syncWithGraphRef.current();
+      syncListsRef.current();
     }, syncInterval * 1000);
     return () => clearInterval(interval);
-  }, [accessToken, dbReady, syncWithGraph, syncLists, syncInterval]);
+  }, [accessToken, dbReady, syncInterval]);
 
   // Listen for tray and quick-add events
   useEffect(() => {

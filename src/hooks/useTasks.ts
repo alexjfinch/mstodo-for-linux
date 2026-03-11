@@ -8,6 +8,7 @@ import {
   deleteTask as deleteTaskGraph,
   fetchAllTasksDelta,
   fetchAssignedTasks,
+  resetGraphCaches,
 } from "../api/graph";
 import {
   loadTasksFromDB,
@@ -24,6 +25,7 @@ import {
   loadDeltaTokens,
   saveDeltaTokens,
   clearDeltaTokens,
+  clearAllData,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -41,6 +43,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   const tasksRef = useRef<Task[]>([]);
   const accessTokenRef = useRef<string | null>(null);
   const dbRef = useRef<Database | null>(null);
+  const prevAccountIdRef = useRef<string | null>(null);
+  const clearingRef = useRef<Promise<void> | null>(null);
+  // Incremented on account switch — in-flight syncs check this to bail out
+  const syncGenerationRef = useRef(0);
+  // Prevent overlapping syncs from piling up requests
+  const syncInProgressRef = useRef(false);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -48,13 +56,36 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
   useEffect(() => {
     if (!db) return;
-    loadTasksFromDB(db).then((localTasks) => {
-      setTasks(localTasks);
-      setLoading(false);
-    }).catch((err) => {
-      logger.error("Failed to load tasks from database", err);
-      setLoading(false);
-    });
+    const init = async () => {
+      const isAccountSwitch = prevAccountIdRef.current !== null && prevAccountIdRef.current !== activeAccountId;
+      prevAccountIdRef.current = activeAccountId;
+
+      if (isAccountSwitch) {
+        // Invalidate any in-flight sync so it won't write stale data
+        syncGenerationRef.current++;
+        syncInProgressRef.current = false; // allow fresh sync for new account
+        resetGraphCaches();
+        setTasks([]);
+        setLoading(true);
+        // Clear DB independently — useLists does the same, but we can't
+        // guarantee execution order between hooks.
+        // Store the promise so syncWithGraph can await it.
+        const clearing = clearAllData(db);
+        clearingRef.current = clearing;
+        await clearing;
+        clearingRef.current = null;
+      }
+
+      try {
+        const localTasks = await loadTasksFromDB(db);
+        setTasks(localTasks);
+        setLoading(false);
+      } catch (err) {
+        logger.error("Failed to load tasks from database", err);
+        setLoading(false);
+      }
+    };
+    init();
   }, [db, activeAccountId]);
 
   const processPendingOps = useCallback(async () => {
@@ -100,15 +131,31 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   // Delta sync: only fetch what changed since last sync.
   // Falls back to a full snapshot when no delta tokens are stored (first run).
   const syncWithGraph = useCallback(async () => {
+    // Skip if another sync is already running — prevents request pile-up
+    if (syncInProgressRef.current) return;
+    syncInProgressRef.current = true;
+
+    // Wait for any in-progress account-switch DB clear to finish
+    if (clearingRef.current) await clearingRef.current;
+
+    // Capture generation so we can detect if account switched mid-sync
+    const generation = syncGenerationRef.current;
+
     const token = accessTokenRef.current;
     const database = dbRef.current;
 
-    if (!token || !database || !isOnline) return;
+    if (!token || !database || !isOnline) {
+      syncInProgressRef.current = false;
+      return;
+    }
 
     setSyncing(true);
     setSyncError(null);
     try {
       await processPendingOps();
+
+      // Bail if account switched while processing pending ops
+      if (syncGenerationRef.current !== generation) return;
 
       const deltaTokens = await loadDeltaTokens(database);
 
@@ -145,6 +192,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           throw err;
         }
       }
+
+      // Bail if account switched during the fetch
+      if (syncGenerationRef.current !== generation) return;
 
       const { delta, assignedTasks } = deltaResult;
       const localTasks = await loadTasksFromDB(database);
@@ -206,62 +256,80 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           }
         }
 
-        setTasks(merged);
+        // Only apply results if account hasn't switched
+        if (syncGenerationRef.current === generation) {
+          setTasks(merged);
+        }
       } else {
         // Incremental delta: apply only changes
-        setTasks((prev) => {
-          const taskMap = new Map(prev.map(t => [t.id, t]));
+        if (syncGenerationRef.current === generation) {
+          setTasks((prev) => {
+            const taskMap = new Map(prev.map(t => [t.id, t]));
 
-          for (const change of delta.changes) {
-            if (change.removed) {
-              taskMap.delete(change.task.id);
-            } else {
-              const local = taskMap.get(change.task.id);
-              if (local && local.lastModified && change.task.lastModified &&
-                  local.lastModified > change.task.lastModified) {
-                // Local is newer — keep it (pending ops will push it)
+            for (const change of delta.changes) {
+              if (change.removed) {
+                taskMap.delete(change.task.id);
               } else {
-                taskMap.set(change.task.id, change.task);
+                const local = taskMap.get(change.task.id);
+                if (local && local.lastModified && change.task.lastModified &&
+                    local.lastModified > change.task.lastModified) {
+                  // Local is newer — keep it (pending ops will push it)
+                } else {
+                  taskMap.set(change.task.id, change.task);
+                }
               }
             }
-          }
 
-          // Update assigned tasks
-          const assignedIds = new Set(assignedTasks.map(t => t.id));
-          // Remove stale assigned
-          for (const [id, t] of taskMap) {
-            if (t.listId === "__assigned__" && !assignedIds.has(id)) {
-              taskMap.delete(id);
+            // Update assigned tasks
+            const assignedIds = new Set(assignedTasks.map(t => t.id));
+            // Remove stale assigned
+            for (const [id, t] of taskMap) {
+              if (t.listId === "__assigned__" && !assignedIds.has(id)) {
+                taskMap.delete(id);
+              }
+            }
+            for (const assigned of assignedTasks) {
+              taskMap.set(assigned.id, assigned);
+            }
+
+            return Array.from(taskMap.values());
+          });
+        }
+
+        // Persist changes to DB only if still on same account
+        if (syncGenerationRef.current === generation) {
+          for (const change of delta.changes) {
+            if (change.removed) {
+              await deleteTaskFromDB(database, change.task.id);
+            } else {
+              await saveTaskToDB(database, change.task);
             }
           }
           for (const assigned of assignedTasks) {
-            taskMap.set(assigned.id, assigned);
+            await saveTaskToDB(database, assigned);
           }
-
-          return Array.from(taskMap.values());
-        });
-
-        // Persist changes to DB
-        for (const change of delta.changes) {
-          if (change.removed) {
-            await deleteTaskFromDB(database, change.task.id);
-          } else {
-            await saveTaskToDB(database, change.task);
-          }
-        }
-        for (const assigned of assignedTasks) {
-          await saveTaskToDB(database, assigned);
         }
       }
 
-      // Persist new delta tokens
-      await saveDeltaTokens(database, delta.newDeltaTokens);
-      setLastSyncTime(new Date());
+      // Persist new delta tokens only if still on same account
+      if (syncGenerationRef.current === generation) {
+        await saveDeltaTokens(database, delta.newDeltaTokens);
+        setLastSyncTime(new Date());
+      }
     } catch (err) {
-      logger.error("Sync failed", err);
-      setSyncError(err instanceof Error ? err.message : "Unknown sync error");
+      // Don't report errors from stale syncs
+      if (syncGenerationRef.current !== generation) return;
+      const axiosErr = err as any;
+      const detail = axiosErr?.response
+        ? `${axiosErr.response.status} ${axiosErr.response.statusText}: ${JSON.stringify(axiosErr.response.data)}`
+        : undefined;
+      logger.error("Sync failed" + (detail ? ` — ${detail}` : ""), err);
+      setSyncError(detail || (err instanceof Error ? err.message : "Unknown sync error"));
     } finally {
-      setSyncing(false);
+      syncInProgressRef.current = false;
+      if (syncGenerationRef.current === generation) {
+        setSyncing(false);
+      }
     }
   }, [isOnline, processPendingOps]);
 

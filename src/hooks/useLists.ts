@@ -11,6 +11,7 @@ import {
   saveListToDB,
   deleteListFromDB,
   updateListMeta,
+  clearAllData,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -23,6 +24,8 @@ export const useLists = (accessToken: string | null, db: Database | null, active
   const listsRef = useRef<TaskList[]>([]);
   const accessTokenRef = useRef<string | null>(null);
   const dbRef = useRef<Database | null>(null);
+  const prevAccountIdRef = useRef<string | null>(null);
+  const clearingRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => { listsRef.current = lists; }, [lists]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -33,6 +36,18 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     if (!db) return;
     const init = async () => {
       try {
+        const isAccountSwitch = prevAccountIdRef.current !== null && prevAccountIdRef.current !== activeAccountId;
+        prevAccountIdRef.current = activeAccountId;
+
+        if (isAccountSwitch) {
+          setLists([]);
+          setLoading(true);
+          const clearing = clearAllData(db);
+          clearingRef.current = clearing;
+          await clearing;
+          clearingRef.current = null;
+        }
+
         const localLists = await loadListsFromDB(db);
         setLists(localLists);
         setLoading(false);
@@ -46,6 +61,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
 
   // Sync lists with Microsoft Graph — try beta (for linkedGroupId), fall back to v1.0
   const syncLists = useCallback(async () => {
+    // Wait for any in-progress account-switch DB clear to finish
+    if (clearingRef.current) await clearingRef.current;
+
     const token = accessTokenRef.current;
     const database = dbRef.current;
 

@@ -124,8 +124,21 @@ async function graphRequest<T>(
       const newToken = await tokenRefreshCallback();
       return await call(newToken);
     }
+    // Respect 429 rate-limit: wait for Retry-After then retry once
+    if (axiosErr.response?.status === 429) {
+      const retryAfter = parseInt(axiosErr.response.headers?.["retry-after"] as string, 10);
+      const waitMs = (retryAfter > 0 ? retryAfter : 30) * 1000;
+      logger.warn(`Rate-limited (429), waiting ${waitMs / 1000}s before retry`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return await call(accessToken);
+    }
     throw err;
   }
+}
+
+/** Clear module-level caches (call on account switch). */
+export function resetGraphCaches() {
+  deltaUnsupportedLists.clear();
 }
 
 // ── User profile ─────────────────────────────────────────────────────
@@ -295,44 +308,43 @@ export async function fetchAllTasksDelta(
   deltaTokens: Record<string, string>
 ): Promise<{ changes: DeltaChange[]; newDeltaTokens: Record<string, string> }> {
   const lists = await fetchTaskLists(accessToken);
-  const results = await Promise.all(
-    lists.map(async (list) => {
-      // Skip delta entirely for lists where it's known to fail
-      if (deltaUnsupportedLists.has(list.id)) {
-        const tasks = await fetchTasksFromList(list.id, accessToken);
-        return {
-          listId: list.id,
-          changes: tasks.map((task) => ({ task, removed: false })),
-          deltaLink: "",
-        };
-      }
 
+  const allChanges: DeltaChange[] = [];
+  const newTokens: Record<string, string> = {};
+
+  // Process lists sequentially to avoid bursting Microsoft Graph rate limits.
+  // Promise.all on many lists causes immediate 429 throttling.
+  for (const list of lists) {
+    let result: { changes: DeltaChange[]; deltaLink: string };
+
+    if (deltaUnsupportedLists.has(list.id)) {
+      const tasks = await fetchTasksFromList(list.id, accessToken);
+      result = {
+        changes: tasks.map((task) => ({ task, removed: false })),
+        deltaLink: "",
+      };
+    } else {
       const existing = deltaTokens[list.id] || null;
       try {
-        const result = await fetchTasksDelta(list.id, accessToken, existing);
-        return { listId: list.id, ...result };
+        result = await fetchTasksDelta(list.id, accessToken, existing);
       } catch (err: unknown) {
         const axiosErr = err as AxiosError;
         if (axiosErr.response?.status === 400) {
           deltaUnsupportedLists.add(list.id);
           logger.warn(`Delta not supported for list ${list.id}, falling back to full fetch`);
           const tasks = await fetchTasksFromList(list.id, accessToken);
-          return {
-            listId: list.id,
+          result = {
             changes: tasks.map((task) => ({ task, removed: false })),
             deltaLink: "",
           };
+        } else {
+          throw err;
         }
-        throw err;
       }
-    })
-  );
+    }
 
-  const allChanges: DeltaChange[] = [];
-  const newTokens: Record<string, string> = {};
-  for (const r of results) {
-    allChanges.push(...r.changes);
-    if (r.deltaLink) newTokens[r.listId] = r.deltaLink;
+    allChanges.push(...result.changes);
+    if (result.deltaLink) newTokens[list.id] = result.deltaLink;
   }
 
   return { changes: allChanges, newDeltaTokens: newTokens };
