@@ -72,27 +72,25 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 - **Task search** -- search functionality operates globally
 - **Taskbar icon & context menu** -- sync status displayed in the task bar with a context menu to add tasks
 - **Customisable notifications for due reminders** -- desktop notifications for due reminders which are customisable in the settings menu
+- **Search / filter tasks** -- search across all lists by title, notes, or category
+- **Due date reminders / notifications** -- desktop notifications when tasks are due or overdue
+- **Sort tasks** -- sort by due date, importance, alphabetical, or creation date
+- **Assigned to me view** -- for shared lists, show tasks assigned to the current user
+- **Offline queue** -- queue changes made offline and replay them on reconnect
+- **System tray** -- minimise to tray with a badge showing overdue/due-today count
+- **Account switching** -- allow switching between mutliple Microsoft Accounts
+- **Markdown support in notes** -- being able to add notes in Markdown
+- **Import / export features from other apps** -- import or export to other apps
 
 ## Roadmap
 
 Planned features, roughly in priority order:
 
-- [X] **Search / filter tasks** -- search across all lists by title, notes, or category
-- [X] **Due date reminders / notifications** -- desktop notifications when tasks are due or overdue
-- [X] **Sort tasks** -- sort by due date, importance, alphabetical, or creation date
 - [ ] **Keyboard shortcuts** -- Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
-- [x] **Global quick add** -- keyboard shortcut to add task anywhere in the DE
-- [X] **Assigned to me view** -- for shared lists, show tasks assigned to the current user
-- [x] **Offline queue** -- queue changes made offline and replay them on reconnect
-- [X] **System tray** -- minimise to tray with a badge showing overdue/due-today count
+- [ ] **Global quick add** -- keyboard shortcut to add task anywhere in the DE
 - [ ] **Planned / My Day improvements** -- overdue highlighting, "suggested for today" section
 - [ ] **Thunderbird integration** -- integration with Thunderbird to add emails as tasks from other email accounts
-- [x] **UI improvements** -- general tidy up and make prettier, wayland support for fractional scalling, window snapping
-- [x] **Account switching** -- allow switching between mutliple Microsoft Accounts
 - [ ] **Phase parsing** -- parse pharsing to auto add due dates etc
-- [x] **Markdown support in notes** -- being able to add notes in Markdown
-- [x] **Import / export features from other apps** -- import or export to other apps
-- [x] **Sync diagnostics to settings menu** -- sync statistics for diagnostics
 - [ ] **Suggest task engine** -- suggest tasks for "My Day"
 - [ ] **Assign to other users** -- integrate being able to assign tasks to other users
 
