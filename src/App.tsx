@@ -34,6 +34,7 @@ import {
   importFromGenericCsv,
   ImportResult,
 } from "./api/importExport";
+import { clearAllData } from "./api/taskStorage";
 
 export default function App() {
   const {
@@ -63,6 +64,17 @@ export default function App() {
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
+  const prevAccountIdRef = useRef<string | null>(null);
+
+  // Clear cached DB data when switching accounts
+  useEffect(() => {
+    if (!db || !activeAccountId) return;
+    // Skip the initial load — only clear on actual account switches
+    if (prevAccountIdRef.current !== null && prevAccountIdRef.current !== activeAccountId) {
+      clearAllData(db).catch((err) => logger.error("Failed to clear data on account switch", err));
+    }
+    prevAccountIdRef.current = activeAccountId;
+  }, [db, activeAccountId]);
 
   // Fetch/update account profile info (handles migrated accounts too)
   useEffect(() => {
@@ -92,7 +104,7 @@ export default function App() {
     moveToGroup,
     deleteList,
     syncLists,
-  } = useLists(accessToken, db);
+  } = useLists(accessToken, db, activeAccountId);
 
   const currentListId = useMemo(() => {
     if (activeList === "Assigned to Me") {
@@ -121,7 +133,7 @@ export default function App() {
     syncing,
     syncError,
     lastSyncTime,
-  } = useTasks(accessToken, currentListId, db);
+  } = useTasks(accessToken, currentListId, db, activeAccountId);
 
   const rawFilteredTasks = useFilteredTasks(tasks, activeList, lists);
 

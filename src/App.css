@@ -91,7 +91,7 @@
 }
 
 html, body {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 body {
@@ -106,6 +106,7 @@ body {
   height: 100vh;
   color: var(--text-primary);
   background-color: var(--bg-primary);
+  border-radius: 10px;
   transition: background-color 0.2s ease, color 0.2s ease;
   overflow: hidden;
 }
@@ -1698,6 +1699,9 @@ kbd {
   align-items: center;
   justify-content: center;
   padding: 40px;
+  height: 100vh;
+  background-color: var(--bg-primary);
+  border-radius: 10px;
   color: var(--text-secondary);
   font-size: 0.9375rem;
 }

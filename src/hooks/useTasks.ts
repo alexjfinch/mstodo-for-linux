@@ -30,7 +30,7 @@ import { logger } from "../services/logger";
 
 let plannerWarningLogged = false;
 
-export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null) => {
+export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null, activeAccountId: string | null) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -55,7 +55,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       logger.error("Failed to load tasks from database", err);
       setLoading(false);
     });
-  }, [db]);
+  }, [db, activeAccountId]);
 
   const processPendingOps = useCallback(async () => {
     const token = accessTokenRef.current;

@@ -331,3 +331,11 @@ export async function saveDeltaTokens(db: Database, tokens: Record<string, strin
 export async function clearDeltaTokens(db: Database): Promise<void> {
   await db.execute("DELETE FROM deltaTokens");
 }
+
+/** Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching. */
+export async function clearAllData(db: Database): Promise<void> {
+  await db.execute("DELETE FROM tasks");
+  await db.execute("DELETE FROM lists");
+  await db.execute("DELETE FROM deltaTokens");
+  await db.execute("DELETE FROM pendingOps");
+}

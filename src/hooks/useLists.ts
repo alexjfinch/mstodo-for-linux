@@ -15,7 +15,7 @@ import {
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
 
-export const useLists = (accessToken: string | null, db: Database | null) => {
+export const useLists = (accessToken: string | null, db: Database | null, activeAccountId: string | null) => {
   const [lists, setLists] = useState<TaskList[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +28,7 @@ export const useLists = (accessToken: string | null, db: Database | null) => {
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   useEffect(() => { dbRef.current = db; }, [db]);
 
-  // Load lists from DB when connection is ready
+  // Load lists from DB when connection is ready or account changes
   useEffect(() => {
     if (!db) return;
     const init = async () => {
@@ -42,7 +42,7 @@ export const useLists = (accessToken: string | null, db: Database | null) => {
       }
     };
     init();
-  }, [db]);
+  }, [db, activeAccountId]);
 
   // Sync lists with Microsoft Graph — try beta (for linkedGroupId), fall back to v1.0
   const syncLists = useCallback(async () => {
