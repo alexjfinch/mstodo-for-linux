@@ -1,0 +1,287 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Store } from "@tauri-apps/plugin-store";
+import { invoke } from "@tauri-apps/api/core";
+import { setTokenRefreshCallback } from "../api/graph";
+import { logger } from "../services/logger";
+
+/** Metadata stored in settings.json (no secrets). */
+type AccountMeta = {
+  id: string;
+  displayName: string;
+  email: string;
+};
+
+/** Runtime account with tokens loaded from the system keyring. */
+export type StoredAccount = AccountMeta & {
+  accessToken: string;
+  refreshToken: string;
+};
+
+// ── keyring helpers ──────────────────────────────────────────────────
+
+async function keyringSet(account: string, key: string, value: string) {
+  await invoke("keyring_set", { account, key, value });
+}
+
+async function keyringGet(account: string, key: string): Promise<string | null> {
+  return invoke<string | null>("keyring_get", { account, key });
+}
+
+async function keyringDelete(account: string, key: string) {
+  await invoke("keyring_delete", { account, key });
+}
+
+async function storeTokens(id: string, accessToken: string, refreshToken: string) {
+  await keyringSet(id, "access_token", accessToken);
+  await keyringSet(id, "refresh_token", refreshToken);
+}
+
+async function loadTokens(id: string): Promise<{ accessToken: string; refreshToken: string }> {
+  const [accessToken, refreshToken] = await Promise.all([
+    keyringGet(id, "access_token"),
+    keyringGet(id, "refresh_token"),
+  ]);
+  return { accessToken: accessToken ?? "", refreshToken: refreshToken ?? "" };
+}
+
+async function deleteTokens(id: string) {
+  await Promise.all([
+    keyringDelete(id, "access_token"),
+    keyringDelete(id, "refresh_token"),
+  ]);
+}
+
+// ── hook ─────────────────────────────────────────────────────────────
+
+export const useAuth = () => {
+  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const refreshTokenRef = useRef<string | null>(null);
+
+  const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? null;
+  const accessToken = activeAccount?.accessToken ?? null;
+
+  useEffect(() => {
+    refreshTokenRef.current = activeAccount?.refreshToken ?? null;
+  }, [activeAccount]);
+
+  // Load accounts: metadata from settings.json, tokens from keyring
+  useEffect(() => {
+    (async () => {
+      try {
+        const store = await Store.load("settings.json");
+        const storedMeta = await store.get<AccountMeta[]>("accounts");
+        const activeId = await store.get<string>("active_account_id");
+
+        // Migration: old single-account plaintext tokens in settings.json
+        const oldAccess = await store.get<string>("access_token");
+        const oldRefresh = await store.get<string>("refresh_token");
+        if (oldAccess && oldRefresh && (!storedMeta || storedMeta.length === 0)) {
+          const id = "migrated";
+          await storeTokens(id, oldAccess, oldRefresh);
+          const meta: AccountMeta = { id, displayName: "", email: "" };
+          await store.set("accounts", [meta]);
+          await store.set("active_account_id", id);
+          await store.delete("access_token");
+          await store.delete("refresh_token");
+          await store.save();
+          setAccounts([{ ...meta, accessToken: oldAccess, refreshToken: oldRefresh }]);
+          setActiveAccountId(id);
+        } else if (storedMeta && storedMeta.length > 0) {
+          // Migration: move any inline tokens still in settings.json to keyring
+          const oldStyleAccounts = await store.get<StoredAccount[]>("accounts");
+          const needsMigration = oldStyleAccounts?.some(
+            (a) => "accessToken" in a && (a as StoredAccount).accessToken
+          );
+
+          const hydrated = await Promise.all(
+            storedMeta.map(async (meta) => {
+              // Check if tokens are still inline (pre-keyring migration)
+              if (needsMigration) {
+                const old = oldStyleAccounts?.find((a) => a.id === meta.id) as StoredAccount | undefined;
+                if (old?.accessToken) {
+                  await storeTokens(meta.id, old.accessToken, old.refreshToken ?? "");
+                  return { ...meta, accessToken: old.accessToken, refreshToken: old.refreshToken ?? "" };
+                }
+              }
+              const tokens = await loadTokens(meta.id);
+              return { ...meta, ...tokens };
+            })
+          );
+
+          // Re-persist metadata without tokens
+          if (needsMigration) {
+            const cleanMeta: AccountMeta[] = storedMeta.map(({ id, displayName, email }) => ({
+              id, displayName, email,
+            }));
+            await store.set("accounts", cleanMeta);
+            await store.save();
+          }
+
+          setAccounts(hydrated);
+          setActiveAccountId(activeId ?? storedMeta[0].id);
+        }
+      } catch (err) {
+        logger.error("Failed to load accounts", err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Persist account metadata (no tokens) to settings.json
+  const persistAccounts = useCallback(async (accs: StoredAccount[], activeId: string | null) => {
+    try {
+      const store = await Store.load("settings.json");
+      const meta: AccountMeta[] = accs.map(({ id, displayName, email }) => ({
+        id, displayName, email,
+      }));
+      await store.set("accounts", meta);
+      if (activeId) await store.set("active_account_id", activeId);
+      await store.save();
+    } catch (err) {
+      logger.error("Failed to persist accounts", err);
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    if (!activeAccountId) return;
+    await deleteTokens(activeAccountId);
+    const remaining = accounts.filter((a) => a.id !== activeAccountId);
+    const newActiveId = remaining.length > 0 ? remaining[0].id : null;
+    setAccounts(remaining);
+    setActiveAccountId(newActiveId);
+    await persistAccounts(remaining, newActiveId);
+  }, [activeAccountId, accounts, persistAccounts]);
+
+  const refresh = useCallback(async (): Promise<string> => {
+    const currentRefresh = refreshTokenRef.current;
+    if (!currentRefresh) throw new Error("No refresh token available");
+
+    try {
+      const tokenResp = await invoke<{ access_token: string; refresh_token?: string }>(
+        "refresh_token", { refreshToken: currentRefresh }
+      );
+      const newRefresh = tokenResp.refresh_token ?? currentRefresh;
+      await storeTokens(activeAccountId!, tokenResp.access_token, newRefresh);
+      const updated = accounts.map((a) =>
+        a.id === activeAccountId
+          ? { ...a, accessToken: tokenResp.access_token, refreshToken: newRefresh }
+          : a
+      );
+      setAccounts(updated);
+      await persistAccounts(updated, activeAccountId);
+      return tokenResp.access_token;
+    } catch (err) {
+      logger.error("Refresh failed", err);
+      await signOut();
+      throw err;
+    }
+  }, [activeAccountId, accounts, signOut, persistAccounts]);
+
+  // Register the refresh callback
+  useEffect(() => {
+    if (activeAccount?.refreshToken) {
+      setTokenRefreshCallback(refresh);
+    } else {
+      setTokenRefreshCallback(null);
+    }
+    return () => setTokenRefreshCallback(null);
+  }, [activeAccount?.refreshToken, refresh]);
+
+  const signIn = useCallback(async () => {
+    setLoading(true);
+    try {
+      const tokenResp = await invoke<{ access_token: string; refresh_token?: string }>("sign_in");
+
+      const { fetchUserProfile } = await import("../api/graph");
+      const profile = await fetchUserProfile(tokenResp.access_token);
+      const accountId = profile.userPrincipalName || profile.mail || profile.displayName;
+
+      // Store tokens in system keyring
+      await storeTokens(accountId, tokenResp.access_token, tokenResp.refresh_token ?? "");
+
+      const newAccount: StoredAccount = {
+        id: accountId,
+        displayName: profile.displayName,
+        email: profile.mail || profile.userPrincipalName,
+        accessToken: tokenResp.access_token,
+        refreshToken: tokenResp.refresh_token ?? "",
+      };
+
+      const existing = accounts.filter((a) => a.id !== accountId);
+      const updated = [...existing, newAccount];
+      setAccounts(updated);
+      setActiveAccountId(accountId);
+      await persistAccounts(updated, accountId);
+    } catch (err) {
+      logger.error("Sign in failed", err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [accounts, persistAccounts]);
+
+  const switchAccount = useCallback(async (accountId: string) => {
+    const account = accounts.find((a) => a.id === accountId);
+    if (!account) return;
+    setActiveAccountId(accountId);
+    await persistAccounts(accounts, accountId);
+  }, [accounts, persistAccounts]);
+
+  const removeAccount = useCallback(async (accountId: string) => {
+    await deleteTokens(accountId);
+    const remaining = accounts.filter((a) => a.id !== accountId);
+    let newActiveId = activeAccountId;
+    if (activeAccountId === accountId) {
+      newActiveId = remaining.length > 0 ? remaining[0].id : null;
+    }
+    setAccounts(remaining);
+    setActiveAccountId(newActiveId);
+    await persistAccounts(remaining, newActiveId);
+  }, [activeAccountId, accounts, persistAccounts]);
+
+  const updateAccountProfile = useCallback(async (
+    accountId: string,
+    profile: { displayName: string; email: string; newId?: string }
+  ) => {
+    // If the account ID is changing, migrate tokens in keyring
+    if (profile.newId && profile.newId !== accountId) {
+      const tokens = await loadTokens(accountId);
+      if (tokens.accessToken || tokens.refreshToken) {
+        await storeTokens(profile.newId, tokens.accessToken, tokens.refreshToken);
+        await deleteTokens(accountId);
+      }
+    }
+
+    const updated = accounts.map((a) => {
+      if (a.id !== accountId) return a;
+      return {
+        ...a,
+        id: profile.newId ?? a.id,
+        displayName: profile.displayName,
+        email: profile.email,
+      };
+    });
+    const newActiveId = profile.newId && activeAccountId === accountId
+      ? profile.newId
+      : activeAccountId;
+    setAccounts(updated);
+    setActiveAccountId(newActiveId);
+    await persistAccounts(updated, newActiveId);
+  }, [activeAccountId, accounts, persistAccounts]);
+
+  return {
+    accessToken,
+    loading,
+    signIn,
+    signOut,
+    refresh,
+    accounts,
+    activeAccountId,
+    switchAccount,
+    removeAccount,
+    updateAccountProfile,
+  };
+};

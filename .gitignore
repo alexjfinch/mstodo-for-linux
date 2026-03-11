@@ -1,0 +1,55 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# Environment variables
+.env
+.env.*
+src-tauri/.env
+src-tauri/.env.*
+
+# Tauri build artifacts
+src-tauri/target/
+
+# Tauri auto-generated schemas (regenerated on build)
+src-tauri/gen/schemas/
+
+# Platform icons not needed for Linux
+src-tauri/icons/android/
+src-tauri/icons/ios/
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
+src-tauri/icons/icon.icns
+
+# Local data stores
+src-tauri/settings.json
+src-tauri/*.db
+src-tauri/*.db-shm
+src-tauri/*.db-wal
+
+# AI tooling
+.claude
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
