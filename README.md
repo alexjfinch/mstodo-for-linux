@@ -131,9 +131,23 @@ The built packages (`.deb`, `.rpm`, `.AppImage`) will be in `src-tauri/target/re
 | Auth | OAuth 2.0 PKCE flow (Microsoft identity platform) |
 | API | Microsoft Graph API v1.0 |
 
-## Privacy
+## Security & Privacy
 
-This app authenticates directly with Microsoft using OAuth 2.0 PKCE -- a secure flow designed for public clients. Your credentials are never sent to or stored by any third-party server. Tokens are stored locally on your machine.
+Authentication uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) — a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. The sign-in process opens your browser to Microsoft's own login page, and the resulting tokens are stored exclusively in your system keyring (e.g. GNOME Keyring, KWallet).
+
+No data leaves your machine except for requests made directly to the Microsoft Graph API on your behalf. There is no backend server, no telemetry, and no third-party analytics.
+
+Azure AD app registration — this app uses a publicly registered Azure AD client (ID: 2a0ee15b-0a96-44d2-b30d-3cf604947669). This ID is not a secret, it identifies the app to Microsoft during sign-in so you can review the permissions being requested. 
+
+The permissions requested are:
+
+| Scope | Reason |
+|---|---|
+| `Tasks.Read` / `Tasks.ReadWrite` | Read and manage your To Do tasks and lists |
+| `User.Read` | Fetch your display name and email address |
+| `offline_access` | Refresh your session without requiring you to sign in again |
+
+You can review and revoke this app's access at any time from your Microsoft account permissions page.
 
 ## Affiliation
 
