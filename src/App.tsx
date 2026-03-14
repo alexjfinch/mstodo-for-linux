@@ -181,7 +181,7 @@ export default function App() {
   // Due-date reminder notifications
   const { toasts, dismissToast, pushToast } = useReminders(tasks, remindersEnabled, reminderTiming);
 
-  // Persist reminder settings
+  // Load all persisted settings on mount
   useEffect(() => {
     (async () => {
       const { Store } = await import("@tauri-apps/plugin-store");
@@ -190,6 +190,15 @@ export default function App() {
       const timing = await store.get<ReminderTiming>("reminderTiming");
       if (enabled !== null && enabled !== undefined) setRemindersEnabled(enabled);
       if (timing) setReminderTiming(timing);
+
+      const savedTheme = await store.get<"light" | "dark" | "system">("theme");
+      if (savedTheme) setTheme(savedTheme);
+      const savedFontSize = await store.get<"small" | "normal" | "large">("fontSize");
+      if (savedFontSize) setFontSize(savedFontSize);
+      const savedCompact = await store.get<boolean>("compactMode");
+      if (savedCompact !== null && savedCompact !== undefined) setCompactMode(savedCompact);
+      const savedSyncInterval = await store.get<number>("syncInterval");
+      if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
     })();
   }, []);
 
@@ -206,6 +215,38 @@ export default function App() {
     const { Store } = await import("@tauri-apps/plugin-store");
     const store = await Store.load("settings.json");
     await store.set("reminderTiming", timing);
+    await store.save();
+  }, []);
+
+  const handleThemeChange = useCallback(async (t: "light" | "dark" | "system") => {
+    setTheme(t);
+    const { Store } = await import("@tauri-apps/plugin-store");
+    const store = await Store.load("settings.json");
+    await store.set("theme", t);
+    await store.save();
+  }, []);
+
+  const handleFontSizeChange = useCallback(async (s: "small" | "normal" | "large") => {
+    setFontSize(s);
+    const { Store } = await import("@tauri-apps/plugin-store");
+    const store = await Store.load("settings.json");
+    await store.set("fontSize", s);
+    await store.save();
+  }, []);
+
+  const handleCompactModeChange = useCallback(async (c: boolean) => {
+    setCompactMode(c);
+    const { Store } = await import("@tauri-apps/plugin-store");
+    const store = await Store.load("settings.json");
+    await store.set("compactMode", c);
+    await store.save();
+  }, []);
+
+  const handleSyncIntervalChange = useCallback(async (interval: number) => {
+    setSyncInterval(interval);
+    const { Store } = await import("@tauri-apps/plugin-store");
+    const store = await Store.load("settings.json");
+    await store.set("syncInterval", interval);
     await store.save();
   }, []);
 
@@ -534,13 +575,13 @@ export default function App() {
             accounts={accounts}
             activeAccountId={activeAccountId}
             theme={theme}
-            onThemeChange={setTheme}
+            onThemeChange={handleThemeChange}
             fontSize={fontSize}
-            onFontSizeChange={setFontSize}
+            onFontSizeChange={handleFontSizeChange}
             compactMode={compactMode}
-            onCompactModeChange={setCompactMode}
+            onCompactModeChange={handleCompactModeChange}
             syncInterval={syncInterval}
-            onSyncIntervalChange={setSyncInterval}
+            onSyncIntervalChange={handleSyncIntervalChange}
             onManualSync={handleManualSync}
             remindersEnabled={remindersEnabled}
             onRemindersEnabledChange={handleRemindersEnabledChange}

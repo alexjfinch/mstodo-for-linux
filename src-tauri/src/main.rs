@@ -8,7 +8,7 @@ mod auth;
 use oauth2::TokenResponse;
 use tauri::{Builder, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, generate_handler};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 // Modern Tauri SQL plugin
@@ -366,11 +366,12 @@ fn main() {
             }
 
             // Build system tray context menu
-            let show_hide = MenuItem::with_id(app, "show_hide", "Show/Hide Window", true, None::<&str>)?;
-            let add_task = MenuItem::with_id(app, "add_task", "Quick Add Task", true, None::<&str>)?;
-            let sync_now = MenuItem::with_id(app, "sync_now", "Sync Now", true, None::<&str>)?;
+            // Use MenuItemBuilder to work around GNOME AppIndicator text rendering issues
+            let show_hide = MenuItemBuilder::with_id("show_hide", "Show/Hide Window").enabled(true).build(app)?;
+            let add_task = MenuItemBuilder::with_id("add_task", "Quick Add Task").enabled(true).build(app)?;
+            let sync_now = MenuItemBuilder::with_id("sync_now", "Sync Now").enabled(true).build(app)?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let quit = MenuItemBuilder::with_id("quit", "Quit").enabled(true).build(app)?;
 
             let menu = MenuBuilder::new(app)
                 .item(&show_hide)

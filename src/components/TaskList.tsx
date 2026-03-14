@@ -96,7 +96,7 @@ export const TaskList = ({
   }>({ visible: false, x: 0, y: 0, taskId: null });
 
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ taskId: string; title: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
   const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
@@ -198,16 +198,22 @@ export const TaskList = ({
 
   const handleCompleteTask = () => {
     if (!contextMenu.taskId) return;
-    onToggleTask(contextMenu.taskId);
+    const idsToToggle = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
+      ? selectedTasks
+      : [contextMenu.taskId];
+    idsToToggle.forEach((id) => onToggleTask(id));
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
   const handleDeleteTask = () => {
     if (!contextMenu.taskId) return;
-    const task = tasks.find((t) => t.id === contextMenu.taskId);
-    if (task) {
-      setDeleteConfirm({ taskId: task.id, title: task.title });
-    }
+    const idsToDelete = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
+      ? selectedTasks
+      : [contextMenu.taskId];
+    const title = idsToDelete.length === 1
+      ? tasks.find((t) => t.id === idsToDelete[0])?.title || ""
+      : `${idsToDelete.length} tasks`;
+    setDeleteConfirm({ taskIds: idsToDelete, title });
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
@@ -337,10 +343,10 @@ export const TaskList = ({
     <>
     {deleteConfirm && (
       <ConfirmDialog
-        message={`Delete "${deleteConfirm.title}"?`}
+        message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
         confirmLabel="Delete"
         danger
-        onConfirm={() => { onDeleteTask(deleteConfirm.taskId); setDeleteConfirm(null); }}
+        onConfirm={() => { deleteConfirm.taskIds.forEach((id) => onDeleteTask(id)); setDeleteConfirm(null); }}
         onCancel={() => setDeleteConfirm(null)}
       />
     )}
