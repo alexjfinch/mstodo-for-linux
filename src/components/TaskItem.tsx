@@ -272,7 +272,7 @@ export const TaskItem = ({
     <li
       className={`task-item ${task.completed ? "completed" : ""} ${
         isSelected ? "selected" : ""
-      }${isDragOver ? " drag-over" : ""}`}
+      }${isDragOver ? " drag-over" : ""}${isOverdue ? " overdue" : ""}`}
       onContextMenu={onRightClick}
       draggable={draggable}
       onDragStart={onDragStart}

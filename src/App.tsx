@@ -21,6 +21,7 @@ import { useFilteredTasks } from "./hooks/useFilteredTasks";
 import { useReminders, ReminderTiming } from "./hooks/useReminders";
 import { ToastContainer } from "./components/ToastContainer";
 import { ListBanner, SPECIAL_LISTS } from "./components/ListBanner";
+import { MyDaySuggestions } from "./components/MyDaySuggestions";
 import { fetchUserProfile } from "./api/graph";
 import { logger } from "./services/logger";
 import {
@@ -603,6 +604,13 @@ export default function App() {
               onToggleSelection={handleToggleSelection}
               onOpenDetail={handleOpenDetail}
               onReorderTasks={handleReorderTasks}
+            />
+          )}
+
+          {activeList === "My Day" && (
+            <MyDaySuggestions
+              allTasks={tasks}
+              onAddToMyDay={(id) => updateAttributes(id, { isInMyDay: true })}
             />
           )}
 

@@ -444,8 +444,8 @@ export const TaskList = ({
             <span>Remind me</span>
             <span className={`context-menu-arrow ${reminderSubmenuOpen ? "expanded" : ""}`}>▸</span>
           </li>
-          {reminderSubmenuOpen && (
-            <>
+          <div className={`context-menu-expand-panel ${reminderSubmenuOpen ? "open" : ""}`}>
+            <div className="context-menu-expand-inner">
               {reminderOptions.map((opt) => (
                 <li
                   key={opt.label}
@@ -464,8 +464,8 @@ export const TaskList = ({
                   Remove reminder
                 </li>
               )}
-            </>
-          )}
+            </div>
+          </div>
 
           <li className="context-menu-divider" />
 

@@ -802,6 +802,15 @@ body {
   border: 1px solid var(--accent-primary);
 }
 
+.task-item.overdue {
+  border-left: 3px solid var(--danger-color);
+  background-color: color-mix(in srgb, var(--danger-color) 6%, var(--bg-secondary));
+}
+
+.task-item.overdue:hover {
+  background-color: color-mix(in srgb, var(--danger-color) 10%, var(--bg-hover));
+}
+
 .task-item.completed {
   background-color: var(--task-completed-bg);
 }
@@ -1189,6 +1198,21 @@ body {
   transform: rotate(90deg);
 }
 
+.context-menu-expand-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.context-menu-expand-panel.open {
+  grid-template-rows: 1fr;
+}
+
+.context-menu-expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
 .context-menu-inline-option {
   display: flex;
   justify-content: space-between;
@@ -1206,6 +1230,96 @@ body {
   height: 1px;
   margin: 4px 0;
   background: var(--border-color);
+}
+
+/* My Day Suggestions */
+.myday-suggestions {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+
+.myday-suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.myday-suggestions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.myday-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.myday-suggestion-item:hover {
+  background: var(--bg-hover);
+}
+
+.myday-suggestion-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.myday-suggestion-title {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.myday-suggestion-reason {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+.myday-suggestion-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.myday-suggestion-add,
+.myday-suggestion-dismiss {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+  transition: all 0.12s;
+}
+
+.myday-suggestion-add:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.myday-suggestion-dismiss:hover {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
 }
 
 /* New Task Input */

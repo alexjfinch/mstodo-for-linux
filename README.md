@@ -81,6 +81,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 - **Account switching** -- allow switching between mutliple Microsoft Accounts
 - **Markdown support in notes** -- being able to add notes in Markdown
 - **Import / export features from other apps** -- import or export to other apps
+- **My Day task suggestion engine** -- Upcoming tasks are suggested on the My Day panel.
 
 ## Roadmap
 
@@ -88,11 +89,9 @@ Planned features, roughly in priority order:
 
 - [ ] **Keyboard shortcuts** -- Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
 - [ ] **Global quick add** -- keyboard shortcut to add task anywhere in the DE
-- [ ] **Planned / My Day improvements** -- overdue highlighting, "suggested for today" section
 - [ ] **Thunderbird integration** -- integration with Thunderbird to add emails as tasks from other email accounts
 - [ ] **Phase parsing** -- parse pharsing to auto add due dates etc
-- [ ] **Suggest task engine** -- suggest tasks for "My Day"
-- [ ] **Assign to other users** -- integrate being able to assign tasks to other users
+- [ ] **Assign to other users** -- integrate being able to assign tasks to other users. Possisbly not possible without migrating or incorporating Planner API.
 
 ## Building from Source
 
