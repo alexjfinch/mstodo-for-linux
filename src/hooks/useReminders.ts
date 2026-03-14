@@ -66,7 +66,17 @@ export const useReminders = (
       const now = Date.now();
       const offset = TIMING_OFFSETS[timing];
 
-      // Find tasks that are due (or nearly due) and haven't been notified
+      // ── Explicit reminders (reminderDateTime) ──
+      const reminderTasks = tasks.filter((task) => {
+        if (task.completed || !task.reminderDateTime) return false;
+        const key = `reminder-${task.id}-${task.reminderDateTime.dateTime}`;
+        if (notifiedRef.current.has(key)) return false;
+        const reminderTime = new Date(task.reminderDateTime.dateTime).getTime();
+        // Fire if we're past the reminder time but not more than 24h after
+        return now >= reminderTime && now <= reminderTime + 24 * 60 * 60_000;
+      });
+
+      // ── Due-date reminders ──
       const dueTasks = tasks.filter((task) => {
         if (task.completed || !task.dueDateTime) return false;
 
@@ -81,7 +91,7 @@ export const useReminders = (
         return now >= triggerTime && now <= dueDate.getTime() + 24 * 60 * 60_000;
       });
 
-      if (dueTasks.length === 0) return;
+      if (dueTasks.length === 0 && reminderTasks.length === 0) return;
 
       // Request notification permission if needed
       let permitted = await isPermissionGranted();
@@ -90,6 +100,39 @@ export const useReminders = (
         permitted = result === "granted";
       }
 
+      // Fire explicit reminder notifications
+      for (const task of reminderTasks) {
+        const key = `reminder-${task.id}-${task.reminderDateTime!.dateTime}`;
+        notifiedRef.current.add(key);
+
+        const reminderDate = new Date(task.reminderDateTime!.dateTime);
+        const body = `Reminder — ${reminderDate.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        })} at ${reminderDate.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}`;
+
+        if (permitted) {
+          sendNotification({ title: task.title, body });
+        }
+
+        setToasts((prev) => [
+          ...prev,
+          {
+            id: `${key}-${now}`,
+            title: task.title,
+            body,
+            timestamp: now,
+            type: "reminder",
+          },
+        ]);
+      }
+
+      // Fire due-date notifications
       for (const task of dueTasks) {
         const key = `${task.id}-${task.dueDateTime!.dateTime}`;
         notifiedRef.current.add(key);

@@ -53,23 +53,35 @@ export const PlannedView = ({
     const thisWeek: Task[] = [];
     const later: Task[] = [];
 
-    tasks.forEach((task) => {
-      if (!task.dueDateTime || task.completed) return;
+    const placed = new Set<string>();
 
-      const dueDate = new Date(task.dueDateTime.dateTime);
-      const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+    const placeInBucket = (task: Task, date: Date) => {
+      if (placed.has(task.id)) return;
+      placed.add(task.id);
+      const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-      if (dueDateOnly < today) {
+      if (dateOnly < today) {
         earlier.push(task);
-      } else if (dueDateOnly.getTime() === today.getTime()) {
+      } else if (dateOnly.getTime() === today.getTime()) {
         todayTasks.push(task);
-      } else if (dueDateOnly.getTime() === tomorrow.getTime()) {
+      } else if (dateOnly.getTime() === tomorrow.getTime()) {
         tomorrowTasks.push(task);
-      } else if (dueDateOnly > tomorrow && dueDateOnly < weekEnd) {
+      } else if (dateOnly > tomorrow && dateOnly < weekEnd) {
         thisWeek.push(task);
       } else {
         later.push(task);
       }
+    };
+
+    tasks.forEach((task) => {
+      if (task.completed) return;
+      // Use the earlier of dueDateTime and reminderDateTime for bucketing
+      const dates: Date[] = [];
+      if (task.dueDateTime) dates.push(new Date(task.dueDateTime.dateTime));
+      if (task.reminderDateTime) dates.push(new Date(task.reminderDateTime.dateTime));
+      if (dates.length === 0) return;
+      dates.sort((a, b) => a.getTime() - b.getTime());
+      placeInBucket(task, dates[0]);
     });
 
     const dayAfterTomorrow = new Date(tomorrow);
@@ -138,7 +150,7 @@ export const PlannedView = ({
         <div className="empty-state">
           <div className="empty-state-icon">📅</div>
           <div className="empty-state-text">No planned tasks</div>
-          <div className="empty-state-subtext">Tasks with due dates will appear here</div>
+          <div className="empty-state-subtext">Tasks with due dates or reminders will appear here</div>
         </div>
       </div>
     );

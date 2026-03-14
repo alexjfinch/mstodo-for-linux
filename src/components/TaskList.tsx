@@ -1,7 +1,68 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Task } from "../types";
 import { TaskItem } from "./TaskItem";
 import { ConfirmDialog } from "./ConfirmDialog";
+
+type ReminderOption = {
+  label: string;
+  subLabel: string;
+  getDateTime: () => string;
+};
+
+function getReminderOptions(): ReminderOption[] {
+  const now = new Date();
+
+  // "Later today" — next even hour, minimum 1h from now
+  const laterToday = new Date(now);
+  laterToday.setMinutes(0, 0, 0);
+  laterToday.setHours(laterToday.getHours() + 2);
+  // If it's past 21:00 push to tomorrow 09:00 instead
+  const tooLateToday = laterToday.getHours() >= 23 || laterToday.getDate() !== now.getDate();
+
+  // "Tomorrow" — tomorrow at 09:00
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+
+  // "Next week" — next Monday at 09:00
+  const nextMonday = new Date(now);
+  const dayOfWeek = nextMonday.getDay(); // 0=Sun
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  nextMonday.setDate(nextMonday.getDate() + daysUntilMonday);
+  nextMonday.setHours(9, 0, 0, 0);
+
+  const formatTime = (d: Date) =>
+    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+
+  const formatDayTime = (d: Date) =>
+    `${d.toLocaleDateString(undefined, { weekday: "short" })} ${formatTime(d)}`;
+
+  const toIso = (d: Date) => d.toISOString();
+
+  const options: ReminderOption[] = [];
+
+  if (!tooLateToday) {
+    options.push({
+      label: "Later today",
+      subLabel: formatTime(laterToday),
+      getDateTime: () => toIso(laterToday),
+    });
+  }
+
+  options.push({
+    label: "Tomorrow",
+    subLabel: formatDayTime(tomorrow),
+    getDateTime: () => toIso(tomorrow),
+  });
+
+  options.push({
+    label: "Next week",
+    subLabel: formatDayTime(nextMonday),
+    getDateTime: () => toIso(nextMonday),
+  });
+
+  return options;
+}
 
 type SortField = "title" | "dueDate" | "importance" | null;
 type SortDirection = "asc" | "desc";
@@ -36,6 +97,7 @@ export const TaskList = ({
 
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ taskId: string; title: string } | null>(null);
+  const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>(null);
@@ -116,6 +178,7 @@ export const TaskList = ({
     const x = Math.min(e.clientX, window.innerWidth - menuW - 4);
     const y = Math.min(e.clientY, window.innerHeight - menuH - 4);
     setContextMenu({ visible: true, x, y, taskId });
+    setReminderSubmenuOpen(false);
   };
 
   const handleToggleAttribute = (attribute: "isInMyDay" | "importance") => {
@@ -147,6 +210,22 @@ export const TaskList = ({
     }
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
+
+  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible]);
+
+  const handleSetReminder = useCallback((dateTime: string) => {
+    if (!contextMenu.taskId) return;
+    onUpdateAttributes(contextMenu.taskId, {
+      reminderDateTime: { dateTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+    });
+    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+  }, [contextMenu.taskId, onUpdateAttributes]);
+
+  const handleRemoveReminder = useCallback(() => {
+    if (!contextMenu.taskId) return;
+    onUpdateAttributes(contextMenu.taskId, { reminderDateTime: undefined });
+    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+  }, [contextMenu.taskId, onUpdateAttributes]);
 
   const handleTaskClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation();
@@ -357,6 +436,36 @@ export const TaskList = ({
           >
             {currentTask.importance === "high" ? "Mark as Normal" : "Mark as Important"}
           </li>
+
+          <li
+            className="context-menu-item context-menu-expandable"
+            onClick={() => setReminderSubmenuOpen(!reminderSubmenuOpen)}
+          >
+            <span>Remind me</span>
+            <span className={`context-menu-arrow ${reminderSubmenuOpen ? "expanded" : ""}`}>▸</span>
+          </li>
+          {reminderSubmenuOpen && (
+            <>
+              {reminderOptions.map((opt) => (
+                <li
+                  key={opt.label}
+                  className="context-menu-item context-menu-inline-option"
+                  onClick={() => handleSetReminder(opt.getDateTime())}
+                >
+                  <span>{opt.label}</span>
+                  <span className="context-menu-hint">{opt.subLabel}</span>
+                </li>
+              ))}
+              {currentTask.reminderDateTime && (
+                <li
+                  className="context-menu-item context-menu-inline-option context-menu-item-danger"
+                  onClick={handleRemoveReminder}
+                >
+                  Remove reminder
+                </li>
+              )}
+            </>
+          )}
 
           <li className="context-menu-divider" />
 

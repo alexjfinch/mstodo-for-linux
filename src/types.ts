@@ -51,6 +51,10 @@ export type Task = {
   };
   recurrence?: Recurrence;
   categories?: string[];
+  reminderDateTime?: {
+    dateTime: string;
+    timeZone: string;
+  };
   hasAttachments?: boolean;
   checklistItems?: ChecklistItem[];
   lastModified?: number;

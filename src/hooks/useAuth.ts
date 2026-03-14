@@ -74,50 +74,13 @@ export const useAuth = () => {
         const storedMeta = await store.get<AccountMeta[]>("accounts");
         const activeId = await store.get<string>("active_account_id");
 
-        // Migration: old single-account plaintext tokens in settings.json
-        const oldAccess = await store.get<string>("access_token");
-        const oldRefresh = await store.get<string>("refresh_token");
-        if (oldAccess && oldRefresh && (!storedMeta || storedMeta.length === 0)) {
-          const id = "migrated";
-          await storeTokens(id, oldAccess, oldRefresh);
-          const meta: AccountMeta = { id, displayName: "", email: "" };
-          await store.set("accounts", [meta]);
-          await store.set("active_account_id", id);
-          await store.delete("access_token");
-          await store.delete("refresh_token");
-          await store.save();
-          setAccounts([{ ...meta, accessToken: oldAccess, refreshToken: oldRefresh }]);
-          setActiveAccountId(id);
-        } else if (storedMeta && storedMeta.length > 0) {
-          // Migration: move any inline tokens still in settings.json to keyring
-          const oldStyleAccounts = await store.get<StoredAccount[]>("accounts");
-          const needsMigration = oldStyleAccounts?.some(
-            (a) => "accessToken" in a && (a as StoredAccount).accessToken
-          );
-
+        if (storedMeta && storedMeta.length > 0) {
           const hydrated = await Promise.all(
             storedMeta.map(async (meta) => {
-              // Check if tokens are still inline (pre-keyring migration)
-              if (needsMigration) {
-                const old = oldStyleAccounts?.find((a) => a.id === meta.id) as StoredAccount | undefined;
-                if (old?.accessToken) {
-                  await storeTokens(meta.id, old.accessToken, old.refreshToken ?? "");
-                  return { ...meta, accessToken: old.accessToken, refreshToken: old.refreshToken ?? "" };
-                }
-              }
               const tokens = await loadTokens(meta.id);
               return { ...meta, ...tokens };
             })
           );
-
-          // Re-persist metadata without tokens
-          if (needsMigration) {
-            const cleanMeta: AccountMeta[] = storedMeta.map(({ id, displayName, email }) => ({
-              id, displayName, email,
-            }));
-            await store.set("accounts", cleanMeta);
-            await store.save();
-          }
 
           setAccounts(hydrated);
           setActiveAccountId(activeId ?? storedMeta[0].id);

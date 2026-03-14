@@ -16,7 +16,9 @@ export async function initializeTables(db: Database): Promise<void> {
       displayName TEXT NOT NULL,
       isOwner INTEGER,
       isShared INTEGER,
-      wellknownListName TEXT
+      wellknownListName TEXT,
+      isGroup INTEGER DEFAULT 0,
+      parentGroupId TEXT
     );
   `);
 
@@ -31,6 +33,9 @@ export async function initializeTables(db: Database): Promise<void> {
       importance TEXT,
       dueDateTime TEXT,
       body TEXT,
+      recurrence TEXT,
+      categories TEXT,
+      reminderDateTime TEXT,
       updatedAt INTEGER NOT NULL,
       FOREIGN KEY(listId) REFERENCES lists(id) ON DELETE CASCADE
     );
@@ -53,44 +58,6 @@ export async function initializeTables(db: Database): Promise<void> {
     );
   `);
 
-  // Versioned schema migrations
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS schema_version (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      version INTEGER NOT NULL DEFAULT 0
-    );
-  `);
-  await db.execute("INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 0)");
-
-  const rows = await db.select<{ version: number }[]>("SELECT version FROM schema_version WHERE id = 1");
-  let currentVersion = rows[0]?.version ?? 0;
-
-  // Helper: check if a column already exists (handles fresh installs where the
-  // CREATE TABLE already includes columns that older migrations would add).
-  const ALLOWED_TABLES = new Set(["tasks", "lists"]);
-  async function hasColumn(table: string, column: string): Promise<boolean> {
-    if (!ALLOWED_TABLES.has(table)) throw new Error(`hasColumn: unknown table "${table}"`);
-    const info = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
-    return info.some((col) => col.name === column);
-  }
-
-  const migrations: (() => Promise<void>)[] = [
-    // v1: add listId to tasks
-    async () => { if (!(await hasColumn("tasks", "listId"))) await db.execute("ALTER TABLE tasks ADD COLUMN listId TEXT"); },
-    // v2: add recurrence to tasks
-    async () => { if (!(await hasColumn("tasks", "recurrence"))) await db.execute("ALTER TABLE tasks ADD COLUMN recurrence TEXT"); },
-    // v3: add categories to tasks
-    async () => { if (!(await hasColumn("tasks", "categories"))) await db.execute("ALTER TABLE tasks ADD COLUMN categories TEXT"); },
-    // v4: add isGroup to lists
-    async () => { if (!(await hasColumn("lists", "isGroup"))) await db.execute("ALTER TABLE lists ADD COLUMN isGroup INTEGER DEFAULT 0"); },
-    // v5: add parentGroupId to lists
-    async () => { if (!(await hasColumn("lists", "parentGroupId"))) await db.execute("ALTER TABLE lists ADD COLUMN parentGroupId TEXT"); },
-  ];
-
-  for (let i = currentVersion; i < migrations.length; i++) {
-    await migrations[i]();
-    await db.execute("UPDATE schema_version SET version = ?", [i + 1]);
-  }
 }
 
 export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
@@ -167,6 +134,7 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
     body: r.body ? JSON.parse(r.body) : undefined,
     recurrence: r.recurrence ? JSON.parse(r.recurrence) : undefined,
     categories: r.categories ? JSON.parse(r.categories) : undefined,
+    reminderDateTime: r.reminderDateTime ? JSON.parse(r.reminderDateTime) : undefined,
     lastModified: r.updatedAt,
   }));
 }
@@ -174,8 +142,8 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
 export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   await db.execute(
     `INSERT OR REPLACE INTO tasks
-      (id, listId, title, completed, status, isInMyDay, importance, dueDateTime, body, recurrence, categories, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, listId, title, completed, status, isInMyDay, importance, dueDateTime, body, recurrence, categories, reminderDateTime, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.id,
       task.listId || null,
@@ -188,6 +156,7 @@ export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
       task.body ? JSON.stringify(task.body) : null,
       task.recurrence ? JSON.stringify(task.recurrence) : null,
       task.categories ? JSON.stringify(task.categories) : null,
+      task.reminderDateTime ? JSON.stringify(task.reminderDateTime) : null,
       task.lastModified || Date.now(),
     ]
   );
@@ -244,6 +213,7 @@ export async function updateTaskAttributesDB(
   if ("body" in attributes)        { updates.push("body = ?");        values.push(attributes.body ? JSON.stringify(attributes.body) : null); }
   if ("recurrence" in attributes)  { updates.push("recurrence = ?");  values.push(attributes.recurrence ? JSON.stringify(attributes.recurrence) : null); }
   if ("categories" in attributes)  { updates.push("categories = ?");  values.push(attributes.categories ? JSON.stringify(attributes.categories) : null); }
+  if ("reminderDateTime" in attributes) { updates.push("reminderDateTime = ?"); values.push(attributes.reminderDateTime ? JSON.stringify(attributes.reminderDateTime) : null); }
 
   if (updates.length === 0) return;
 
@@ -274,6 +244,7 @@ export async function getLocalTask(db: Database, id: string): Promise<Task | nul
     body: r.body ? JSON.parse(r.body) : undefined,
     recurrence: r.recurrence ? JSON.parse(r.recurrence) : undefined,
     categories: r.categories ? JSON.parse(r.categories) : undefined,
+    reminderDateTime: r.reminderDateTime ? JSON.parse(r.reminderDateTime) : undefined,
     lastModified: r.updatedAt,
   };
 }

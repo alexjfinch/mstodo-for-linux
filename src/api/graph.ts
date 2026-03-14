@@ -44,6 +44,7 @@ type GraphTask = {
   importance: "low" | "normal" | "high";
   body?: GraphTaskBody;
   dueDateTime?: GraphDateTime;
+  reminderDateTime?: GraphDateTime;
   recurrence?: Recurrence | null;
   categories?: string[];
   hasAttachments?: boolean;
@@ -87,6 +88,7 @@ type GraphTaskPatchBody = {
   importance?: string;
   body?: GraphTaskBody;
   dueDateTime?: GraphDateTime | null;
+  reminderDateTime?: GraphDateTime | null;
   recurrence?: Recurrence | null;
   categories?: string[];
 };
@@ -207,6 +209,9 @@ function mapGraphTask(t: GraphTask, listId: string): Task {
     importance: t.importance || "normal",
     dueDateTime: t.dueDateTime
       ? { dateTime: t.dueDateTime.dateTime, timeZone: t.dueDateTime.timeZone }
+      : undefined,
+    reminderDateTime: t.reminderDateTime
+      ? { dateTime: t.reminderDateTime.dateTime, timeZone: t.reminderDateTime.timeZone }
       : undefined,
     body: t.body ? { content: t.body.content, contentType: t.body.contentType } : undefined,
     recurrence: t.recurrence ?? undefined,
@@ -414,6 +419,12 @@ export async function updateTaskAttributes(
   if ("dueDateTime" in updates) {
     body.dueDateTime = updates.dueDateTime
       ? { dateTime: updates.dueDateTime.dateTime, timeZone: updates.dueDateTime.timeZone || "UTC" }
+      : null;
+  }
+
+  if ("reminderDateTime" in updates) {
+    body.reminderDateTime = updates.reminderDateTime
+      ? { dateTime: updates.reminderDateTime.dateTime, timeZone: updates.reminderDateTime.timeZone || "UTC" }
       : null;
   }
 

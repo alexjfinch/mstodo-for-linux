@@ -1153,6 +1153,36 @@ body {
   background: color-mix(in srgb, var(--danger-color) 10%, transparent);
 }
 
+.context-menu-expandable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.context-menu-arrow {
+  font-size: 0.65rem;
+  opacity: 0.45;
+  margin-left: 12px;
+  transition: transform 0.15s ease;
+}
+
+.context-menu-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.context-menu-inline-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 24px;
+}
+
+.context-menu-hint {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  text-align: right;
+}
+
 .context-menu-divider {
   height: 1px;
   margin: 4px 0;
