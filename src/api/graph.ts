@@ -95,6 +95,8 @@ type GraphTaskPatchBody = {
 
 // Set by useAuth; called automatically on 401 responses to refresh the token
 let tokenRefreshCallback: (() => Promise<string>) | null = null;
+// Deduplicates concurrent refresh attempts so only one is in-flight at a time
+let inflightRefresh: Promise<string> | null = null;
 
 export function setTokenRefreshCallback(cb: (() => Promise<string>) | null) {
   tokenRefreshCallback = cb;
@@ -121,7 +123,10 @@ async function graphRequest<T>(
   } catch (err: unknown) {
     const axiosErr = err as AxiosError;
     if (axiosErr.response?.status === 401 && tokenRefreshCallback) {
-      const newToken = await tokenRefreshCallback();
+      if (!inflightRefresh) {
+        inflightRefresh = tokenRefreshCallback().finally(() => { inflightRefresh = null; });
+      }
+      const newToken = await inflightRefresh;
       return await call(newToken);
     }
     // Respect 429 rate-limit: wait for Retry-After then retry once

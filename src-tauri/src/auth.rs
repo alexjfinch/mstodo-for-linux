@@ -26,12 +26,13 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
   *PKCE_VERIFIER.lock().unwrap() = Some(pkce_verifier);
 
+  // CSRF token intentionally unused: PKCE already prevents authorization code
+  // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).
   let (auth_url, _csrf) = client
     .authorize_url(CsrfToken::new_random)
     .add_scope(Scope::new("Tasks.ReadWrite".into()))
     .add_scope(Scope::new("Tasks.Read".into()))
     .add_scope(Scope::new("User.Read".into()))
-    .add_scope(Scope::new("Group.Read.All".into()))
     .add_scope(Scope::new("offline_access".into()))
     .add_extra_param("prompt", "select_account")
     .set_pkce_challenge(pkce_challenge)

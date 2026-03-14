@@ -67,7 +67,9 @@ export async function initializeTables(db: Database): Promise<void> {
 
   // Helper: check if a column already exists (handles fresh installs where the
   // CREATE TABLE already includes columns that older migrations would add).
+  const ALLOWED_TABLES = new Set(["tasks", "lists"]);
   async function hasColumn(table: string, column: string): Promise<boolean> {
+    if (!ALLOWED_TABLES.has(table)) throw new Error(`hasColumn: unknown table "${table}"`);
     const info = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
     return info.some((col) => col.name === column);
   }
