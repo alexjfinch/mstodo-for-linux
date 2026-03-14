@@ -978,6 +978,25 @@ body {
   background-color: var(--bg-hover);
 }
 
+.date-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--text-secondary);
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 4px;
+  opacity: 0.6;
+  flex-shrink: 0;
+  transition: opacity 0.12s;
+}
+
+.date-clear-btn:hover {
+  opacity: 1;
+  color: var(--danger-color);
+}
+
 .mini-calendar {
   position: absolute;
   top: 100%;
@@ -1910,22 +1929,74 @@ kbd {
   flex-shrink: 0;
 }
 
-.task-detail-date-input {
-  background: none;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 4px 8px;
-  color: var(--text-primary);
-  color-scheme: light dark;
-  font-family: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
+
+.task-detail-date-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.task-detail-date-input:focus {
-  outline: none;
+.task-detail-date-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  padding: 0 4px;
+  line-height: 1;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity 0.12s;
+}
+
+.task-detail-date-clear:hover {
+  opacity: 1;
+  color: var(--danger-color);
+}
+
+.task-detail-date-row {
+  position: relative;
+}
+
+.task-detail-date-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+
+.task-detail-date-btn:hover {
   border-color: var(--accent-primary);
+}
+
+.task-detail-calendar {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 200;
+}
+
+.calendar-remove-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.calendar-remove-btn:hover {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
 }
 
 .task-detail-select {

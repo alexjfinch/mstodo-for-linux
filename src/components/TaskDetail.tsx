@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { Task, TaskAttachment, ChecklistItem, Recurrence } from "../types";
 import {
@@ -157,16 +157,22 @@ export const TaskDetail = ({
     }
   };
 
-  const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value) {
-      onUpdateAttributes(task.id, {
-        dueDateTime: { dateTime: `${value}T00:00:00.0000000`, timeZone: "UTC" },
-      });
-    } else {
-      onUpdateAttributes(task.id, { dueDateTime: undefined });
-    }
-  };
+  const [showDueDateCalendar, setShowDueDateCalendar] = useState(false);
+  const [dueDateCalendarMonth, setDueDateCalendarMonth] = useState(() =>
+    task.dueDateTime ? new Date(task.dueDateTime.dateTime) : new Date()
+  );
+  const dueDateCalendarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showDueDateCalendar) return;
+    const handleClick = (e: MouseEvent) => {
+      if (dueDateCalendarRef.current && !dueDateCalendarRef.current.contains(e.target as Node)) {
+        setShowDueDateCalendar(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showDueDateCalendar]);
 
   const handleRecurrenceChange = (opt: string) => {
     const today = new Date().toISOString().substring(0, 10);
@@ -287,7 +293,9 @@ export const TaskDetail = ({
     setShowDeleteConfirm(true);
   };
 
-  const dueDateValue = task.dueDateTime?.dateTime.substring(0, 10) || "";
+  const dueDateDisplay = task.dueDateTime
+    ? new Date(task.dueDateTime.dateTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+    : "";
 
   return (
     <>
@@ -326,16 +334,89 @@ export const TaskDetail = ({
         </div>
 
         {/* Due Date */}
-        <div className="task-detail-row">
+        <div className="task-detail-row task-detail-date-row">
           <span className="task-detail-row-icon">📅</span>
           <span className="task-detail-row-label">Due Date</span>
-          <input
-            type="date"
-            className="task-detail-date-input"
-            value={dueDateValue}
-            onChange={handleDueDateChange}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="task-detail-date-wrapper">
+            <button
+              className="task-detail-date-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDueDateCalendar(!showDueDateCalendar);
+                setDueDateCalendarMonth(task.dueDateTime ? new Date(task.dueDateTime.dateTime) : new Date());
+              }}
+            >
+              {dueDateDisplay || "Add date"}
+            </button>
+            {task.dueDateTime && (
+              <button
+                className="task-detail-date-clear"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdateAttributes(task.id, { dueDateTime: undefined });
+                  setShowDueDateCalendar(false);
+                }}
+                title="Clear due date"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {showDueDateCalendar && (
+            <div className="mini-calendar task-detail-calendar" ref={dueDateCalendarRef}>
+              <div className="calendar-header">
+                <button onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() - 1, 1))}>‹</button>
+                <span>{dueDateCalendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+                <button onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() + 1, 1))}>›</button>
+              </div>
+              <div className="calendar-weekdays">
+                <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+              </div>
+              <div className="calendar-days">
+                {(() => {
+                  const year = dueDateCalendarMonth.getFullYear();
+                  const month = dueDateCalendarMonth.getMonth();
+                  const firstDay = new Date(year, month, 1).getDay();
+                  const daysInMonth = new Date(year, month + 1, 0).getDate();
+                  const today = new Date();
+                  const selected = task.dueDateTime ? new Date(task.dueDateTime.dateTime) : null;
+                  const cells: React.ReactNode[] = [];
+                  for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} className="calendar-day calendar-day-empty" />);
+                  for (let d = 1; d <= daysInMonth; d++) {
+                    const dayDate = new Date(year, month, d);
+                    const isToday = dayDate.toDateString() === today.toDateString();
+                    const isSel = selected && dayDate.toDateString() === selected.toDateString();
+                    cells.push(
+                      <button
+                        key={d}
+                        className={`calendar-day${isToday ? " calendar-day-today" : ""}${isSel ? " calendar-day-selected" : ""}`}
+                        onClick={() => {
+                          onUpdateAttributes(task.id, {
+                            dueDateTime: { dateTime: `${dayDate.toISOString().substring(0, 10)}T00:00:00.0000000`, timeZone: "UTC" },
+                          });
+                          setShowDueDateCalendar(false);
+                        }}
+                      >
+                        {d}
+                      </button>
+                    );
+                  }
+                  return cells;
+                })()}
+              </div>
+              {task.dueDateTime && (
+                <button
+                  className="calendar-remove-btn"
+                  onClick={() => {
+                    onUpdateAttributes(task.id, { dueDateTime: undefined });
+                    setShowDueDateCalendar(false);
+                  }}
+                >
+                  Remove Due Date
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Importance */}

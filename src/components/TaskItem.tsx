@@ -160,6 +160,11 @@ export const TaskItem = ({
     } else if (e.key === "Escape") {
       setIsEditingDate(false);
       setDateInputValue("");
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      if (dateInputValue === "") {
+        onUpdateDueDate(undefined);
+        setIsEditingDate(false);
+      }
     }
   };
 
@@ -255,20 +260,7 @@ export const TaskItem = ({
         </div>
 
         {task.dueDateTime && (
-          <button
-            onClick={handleRemoveDate}
-            style={{
-              width: "100%",
-              marginTop: "8px",
-              padding: "8px",
-              background: "none",
-              border: "1px solid var(--border-color)",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.8125rem",
-              color: "var(--text-secondary)",
-            }}
-          >
+          <button className="calendar-remove-btn" onClick={handleRemoveDate}>
             Remove Due Date
           </button>
         )}
@@ -360,13 +352,22 @@ export const TaskItem = ({
                   {formatDisplayDate(task.dueDateTime)}
                 </div>
                 {isHoveringDate && (
-                  <button
-                    className="calendar-icon-btn"
-                    onClick={handleCalendarIconClick}
-                    title="Open calendar"
-                  >
-                    📅
-                  </button>
+                  <>
+                    <button
+                      className="calendar-icon-btn"
+                      onClick={handleCalendarIconClick}
+                      title="Open calendar"
+                    >
+                      📅
+                    </button>
+                    <button
+                      className="date-clear-btn"
+                      onClick={(e) => { e.stopPropagation(); onUpdateDueDate(undefined); }}
+                      title="Clear due date"
+                    >
+                      ×
+                    </button>
+                  </>
                 )}
               </div>
             ) : (
