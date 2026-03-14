@@ -8,6 +8,7 @@ import { SearchBar } from "./components/SearchBar";
 import { SignIn } from "./components/SignIn";
 import { Settings } from "./components/Settings";
 import { TaskDetail } from "./components/TaskDetail";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -60,6 +61,7 @@ export default function App() {
   const [syncInterval, setSyncInterval] = useState(30);
   const [taskOrder, setTaskOrder] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const profileFetched = useRef(false);
@@ -496,6 +498,11 @@ export default function App() {
     setSelectedTasks([]);
   }, [selectedTasks, toggleTask]);
 
+  const handleBulkDelete = useCallback(async () => {
+    await Promise.all(selectedTasks.map((id) => deleteTask(id)));
+    setSelectedTasks([]);
+  }, [selectedTasks, deleteTask]);
+
   const handleCreateList = async (name: string) => {
     const newList = await createList(name);
     if (newList) {
@@ -599,6 +606,16 @@ export default function App() {
             onImportCsv={() => handleImport(importFromGenericCsv)}
           />
 
+          {bulkDeleteConfirm && (
+            <ConfirmDialog
+              message={`Delete ${selectedTasks.length} task${selectedTasks.length > 1 ? "s" : ""}?`}
+              confirmLabel="Delete"
+              danger
+              onConfirm={() => { handleBulkDelete(); setBulkDeleteConfirm(false); }}
+              onCancel={() => setBulkDeleteConfirm(false)}
+            />
+          )}
+
           {SPECIAL_LISTS.has(activeList) && !searchQuery ? (
             <ListBanner activeList={activeList} displayName={getListDisplayName} />
           ) : null}
@@ -615,6 +632,9 @@ export default function App() {
                 <div className="bulk-actions">
                   <button className="bulk-complete-btn" onClick={handleBulkComplete}>
                     Complete {selectedTasks.length} task{selectedTasks.length > 1 ? "s" : ""}
+                  </button>
+                  <button className="bulk-delete-btn" onClick={() => setBulkDeleteConfirm(true)}>
+                    Delete {selectedTasks.length} task{selectedTasks.length > 1 ? "s" : ""}
                   </button>
                   <button className="clear-selection-btn" onClick={handleClearSelection}>
                     Clear
@@ -643,6 +663,7 @@ export default function App() {
               onDeleteTask={deleteTask}
               selectedTasks={selectedTasks}
               onToggleSelection={handleToggleSelection}
+              onClearSelection={handleClearSelection}
               onOpenDetail={handleOpenDetail}
               onReorderTasks={handleReorderTasks}
             />

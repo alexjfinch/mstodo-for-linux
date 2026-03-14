@@ -641,6 +641,7 @@ body {
 }
 
 .bulk-complete-btn,
+.bulk-delete-btn,
 .clear-selection-btn {
   padding: 8px 16px;
   border-radius: 6px;
@@ -664,6 +665,15 @@ body {
   background-color: var(--bg-active);
   color: var(--text-disabled);
   cursor: not-allowed;
+}
+
+.bulk-delete-btn {
+  background-color: var(--danger-color, #d32f2f);
+  color: white;
+}
+
+.bulk-delete-btn:hover {
+  background-color: color-mix(in srgb, var(--danger-color, #d32f2f) 85%, black);
 }
 
 .clear-selection-btn {

@@ -74,6 +74,7 @@ type Props = {
   onDeleteTask: (id: string) => Promise<void>;
   selectedTasks: string[];
   onToggleSelection: (id: string, shiftKey: boolean) => void;
+  onClearSelection: () => void;
   onOpenDetail: (id: string) => void;
   onReorderTasks?: (reorderedIds: string[]) => void;
 };
@@ -85,6 +86,7 @@ export const TaskList = ({
   onDeleteTask,
   selectedTasks,
   onToggleSelection,
+  onClearSelection,
   onOpenDetail,
   onReorderTasks,
 }: Props) => {
@@ -202,6 +204,7 @@ export const TaskList = ({
       ? selectedTasks
       : [contextMenu.taskId];
     idsToToggle.forEach((id) => onToggleTask(id));
+    if (idsToToggle.length > 1) onClearSelection();
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
@@ -346,7 +349,7 @@ export const TaskList = ({
         message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
         confirmLabel="Delete"
         danger
-        onConfirm={() => { deleteConfirm.taskIds.forEach((id) => onDeleteTask(id)); setDeleteConfirm(null); }}
+        onConfirm={() => { deleteConfirm.taskIds.forEach((id) => onDeleteTask(id)); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
         onCancel={() => setDeleteConfirm(null)}
       />
     )}
