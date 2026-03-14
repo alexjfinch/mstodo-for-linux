@@ -1,101 +1,131 @@
-![GitHub stars](https://img.shields.io/github/stars/alexjfinch/mstodo-for-linux)
-![GitHub issues](https://img.shields.io/github/issues/alexjfinch/mstodo-for-linux)
-![License](https://img.shields.io/github/license/alexjfinch/mstodo-for-linux)
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="80" alt="Microsoft To Do for Linux" />
+</p>
 
-# Microsoft To Do for Linux
+<h1 align="center">Microsoft To Do for Linux</h1>
 
-A fast, native Linux desktop client for Microsoft To Do built with [Tauri v2](https://tauri.app/), React, and TypeScript. Syncs with your Microsoft account via the Microsoft Graph API so your tasks stay up to date across all your devices.
+<p align="center">
+  <em>A fast, native Linux desktop client for Microsoft To Do.</em><br/>
+  Built with <a href="https://tauri.app/">Tauri v2</a>, React, and TypeScript. Syncs with your Microsoft account via the Graph API.
+</p>
 
-Please note I am not a trained app developer and have used AI to help me write this app. This started out as a project for me to learn a little bit of coding and what I could achieve with the help of AI. Feel free to submit PRs to improve the code and if you find anything funny or outside of the norm, I apologise but this was a personal project and I've released this for anyone else to tinker with.
+<p align="center">
+  <a href="https://github.com/alexjfinch/mstodo-for-linux/releases/latest"><img src="https://img.shields.io/github/v/release/alexjfinch/mstodo-for-linux?style=flat-square&label=release&color=blue" alt="Latest Release" /></a>
+  <a href="https://github.com/alexjfinch/mstodo-for-linux/releases"><img src="https://img.shields.io/github/downloads/alexjfinch/mstodo-for-linux/total?style=flat-square&label=downloads&color=green" alt="Downloads" /></a>
+  <a href="https://github.com/alexjfinch/mstodo-for-linux/actions"><img src="https://img.shields.io/github/actions/workflow/status/alexjfinch/mstodo-for-linux/build.yml?style=flat-square&label=build" alt="Build Status" /></a>
+  <a href="https://github.com/alexjfinch/mstodo-for-linux/stargazers"><img src="https://img.shields.io/github/stars/alexjfinch/mstodo-for-linux?style=flat-square&color=yellow" alt="Stars" /></a>
+  <a href="https://github.com/alexjfinch/mstodo-for-linux/blob/main/LICENSE"><img src="https://img.shields.io/github/license/alexjfinch/mstodo-for-linux?style=flat-square" alt="License" /></a>
+</p>
+
+<br/>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshot-light.png" />
+    <img src="docs/screenshot-dark.png" width="800" alt="App screenshot" />
+  </picture>
+</p>
+
+<br/>
 
 ## Why?
 
-Microsoft doesn't offer a native To Do app for Linux. This project fills that gap with a lightweight, fast desktop app that authenticates with your Microsoft account and syncs tasks, lists, attachments, and more -- all through the official Graph API.
+Microsoft doesn't offer a native To Do app for Linux. This project fills that gap with a lightweight desktop app that authenticates with your Microsoft account and syncs tasks, lists, attachments, and more -- all through the official Graph API.
+
+> **Note:** I am not a trained app developer -- this started as a personal project to learn coding with the help of AI. Feel free to submit PRs to improve things. If you find anything rough around the edges, I apologise -- but I hope it's useful to you!
+
+---
 
 ## Installation
 
-### Flatpak (recommended)
+### Download
+
+Grab the latest package from the [Releases](https://github.com/alexjfinch/mstodo-for-linux/releases/latest) page:
+
+| Format | Distros | Install |
+|--------|---------|---------|
+| `.deb` | Debian, Ubuntu, Pop!_OS, Mint | `sudo dpkg -i mstodo-for-linux-*.deb` |
+| `.rpm` | Fedora, RHEL, openSUSE | `sudo dnf install mstodo-for-linux-*.rpm` |
+| `.AppImage` | Any | `chmod +x *.AppImage && ./mstodo-for-linux-*.AppImage` |
+
+### Flatpak
 
 *Coming soon*
 
-### Fedora / RHEL (RPM)
-
-```bash
-sudo dnf install mstodo-for-linux-*.rpm
-```
-
-### Debian / Ubuntu (DEB)
-
-```bash
-sudo dpkg -i mstodo-for-linux-*.deb
-```
-
-### AppImage
-
-Download the `.AppImage` file, make it executable, and run:
-
-```bash
-chmod +x mstodo-for-linux-*.AppImage
-./mstodo-for-linux-*.AppImage
-```
+---
 
 ## Getting Started
 
 1. Launch the app
-2. Click **Sign In** -- your browser will open to the Microsoft login page
-3. Sign in with your Microsoft account and grant the app permission to access your tasks
-4. Your tasks, lists, and attachments will sync automatically
+2. Click **Sign In** -- your browser opens to the Microsoft login page
+3. Sign in and grant the app permission to access your tasks
+4. Your tasks sync automatically
 
 No configuration needed. The app uses a pre-registered public client with the Microsoft identity platform, so you just sign in and go.
 
+---
+
 ## Features
 
-- **Full Microsoft account sync** -- tasks, lists, attachments, and checklist items sync via Microsoft Graph API v1.0
-- **Offline-capable** -- local SQLite database lets you work offline; changes sync when you reconnect
-- **Smart lists** -- My Day, Important, Planned, and Flagged Emails views
-- **Task detail panel** -- edit title, notes, due date, importance, recurrence, categories, steps, and attachments from a slide-out panel
-- **Subtasks / Steps** -- add, check off, and delete checklist items (steps) on any task, synced with Microsoft To Do
-- **File attachments** -- attach files to tasks (up to 3 MB) and download them, using the OS file picker
-- **List groups** -- organise lists into collapsible groups with drag-and-drop support
-- **Drag-and-drop task reordering** -- reorder tasks within a list by dragging
-- **Custom calendar date picker** -- inline calendar for setting due dates directly from the task list
-- **Theme support** -- light, dark, and system themes (reads the desktop environment preference via freedesktop portal)
-- **Compact mode** -- reduce row spacing for denser task views
-- **Font size options** -- small, normal, and large text sizes
-- **Auto-sync** -- configurable sync interval (30s, 1m, 5m, or manual only)
-- **Online/offline status indicator** -- shows sync state in the sidebar
-- **Custom title bar** -- native window controls without OS decorations
-- **Context menus** -- right-click tasks for quick actions
-- **Multi-select** -- shift-click to select multiple tasks for bulk completion
-- **Keyboard shortcuts** -- escape to close panels, Enter to submit, and more
-- **User account switching** -- switch between mutliple Microsoft accounts
-- **Task search** -- search functionality operates globally
-- **Taskbar icon & context menu** -- sync status displayed in the task bar with a context menu to add tasks
-- **Customisable notifications for due reminders** -- desktop notifications for due reminders which are customisable in the settings menu
-- **Search / filter tasks** -- search across all lists by title, notes, or category
-- **Due date reminders / notifications** -- desktop notifications when tasks are due or overdue
-- **Sort tasks** -- sort by due date, importance, alphabetical, or creation date
-- **Assigned to me view** -- for shared lists, show tasks assigned to the current user
-- **Offline queue** -- queue changes made offline and replay them on reconnect
-- **System tray** -- minimise to tray with a badge showing overdue/due-today count
-- **Account switching** -- allow switching between mutliple Microsoft Accounts
-- **Markdown support in notes** -- being able to add notes in Markdown
-- **Import / export features from other apps** -- import or export to other apps
-- **My Day task suggestion engine** -- Upcoming tasks are suggested on the My Day panel.
+### Core
+
+| | Feature | Description |
+|---|---|---|
+| :arrows_counterclockwise: | **Microsoft account sync** | Tasks, lists, attachments, and checklist items sync via Microsoft Graph API |
+| :floppy_disk: | **Offline-capable** | Local SQLite database lets you work offline; changes sync when you reconnect |
+| :busts_in_silhouette: | **Multiple accounts** | Sign in and switch between multiple Microsoft accounts |
+| :bell: | **Reminders & notifications** | Set reminders (later today, tomorrow, next week) with desktop notifications |
+
+### Views & Organisation
+
+| | Feature | Description |
+|---|---|---|
+| :sunny: | **My Day** | Daily focus view with a smart suggestion engine for task recommendations |
+| :star: | **Important** | Quick access to starred tasks |
+| :calendar: | **Planned** | Tasks grouped by due date and reminders |
+| :file_folder: | **List groups** | Organise lists into collapsible groups with drag-and-drop |
+| :mag: | **Search** | Search across all lists by title |
+| :bar_chart: | **Sort** | Sort by due date, importance, alphabetical, or creation date |
+
+### Task Management
+
+| | Feature | Description |
+|---|---|---|
+| :pencil2: | **Detail panel** | Edit title, notes, due date, importance, recurrence, categories, steps, and attachments |
+| :white_check_mark: | **Subtasks / steps** | Add, check off, and delete checklist items synced with Microsoft To Do |
+| :paperclip: | **File attachments** | Attach files (up to 3 MB) and download them using the OS file picker |
+| :date: | **Custom calendar picker** | Inline calendar for setting due dates from the task list or detail panel |
+| :point_up_2: | **Drag-and-drop** | Reorder tasks within a list by dragging |
+| :clipboard: | **Multi-select** | Shift-click to select multiple tasks for bulk actions |
+| :warning: | **Overdue highlighting** | Overdue tasks are visually highlighted with a red accent |
+
+### Appearance & UI
+
+| | Feature | Description |
+|---|---|---|
+| :art: | **Themes** | Light, dark, and system themes (reads desktop environment preference) |
+| :straight_ruler: | **Compact mode** | Reduce row spacing for denser task views |
+| :abc: | **Font sizes** | Small, normal, and large text sizes |
+| :desktop_computer: | **Custom title bar** | Native window controls without OS decorations |
+| :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count |
+| :zap: | **Auto-sync** | Configurable sync interval (30s, 1m, 5m, or manual) |
+
+---
 
 ## Roadmap
 
 Planned features, roughly in priority order:
 
 - [ ] **Keyboard shortcuts** -- Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
-- [ ] **Global quick add** -- keyboard shortcut to add task anywhere in the DE
-- [ ] **Thunderbird integration** -- integration with Thunderbird to add emails as tasks from other email accounts
-- [ ] **Phase parsing** -- parse pharsing to auto add due dates etc
-- [ ] **Assign to other users** -- integrate being able to assign tasks to other users. Possisbly not possible without migrating or incorporating Planner API.
+- [ ] **Global quick-add** -- system-wide keyboard shortcut to add a task from anywhere
+- [ ] **Thunderbird integration** -- add emails as tasks from other email accounts
+- [ ] **Phrase parsing** -- natural language input to auto-set due dates
+- [ ] **Flatpak packaging** -- for easier cross-distro installation
+
+---
 
 ## Building from Source
-
-For contributors and developers who want to build the app themselves.
 
 ### Prerequisites
 
@@ -118,36 +148,51 @@ npm run tauri build
 
 The built packages (`.deb`, `.rpm`, `.AppImage`) will be in `src-tauri/target/release/bundle/`.
 
+---
+
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Desktop framework | Tauri v2 (Rust backend) |
+| Desktop framework | Tauri v2 (Rust) |
 | Frontend | React 18 + TypeScript |
 | Build tool | Vite |
-| Local storage | SQLite (via `@tauri-apps/plugin-sql`) |
+| Local storage | SQLite via `@tauri-apps/plugin-sql` |
 | Settings | `@tauri-apps/plugin-store` |
-| Auth | OAuth 2.0 PKCE flow (Microsoft identity platform) |
+| Auth | OAuth 2.0 PKCE (Microsoft identity platform) |
 | API | Microsoft Graph API v1.0 |
+
+---
 
 ## Security & Privacy
 
-Authentication uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) — a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. The sign-in process opens your browser to Microsoft's own login page, and the resulting tokens are stored exclusively in your system keyring (e.g. GNOME Keyring, KWallet).
+Authentication uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) -- a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. Tokens are stored in your system keyring (e.g. GNOME Keyring, KWallet).
 
-No data leaves your machine except for requests made directly to the Microsoft Graph API on your behalf. There is no backend server, no telemetry, and no third-party analytics.
+**No telemetry. No analytics. No backend server.** Data only leaves your machine via requests to the Microsoft Graph API on your behalf.
 
-Azure AD app registration — this app uses a publicly registered Azure AD client (ID: 2a0ee15b-0a96-44d2-b30d-3cf604947669). This ID is not a secret, it identifies the app to Microsoft during sign-in so you can review the permissions being requested. 
+<details>
+<summary>Azure AD permissions</summary>
 
-The permissions requested are:
+This app uses a publicly registered Azure AD client (ID: `2a0ee15b-0a96-44d2-b30d-3cf604947669`). This is not a secret -- it identifies the app to Microsoft during sign-in.
 
 | Scope | Reason |
 |---|---|
 | `Tasks.Read` / `Tasks.ReadWrite` | Read and manage your To Do tasks and lists |
 | `User.Read` | Fetch your display name and email address |
-| `offline_access` | Refresh your session without requiring you to sign in again |
+| `offline_access` | Refresh your session without requiring re-authentication |
 
-You can review and revoke this app's access at any time from your Microsoft account permissions page.
+You can review and revoke access at any time from your [Microsoft account permissions page](https://account.live.com/consent/Manage).
 
-## Affiliation
+</details>
 
-This project is not affiliated with or endorsed by Microsoft. "Microsoft To Do" is a trademark of Microsoft Corporation.
+---
+
+## Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
+---
+
+<p align="center">
+  <sub>This project is not affiliated with or endorsed by Microsoft. "Microsoft To Do" is a trademark of Microsoft Corporation.</sub>
+</p>
