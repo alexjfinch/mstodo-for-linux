@@ -403,12 +403,18 @@ export default function App() {
     return () => unlisteners.forEach((fn) => fn());
   }, [handleManualSync, addTask]);
 
-  // Update tray tooltip with pending task count
+  // Update tray tooltip with overdue/due-today task count
   useEffect(() => {
-    const pendingCount = tasks.filter((t) => !t.completed).length;
-    const tooltip = pendingCount > 0
-      ? `Microsoft To Do - ${pendingCount} task${pendingCount !== 1 ? "s" : ""} pending`
-      : "Microsoft To Do - No pending tasks";
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+    const urgentCount = tasks.filter((t) => {
+      if (t.completed || !t.dueDateTime) return false;
+      const due = t.dueDateTime.dateTime.split("T")[0];
+      return due <= todayStr;
+    }).length;
+    const tooltip = urgentCount > 0
+      ? `Microsoft To Do - ${urgentCount} task${urgentCount !== 1 ? "s" : ""} due/overdue`
+      : "Microsoft To Do - No tasks due";
     invoke("update_tray_tooltip", { tooltip }).catch(() => {});
   }, [tasks]);
 

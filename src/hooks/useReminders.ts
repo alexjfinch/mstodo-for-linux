@@ -176,12 +176,16 @@ export const useReminders = (
     return () => clearInterval(interval);
   }, [tasks, enabled, timing]);
 
-  // Prune stale notification keys for tasks that no longer exist
+  // Prune stale notification keys for tasks that no longer exist.
+  // Keys are formatted as "taskId-dateTime" or "reminder-taskId-dateTime",
+  // so we check if any current task ID is a prefix of the key.
   useEffect(() => {
-    const taskIds = new Set(tasks.map((t) => t.id));
+    const taskIds = tasks.map((t) => t.id);
     for (const key of notifiedRef.current) {
-      const taskId = key.substring(0, key.lastIndexOf("-"));
-      if (!taskIds.has(taskId)) {
+      const belongsToExistingTask = taskIds.some(
+        (id) => key === id || key.startsWith(id + "-") || key.startsWith("reminder-" + id + "-")
+      );
+      if (!belongsToExistingTask) {
         notifiedRef.current.delete(key);
       }
     }

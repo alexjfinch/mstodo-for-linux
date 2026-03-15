@@ -60,6 +60,16 @@ export async function initializeTables(db: Database): Promise<void> {
 
 }
 
+/** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
+function safeJsonParse<T>(value: string | null | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
   const rows = await db.select<any[]>("SELECT * FROM lists");
   return rows.map((r) => ({
@@ -130,11 +140,11 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
     status: r.status || "notStarted",
     isInMyDay: !!r.isInMyDay,
     importance: (r.importance as Task["importance"]) || "normal",
-    dueDateTime: r.dueDateTime ? JSON.parse(r.dueDateTime) : undefined,
-    body: r.body ? JSON.parse(r.body) : undefined,
-    recurrence: r.recurrence ? JSON.parse(r.recurrence) : undefined,
-    categories: r.categories ? JSON.parse(r.categories) : undefined,
-    reminderDateTime: r.reminderDateTime ? JSON.parse(r.reminderDateTime) : undefined,
+    dueDateTime: safeJsonParse(r.dueDateTime),
+    body: safeJsonParse(r.body),
+    recurrence: safeJsonParse(r.recurrence),
+    categories: safeJsonParse(r.categories),
+    reminderDateTime: safeJsonParse(r.reminderDateTime),
     lastModified: r.updatedAt,
   }));
 }
@@ -240,11 +250,11 @@ export async function getLocalTask(db: Database, id: string): Promise<Task | nul
     status: r.status || "notStarted",
     isInMyDay: !!r.isInMyDay,
     importance: (r.importance as Task["importance"]) || "normal",
-    dueDateTime: r.dueDateTime ? JSON.parse(r.dueDateTime) : undefined,
-    body: r.body ? JSON.parse(r.body) : undefined,
-    recurrence: r.recurrence ? JSON.parse(r.recurrence) : undefined,
-    categories: r.categories ? JSON.parse(r.categories) : undefined,
-    reminderDateTime: r.reminderDateTime ? JSON.parse(r.reminderDateTime) : undefined,
+    dueDateTime: safeJsonParse(r.dueDateTime),
+    body: safeJsonParse(r.body),
+    recurrence: safeJsonParse(r.recurrence),
+    categories: safeJsonParse(r.categories),
+    reminderDateTime: safeJsonParse(r.reminderDateTime),
     lastModified: r.updatedAt,
   };
 }

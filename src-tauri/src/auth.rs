@@ -41,7 +41,11 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   open::that(auth_url.to_string()).map_err(|e| e.to_string())?;
 
   let server = Server::http("127.0.0.1:53682").map_err(|e| e.to_string())?;
-  let request = server.recv().map_err(|e| e.to_string())?;
+  // Wait up to 5 minutes for the user to complete sign-in
+  let request = server
+    .recv_timeout(std::time::Duration::from_secs(300))
+    .map_err(|e| format!("Auth callback error: {e}"))?
+    .ok_or("Sign-in timed out — no response received within 5 minutes")?;
 
   let url = Url::parse(&format!("http://localhost{}", request.url()))
     .map_err(|e| e.to_string())?;

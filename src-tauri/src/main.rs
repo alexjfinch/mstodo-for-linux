@@ -238,31 +238,35 @@ fn get_log_path() -> std::path::PathBuf {
 
 #[tauri::command]
 async fn write_log(level: String, message: String) -> Result<(), String> {
-    use std::io::Write;
+    tokio::task::spawn_blocking(move || {
+        use std::io::Write;
 
-    let path = get_log_path();
+        let path = get_log_path();
 
-    // Rotate if file exceeds max size
-    if let Ok(meta) = std::fs::metadata(&path) {
-        if meta.len() > MAX_LOG_SIZE {
-            let prev = path.with_extension("log.old");
-            let _ = std::fs::rename(&path, &prev);
+        // Rotate if file exceeds max size
+        if let Ok(meta) = std::fs::metadata(&path) {
+            if meta.len() > MAX_LOG_SIZE {
+                let prev = path.with_extension("log.old");
+                let _ = std::fs::rename(&path, &prev);
+            }
         }
-    }
 
-    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-    let line = format!("[{}] [{}] {}\n", timestamp, level, message);
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let line = format!("[{}] [{}] {}\n", timestamp, level, message);
 
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|e| format!("Failed to open log file: {e}"))?;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|e| format!("Failed to open log file: {e}"))?;
 
-    file.write_all(line.as_bytes())
-        .map_err(|e| format!("Failed to write log: {e}"))?;
+        file.write_all(line.as_bytes())
+            .map_err(|e| format!("Failed to write log: {e}"))?;
 
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 #[tauri::command]
@@ -321,8 +325,15 @@ async fn keyring_delete(account: String, key: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn sign_in() -> Result<TokenPayload, String> {
-    let code = auth::start_auth_flow(MS_CLIENT_ID.to_string())
-        .map_err(|e| format!("Failed to start auth flow: {e}"))?;
+    // start_auth_flow blocks on server.recv() waiting for the OAuth callback,
+    // so run it on a blocking thread to avoid stalling the async runtime.
+    let code = tokio::task::spawn_blocking(|| {
+        auth::start_auth_flow(MS_CLIENT_ID.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+    .map_err(|e| format!("Failed to start auth flow: {e}"))?;
+
     let verifier = auth::take_pkce_verifier()
         .map_err(|e| format!("Failed to retrieve PKCE verifier: {e}"))?;
     let client = auth::build_oauth_client(MS_CLIENT_ID.to_string());
