@@ -3,6 +3,45 @@ import { emit } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { parseTaskInput } from "../utils/dateParser";
 
+// Inject CSS variables so QuickAdd respects OS light/dark preference.
+// This runs once when the module loads — the QuickAdd window is a separate
+// entrypoint that doesn't inherit App.css or data-theme.
+const QUICKADD_THEME_CSS = `
+  :root {
+    --qa-bg: #1e1e1e;
+    --qa-border: #333;
+    --qa-text: #e0e0e0;
+    --qa-header: #999;
+    --qa-input-bg: #2a2a2a;
+    --qa-input-border: #444;
+    --qa-input-text: #fff;
+    --qa-hint: #666;
+    --qa-preview: #4fc3f7;
+    --qa-shadow: rgba(0,0,0,0.5);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --qa-bg: #ffffff;
+      --qa-border: #ddd;
+      --qa-text: #333;
+      --qa-header: #666;
+      --qa-input-bg: #f5f5f5;
+      --qa-input-border: #ccc;
+      --qa-input-text: #111;
+      --qa-hint: #999;
+      --qa-preview: #1976d2;
+      --qa-shadow: rgba(0,0,0,0.15);
+    }
+  }
+`;
+
+if (typeof document !== "undefined" && !document.getElementById("qa-theme")) {
+  const style = document.createElement("style");
+  style.id = "qa-theme";
+  style.textContent = QUICKADD_THEME_CSS;
+  document.head.appendChild(style);
+}
+
 export const QuickAdd = () => {
   const [value, setValue] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -96,17 +135,17 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     width: "100%",
-    background: "#1e1e1e",
+    background: "var(--qa-bg)",
     borderRadius: "12px",
-    border: "1px solid #333",
+    border: "1px solid var(--qa-border)",
     padding: "16px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
-    color: "#e0e0e0",
+    boxShadow: "0 8px 32px var(--qa-shadow)",
+    color: "var(--qa-text)",
   },
   header: {
     fontSize: "13px",
     fontWeight: 600,
-    color: "#999",
+    color: "var(--qa-header)",
     marginBottom: "12px",
     textTransform: "uppercase" as const,
     letterSpacing: "0.5px",
@@ -115,16 +154,16 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     padding: "12px 14px",
     fontSize: "15px",
-    background: "#2a2a2a",
-    border: "1px solid #444",
+    background: "var(--qa-input-bg)",
+    border: "1px solid var(--qa-input-border)",
     borderRadius: "8px",
-    color: "#fff",
+    color: "var(--qa-input-text)",
     outline: "none",
   },
   preview: {
     marginTop: "8px",
     fontSize: "12px",
-    color: "#4fc3f7",
+    color: "var(--qa-preview)",
     paddingLeft: "2px",
   },
   footer: {
@@ -135,7 +174,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hint: {
     fontSize: "11px",
-    color: "#666",
+    color: "var(--qa-hint)",
   },
   button: {
     padding: "8px 20px",

@@ -131,13 +131,25 @@ async function graphRequest<T>(
       const newToken = await inflightRefresh;
       return await call(newToken);
     }
-    // Respect 429 rate-limit: wait for Retry-After then retry once
+    // Respect 429 rate-limit: wait for Retry-After, refresh token (it may
+    // have expired during the wait), then retry once.
     if (axiosErr.response?.status === 429) {
       const retryAfter = parseInt(axiosErr.response.headers?.["retry-after"] as string, 10);
       const waitMs = (retryAfter > 0 ? retryAfter : 30) * 1000;
       logger.warn(`Rate-limited (429), waiting ${waitMs / 1000}s before retry`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
-      return await call(accessToken);
+      let retryToken = accessToken;
+      if (tokenRefreshCallback) {
+        try {
+          if (!inflightRefresh) {
+            inflightRefresh = tokenRefreshCallback().finally(() => { inflightRefresh = null; });
+          }
+          retryToken = await inflightRefresh;
+        } catch {
+          // Refresh failed — retry with original token as best-effort
+        }
+      }
+      return await call(retryToken);
     }
     throw err;
   }

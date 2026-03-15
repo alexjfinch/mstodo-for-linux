@@ -144,7 +144,7 @@ export const TaskList = ({
         else if (!bDate) cmp = -1;
         else cmp = aDate.localeCompare(bDate);
       } else if (sortField === "importance") {
-        const rank = (imp?: string) => imp === "high" ? 0 : 1;
+        const rank = (imp?: string) => imp === "high" ? 0 : imp === "low" ? 2 : 1;
         cmp = rank(a.importance) - rank(b.importance);
       }
       return sortDirection === "desc" ? -cmp : cmp;
@@ -207,12 +207,12 @@ export const TaskList = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  const handleCompleteTask = () => {
+  const handleCompleteTask = async () => {
     if (!contextMenu.taskId) return;
     const idsToToggle = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
       ? selectedTasks
       : [contextMenu.taskId];
-    idsToToggle.forEach((id) => onToggleTask(id));
+    await Promise.all(idsToToggle.map((id) => onToggleTask(id)));
     if (idsToToggle.length > 1) onClearSelection();
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
@@ -358,7 +358,7 @@ export const TaskList = ({
         message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
         confirmLabel="Delete"
         danger
-        onConfirm={() => { deleteConfirm.taskIds.forEach((id) => onDeleteTask(id)); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
+        onConfirm={async () => { await Promise.all(deleteConfirm.taskIds.map((id) => onDeleteTask(id))); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
         onCancel={() => setDeleteConfirm(null)}
       />
     )}

@@ -7,13 +7,9 @@ interface ListBannerProps {
 }
 
 const BANNER_CONFIG: Record<string, {
-  gradient: string;
-  darkGradient: string;
   decoration: React.ReactNode;
 }> = {
   "My Day": {
-    gradient: "linear-gradient(135deg, #f9a825 0%, #f57c00 45%, #e64a19 100%)",
-    darkGradient: "linear-gradient(135deg, #bf6900 0%, #c43e00 45%, #a33000 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Sun core */}
@@ -36,8 +32,6 @@ const BANNER_CONFIG: Record<string, {
     ),
   },
   "Planned": {
-    gradient: "linear-gradient(135deg, #1565c0 0%, #1976d2 45%, #29b6f6 100%)",
-    darkGradient: "linear-gradient(135deg, #0d3c7a 0%, #0d47a1 45%, #0277bd 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Calendar outline */}
@@ -69,8 +63,6 @@ const BANNER_CONFIG: Record<string, {
     ),
   },
   "Important": {
-    gradient: "linear-gradient(135deg, #c62828 0%, #e53935 45%, #ff7043 100%)",
-    darkGradient: "linear-gradient(135deg, #7f0000 0%, #b71c1c 45%, #bf360c 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Large star */}
@@ -91,8 +83,6 @@ const BANNER_CONFIG: Record<string, {
     ),
   },
   "Assigned to Me": {
-    gradient: "linear-gradient(135deg, #4527a0 0%, #7b1fa2 45%, #ab47bc 100%)",
-    darkGradient: "linear-gradient(135deg, #1a0050 0%, #4a0072 45%, #6a1080 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Person silhouette */}
@@ -108,8 +98,6 @@ const BANNER_CONFIG: Record<string, {
     ),
   },
   "Flagged Emails": {
-    gradient: "linear-gradient(135deg, #00695c 0%, #00897b 45%, #26c6da 100%)",
-    darkGradient: "linear-gradient(135deg, #003d35 0%, #00574b 45%, #00838f 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Envelope body */}
@@ -129,8 +117,6 @@ const BANNER_CONFIG: Record<string, {
     ),
   },
   "Tasks": {
-    gradient: "linear-gradient(135deg, #2e7d32 0%, #388e3c 45%, #66bb6a 100%)",
-    darkGradient: "linear-gradient(135deg, #1b4d1e 0%, #1e5c22 45%, #2e7d32 100%)",
     decoration: (
       <svg viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="banner-decoration">
         {/* Clipboard body */}

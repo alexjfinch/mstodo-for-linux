@@ -362,7 +362,7 @@ export const Settings = ({
       }
 
       case "import_export": {
-        const runImport = async (fn: () => Promise<number | null>, _label: string) => {
+        const runImport = async (fn: () => Promise<number | null>) => {
           setImportStatus(null);
           setImportBusy(true);
           try {
@@ -414,7 +414,7 @@ export const Settings = ({
               </div>
               <button
                 className="settings-action-btn"
-                onClick={() => runImport(onImportJson, "JSON")}
+                onClick={() => runImport(onImportJson)}
                 disabled={importBusy}
               >
                 Import
@@ -430,7 +430,7 @@ export const Settings = ({
               </div>
               <button
                 className="settings-action-btn"
-                onClick={() => runImport(onImportTodoist, "Todoist")}
+                onClick={() => runImport(onImportTodoist)}
                 disabled={importBusy}
               >
                 Import
@@ -446,7 +446,7 @@ export const Settings = ({
               </div>
               <button
                 className="settings-action-btn"
-                onClick={() => runImport(onImportEvernote, "Evernote")}
+                onClick={() => runImport(onImportEvernote)}
                 disabled={importBusy}
               >
                 Import
@@ -462,7 +462,7 @@ export const Settings = ({
               </div>
               <button
                 className="settings-action-btn"
-                onClick={() => runImport(onImportCsv, "CSV")}
+                onClick={() => runImport(onImportCsv)}
                 disabled={importBusy}
               >
                 Import
