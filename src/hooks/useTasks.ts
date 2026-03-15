@@ -53,6 +53,8 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   const syncGenerationRef = useRef(0);
   // Prevent overlapping syncs from piling up requests
   const syncInProgressRef = useRef(false);
+  // AbortController for cancelling in-flight requests on account switch
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -69,6 +71,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         // Invalidate any in-flight sync so it won't write stale data
         syncGenerationRef.current++;
         syncInProgressRef.current = false; // allow fresh sync for new account
+        // Cancel in-flight HTTP requests from the previous sync
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
         resetGraphCaches();
         setTasks([]);
         setLoading(true);
@@ -533,10 +538,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       // Update locally
       await database.execute("UPDATE tasks SET listId = ?, updatedAt = ? WHERE id = ?", [targetListId, Date.now(), taskId]);
 
-      // Sync via Graph: create on target list, delete from source
+      // Sync via Graph: create on target list, then delete from source.
+      // If create succeeds but delete fails, we clean up the created task.
       if (isOnlineRef.current && token && oldListId && !taskId.startsWith("local-")) {
+        let created: Task | null = null;
         try {
-          const created = await createTaskGraph(task.title, targetListId, token);
+          created = await createTaskGraph(task.title, targetListId, token);
           // Copy attributes to the new task
           if (task.importance !== "normal" || task.dueDateTime || task.body || task.recurrence || task.categories?.length) {
             await updateTaskAttributesGraph(created, {
@@ -548,10 +555,21 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               isInMyDay: task.isInMyDay,
             }, token);
           }
-          await deleteTaskGraph(taskId, oldListId, token);
+          // Delete from source — if this fails, roll back the created task
+          try {
+            await deleteTaskGraph(taskId, oldListId, token);
+          } catch (deleteErr) {
+            // Roll back: delete the newly created task to prevent duplicates
+            logger.warn("Delete from source failed during move — rolling back created task", deleteErr);
+            await deleteTaskGraph(created.id, targetListId, token).catch(() => {});
+            throw deleteErr;
+          }
           // Update local ID to match the new server task
-          await database.execute("UPDATE tasks SET id = ? WHERE id = ?", [created.id, taskId]);
-          setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...updated, id: created.id } : t)));
+          if (created) {
+            const newId = created.id;
+            await database.execute("UPDATE tasks SET id = ? WHERE id = ?", [newId, taskId]);
+            setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...updated, id: newId } : t)));
+          }
         } catch (err) {
           logger.warn("Failed to move task on Graph — will sync on next cycle", err);
         }

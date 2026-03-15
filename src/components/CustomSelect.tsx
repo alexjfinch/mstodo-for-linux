@@ -29,15 +29,19 @@ export const CustomSelect = ({ options, value, onChange, className }: Props) => 
         className="custom-select-trigger"
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
         type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
         <span>{selected?.label ?? ""}</span>
         <span className="custom-select-arrow">{open ? "\u25B2" : "\u25BC"}</span>
       </button>
       {open && (
-        <ul className="custom-select-menu">
+        <ul className="custom-select-menu" role="listbox" aria-label="Options">
           {options.map((opt) => (
             <li
               key={opt.value}
+              role="option"
+              aria-selected={opt.value === value}
               className={`custom-select-option${opt.value === value ? " selected" : ""}`}
               onClick={(e) => { e.stopPropagation(); onChange(opt.value); setOpen(false); }}
             >

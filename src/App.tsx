@@ -9,7 +9,7 @@ import { SignIn } from "./components/SignIn";
 import { Settings } from "./components/Settings";
 import { TaskDetail } from "./components/TaskDetail";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ListName } from "./types";
@@ -84,7 +84,8 @@ export default function App() {
         }
       })
       .catch((err) => logger.warn("Failed to fetch user profile", err));
-  }, [accessToken, activeAccountId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- accounts is read via .find() only for the current activeAccountId; including it would re-fire on every token refresh
+  }, [accessToken, activeAccountId, updateAccountProfile]);
 
   const {
     lists,
@@ -156,16 +157,19 @@ export default function App() {
 
   const rawFilteredTasks = useFilteredTasks(tasks, activeList, lists);
 
+  // Debounce search query to avoid filtering thousands of tasks on every keystroke
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   // Search across all tasks when query is active
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return null;
-    const q = searchQuery.toLowerCase();
+    if (!deferredSearchQuery.trim()) return null;
+    const q = deferredSearchQuery.toLowerCase();
     return tasks.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         t.body?.content?.toLowerCase().includes(q)
     );
-  }, [tasks, searchQuery]);
+  }, [tasks, deferredSearchQuery]);
 
   // Apply local task ordering
   const filteredTasks = useMemo(() => {
@@ -259,15 +263,20 @@ export default function App() {
   }, []);
 
   const handleReorderTasks = useCallback(async (reorderedIds: string[]) => {
-    const next = { ...taskOrder, [activeList]: reorderedIds };
-    setTaskOrder(next);
-    try {
-      const { Store } = await import("@tauri-apps/plugin-store");
-      const store = await Store.load("settings.json");
-      await store.set("taskOrder", next);
-      await store.save();
-    } catch { /* best-effort persistence */ }
-  }, [activeList, taskOrder]);
+    setTaskOrder((prev) => {
+      const next = { ...prev, [activeList]: reorderedIds };
+      // Best-effort persistence (fire-and-forget)
+      (async () => {
+        try {
+          const { Store } = await import("@tauri-apps/plugin-store");
+          const store = await Store.load("settings.json");
+          await store.set("taskOrder", next);
+          await store.save();
+        } catch { /* best-effort persistence */ }
+      })();
+      return next;
+    });
+  }, [activeList]);
 
   const detailTask = useMemo(
     () => (detailTaskId ? tasks.find((t) => t.id === detailTaskId) ?? null : null),
@@ -402,11 +411,17 @@ export default function App() {
     return () => clearInterval(interval);
   }, [accessToken, dbReady, syncInterval]);
 
-  // Listen for tray and quick-add events
+  // Keep stable refs for event handlers to avoid re-subscribing Tauri listeners
+  const handleManualSyncRef = useRef(handleManualSync);
+  const addTaskRef = useRef(addTask);
+  useEffect(() => { handleManualSyncRef.current = handleManualSync; }, [handleManualSync]);
+  useEffect(() => { addTaskRef.current = addTask; }, [addTask]);
+
+  // Listen for tray and quick-add events (subscribe once, use refs to avoid leak)
   useEffect(() => {
     const unlisteners: (() => void)[] = [];
     listen("tray-sync", () => {
-      handleManualSync();
+      handleManualSyncRef.current();
     }).then((fn) => unlisteners.push(fn));
     listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string }; categories?: string[] }>(
       "quick-add-task",
@@ -415,11 +430,11 @@ export default function App() {
         const attrs: Partial<typeof tasks[0]> = {};
         if (dueDateTime) attrs.dueDateTime = dueDateTime;
         if (categories) attrs.categories = categories;
-        addTask(title, undefined, Object.keys(attrs).length > 0 ? attrs : undefined);
+        addTaskRef.current(title, undefined, Object.keys(attrs).length > 0 ? attrs : undefined);
       }
     ).then((fn) => unlisteners.push(fn));
     return () => unlisteners.forEach((fn) => fn());
-  }, [handleManualSync, addTask]);
+  }, []);
 
   // Update tray tooltip with overdue/due-today task count
   useEffect(() => {

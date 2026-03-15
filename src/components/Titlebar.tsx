@@ -4,7 +4,7 @@ export const Titlebar = () => {
   const appWindow = getCurrentWindow();
 
   const handleMinimize = async () => {
-    await appWindow.hide();
+    await appWindow.minimize();
   };
 
   const handleMaximize = async () => {

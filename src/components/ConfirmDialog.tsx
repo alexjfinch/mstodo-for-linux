@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 type Props = {
   message: string;
   confirmLabel?: string;
@@ -12,22 +14,33 @@ export const ConfirmDialog = ({
   danger = false,
   onConfirm,
   onCancel,
-}: Props) => (
-  <div className="confirm-overlay" onClick={onCancel}>
-    <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-      <p className="confirm-message">{message}</p>
-      <div className="confirm-actions">
-        <button className="confirm-cancel-btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button
-          className={`confirm-ok-btn${danger ? " danger" : ""}`}
-          onClick={onConfirm}
-          autoFocus
-        >
-          {confirmLabel}
-        </button>
+}: Props) => {
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onCancel]);
+
+  return (
+    <div className="confirm-overlay" onClick={onCancel} role="dialog" aria-modal="true">
+      <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+        <p className="confirm-message">{message}</p>
+        <div className="confirm-actions">
+          <button className="confirm-cancel-btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className={`confirm-ok-btn${danger ? " danger" : ""}`}
+            onClick={onConfirm}
+            autoFocus
+          >
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

@@ -131,6 +131,9 @@ export const useAuth = () => {
         "refresh_token", { refreshToken: currentRefresh }
       );
       const newRefresh = tokenResp.refresh_token ?? currentRefresh;
+      if (!tokenResp.refresh_token) {
+        logger.warn("Token refresh response did not include a new refresh token — reusing existing one");
+      }
       await storeTokens(activeAccountId!, tokenResp.access_token, newRefresh);
       // Use accountsRef to avoid stale closure — refresh() may be called
       // long after the callback was created (e.g. on a 401 retry).

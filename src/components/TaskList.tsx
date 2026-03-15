@@ -235,7 +235,8 @@ export const TaskList = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible]);
+  const reminderOptions = useMemo(() => getReminderOptions(), // eslint-disable-next-line react-hooks/exhaustive-deps
+  [contextMenu.visible]); // Recompute time-relative options each time the menu opens
 
   const handleSetReminder = useCallback((dateTime: string) => {
     if (!contextMenu.taskId) return;
@@ -346,7 +347,7 @@ export const TaskList = ({
     onUpdateAttributes(taskId, { importance: newValue });
   };
 
-  const currentTask = tasks.find((t) => t.id === contextMenu.taskId);
+  const currentTask = contextMenu.taskId ? tasks.find((t) => t.id === contextMenu.taskId) ?? null : null;
 
   const renderTask = (task: Task, draggable: boolean = false) => (
     <TaskItem
@@ -419,7 +420,7 @@ export const TaskList = ({
             className="task-section-header"
             onClick={(e) => { e.stopPropagation(); setCompletedCollapsed(!completedCollapsed); }}
           >
-            <span className={`collapse-icon ${completedCollapsed ? "collapsed" : ""}`}>
+            <span className={`collapse-icon ${completedCollapsed ? "collapsed" : ""}`} aria-label={completedCollapsed ? "Expand completed tasks" : "Collapse completed tasks"}>
               ▼
             </span>
             <span>Completed</span>
@@ -446,13 +447,15 @@ export const TaskList = ({
         <ul
           ref={menuRef}
           className="context-menu"
+          role="menu"
+          aria-label="Task actions"
           style={{
             top: contextMenu.y,
             left: contextMenu.x,
             position: "fixed",
           }}
         >
-          <li className="context-menu-item" onClick={handleCompleteTask}>
+          <li className="context-menu-item" role="menuitem" onClick={handleCompleteTask}>
             {currentTask.completed ? "Mark as Incomplete" : "Mark as Complete"}
           </li>
 
@@ -460,6 +463,7 @@ export const TaskList = ({
 
           <li
             className="context-menu-item"
+            role="menuitem"
             onClick={() => handleToggleAttribute("isInMyDay")}
           >
             {currentTask.isInMyDay ? "Remove from My Day" : "Add to My Day"}
@@ -467,6 +471,7 @@ export const TaskList = ({
 
           <li
             className="context-menu-item"
+            role="menuitem"
             onClick={() => handleToggleAttribute("importance")}
           >
             {currentTask.importance === "high" ? "Mark as Normal" : "Mark as Important"}
@@ -536,7 +541,7 @@ export const TaskList = ({
 
           <li className="context-menu-divider" />
 
-          <li className="context-menu-item context-menu-item-danger" onClick={handleDeleteTask}>
+          <li className="context-menu-item context-menu-item-danger" role="menuitem" onClick={handleDeleteTask}>
             Delete Task
           </li>
         </ul>

@@ -9,9 +9,9 @@ export const ToastContainer = ({ toasts, onDismiss }: Props) => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-container">
+    <div className="toast-container" aria-live="polite" aria-relevant="additions removals">
       {toasts.map((toast) => (
-        <div key={toast.id} className={`toast-notification${toast.type === "success" ? " toast-notification--success" : toast.type === "error" ? " toast-notification--error" : ""}`}>
+        <div key={toast.id} role="alert" className={`toast-notification${toast.type === "success" ? " toast-notification--success" : toast.type === "error" ? " toast-notification--error" : ""}`}>
           <div className="toast-icon">
             {toast.type === "success" ? (
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

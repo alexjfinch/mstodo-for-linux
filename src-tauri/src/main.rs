@@ -229,9 +229,10 @@ async fn update_tray_status(app: tauri::AppHandle, status: String) -> Result<(),
 const MAX_LOG_SIZE: u64 = 2 * 1024 * 1024; // 2 MB
 
 fn get_log_path() -> std::path::PathBuf {
-    let dir = dirs::data_local_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("com.mstodo-for-linux");
+    let base = dirs::data_local_dir()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
+        .unwrap_or_else(|| std::env::temp_dir());
+    let dir = base.join("com.mstodo-for-linux");
     let _ = std::fs::create_dir_all(&dir);
     dir.join("app.log")
 }
@@ -400,14 +401,15 @@ fn main() {
 
             let tray_icon = tauri::image::Image::from_bytes(
                 include_bytes!("../icons/tray-synced.png"),
-            ).expect("failed to load tray icon");
+            ).map_err(|e| format!("Failed to load tray icon: {e}"))?;
 
             // Set window icon for taskbar / alt-tab switcher
             if let Some(win) = app.get_webview_window("main") {
-                let win_icon = tauri::image::Image::from_bytes(
+                if let Ok(win_icon) = tauri::image::Image::from_bytes(
                     include_bytes!("../icons/128x128.png"),
-                ).expect("failed to load window icon");
-                let _ = win.set_icon(win_icon);
+                ) {
+                    let _ = win.set_icon(win_icon);
+                }
             }
 
             let _tray = TrayIconBuilder::with_id("main-tray")

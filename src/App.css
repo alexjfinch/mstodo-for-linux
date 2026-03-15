@@ -24,6 +24,9 @@
   --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 1.2px 3.6px rgba(0, 0, 0, 0.11);
   --danger-color: #d13438;
   --danger-hover: #a4262c;
+  --bg-tertiary: #f3f2f1;
+  --hover-bg: #f3f2f1;
+  --surface-primary: #ffffff;
   --checkbox-border: #8a8886;
   --checkbox-checked: #0078d4;
 }
@@ -51,6 +54,9 @@
   --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.5), 0 1.2px 3.6px rgba(0, 0, 0, 0.4);
   --danger-color: #f85149;
   --danger-hover: #ff6b6b;
+  --bg-tertiary: #3a3a3a;
+  --hover-bg: #3a3a3a;
+  --surface-primary: #2d2d2d;
   --checkbox-border: #a0a0a0;
   --checkbox-checked: #4aa3ff;
 }
@@ -79,6 +85,9 @@
     --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.5), 0 1.2px 3.6px rgba(0, 0, 0, 0.4);
     --danger-color: #f85149;
     --danger-hover: #ff6b6b;
+    --bg-tertiary: #3a3a3a;
+    --hover-bg: #3a3a3a;
+    --surface-primary: #2d2d2d;
     --checkbox-border: #a0a0a0;
     --checkbox-checked: #4aa3ff;
   }
@@ -88,6 +97,20 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* Global focus indicator for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 html, body {
@@ -176,6 +199,8 @@ body {
 /* Sidebar */
 .sidebar {
   width: 280px;
+  max-width: 40vw;
+  min-width: 180px;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
   padding: 12px;
@@ -508,11 +533,12 @@ body {
 /* Main Content */
 .main {
   flex: 1;
-  padding: 32px 48px;
+  padding: 32px clamp(16px, 4vw, 48px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-width: 0;
 }
 
 .main-header {
@@ -1519,6 +1545,16 @@ body {
   margin: 0 0 16px 0;
 }
 
+.signin-error {
+  background: var(--danger-color);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
 .signin-footer p {
   font-size: 0.75rem;
   color: var(--text-tertiary);
@@ -1979,6 +2015,7 @@ kbd {
   right: 0;
   bottom: 0;
   width: 380px;
+  max-width: 100vw;
   background-color: var(--bg-secondary);
   border-left: 1px solid var(--border-color);
   display: flex;

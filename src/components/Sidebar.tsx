@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ListName, TaskList } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -75,6 +75,9 @@ export const Sidebar = ({
   const [themingListId, setThemingListId] = useState<string | null>(null);
   const [emojiInput, setEmojiInput] = useState("");
   const themePickerRef = useRef<HTMLDivElement>(null);
+
+  // Memoize combined list to avoid re-creating on every render
+  const allListsWithGroups = useMemo(() => [...allCustomLists, ...groups], [allCustomLists, groups]);
 
   // Close theme picker on click outside
   useEffect(() => {
@@ -158,14 +161,14 @@ export const Sidebar = ({
   };
 
   const startTheming = (listId: string) => {
-    const list = [...allCustomLists, ...groups].find(l => l.id === listId);
+    const list = allListsWithGroups.find(l => l.id === listId);
     setThemingListId(listId);
     setEmojiInput(list?.emoji || "");
   };
 
   const renderThemePicker = (listId: string) => {
     if (themingListId !== listId) return null;
-    const list = [...allCustomLists, ...groups].find(l => l.id === listId);
+    const list = allListsWithGroups.find(l => l.id === listId);
     return (
       <div ref={themePickerRef} className="sidebar-theme-picker" onClick={(e) => e.stopPropagation()}>
         <div className="sidebar-theme-colors">

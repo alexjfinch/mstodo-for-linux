@@ -7,13 +7,16 @@ type Props = {
 
 export const SignIn = ({ signIn }: Props) => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSignIn = async () => {
     setLoading(true);
+    setError(null);
     try {
       await signIn();
     } catch (err) {
       logger.error("Sign in failed", err);
+      setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
       setLoading(false);
     }
   };
@@ -93,6 +96,12 @@ export const SignIn = ({ signIn }: Props) => {
             </>
           )}
         </button>
+
+        {error && (
+          <div className="signin-error" role="alert">
+            <p>{error}</p>
+          </div>
+        )}
 
         {/* Info Section */}
         <div className="signin-info">

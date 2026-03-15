@@ -257,8 +257,8 @@ export const TaskDetail = ({
       const updated = await fetchAttachments(task.listId, task.id, accessToken);
       setAttachments(updated);
       onUpdateAttributes(task.id, { hasAttachments: true });
-    } catch (err: any) {
-      setUploadError(err?.message ?? "Upload failed. Please try again.");
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -282,8 +282,8 @@ export const TaskDetail = ({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setDownloadError(err?.message ?? "Download failed. Please try again.");
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Download failed. Please try again.");
     }
   };
 

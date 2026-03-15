@@ -9,6 +9,8 @@ use tiny_http::Server;
 use url::Url;
 
 static PKCE_VERIFIER: Mutex<Option<PkceCodeVerifier>> = Mutex::new(None);
+/// Prevents concurrent auth flows from overwriting each other's PKCE verifier.
+static AUTH_IN_PROGRESS: Mutex<bool> = Mutex::new(false);
 
 pub fn build_oauth_client(client_id: String) -> BasicClient {
   BasicClient::new(
@@ -21,12 +23,25 @@ pub fn build_oauth_client(client_id: String) -> BasicClient {
 }
 
 pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
-  let client = build_oauth_client(client_id);
+  // Prevent concurrent auth flows — a second call would overwrite the PKCE verifier
+  {
+    let mut in_progress = AUTH_IN_PROGRESS
+      .lock()
+      .map_err(|_| "Auth lock poisoned".to_string())?;
+    if *in_progress {
+      return Err("Another sign-in is already in progress".to_string());
+    }
+    *in_progress = true;
+  }
 
-  let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-  *PKCE_VERIFIER
-    .lock()
-    .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
+  // Wrap the rest in a closure so we can always release the lock on exit
+  let result = (|| {
+    let client = build_oauth_client(client_id);
+
+    let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+    *PKCE_VERIFIER
+      .lock()
+      .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
 
   // CSRF token intentionally unused: PKCE already prevents authorization code
   // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).
@@ -174,10 +189,19 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
 </html>"#;
 
   let response = tiny_http::Response::from_string(html)
-    .with_header("Content-Type: text/html; charset=utf-8".parse::<tiny_http::Header>().unwrap());
+    .with_header("Content-Type: text/html; charset=utf-8".parse::<tiny_http::Header>()
+      .expect("static header string must parse"));
   request.respond(response).ok();
 
   Ok(AuthorizationCode::new(code))
+  })(); // end of inner closure
+
+  // Always release the auth-in-progress lock
+  if let Ok(mut in_progress) = AUTH_IN_PROGRESS.lock() {
+    *in_progress = false;
+  }
+
+  result
 }
 
 pub fn take_pkce_verifier() -> Result<PkceCodeVerifier, String> {

@@ -90,13 +90,18 @@ export const QuickAdd = () => {
     if (categories.length > 0) {
       cleanTitle = cleanTitle.replace(/#[\w-]+/g, "").replace(/\s+/g, " ").trim();
     }
-    await emit("quick-add-task", {
-      title: cleanTitle || parsed.title,
-      dueDateTime: parsed.dueDateTime,
-      categories: categories.length > 0 ? categories : undefined,
-    });
-    setValue("");
-    await getCurrentWindow().close();
+    try {
+      await emit("quick-add-task", {
+        title: cleanTitle || parsed.title,
+        dueDateTime: parsed.dueDateTime,
+        categories: categories.length > 0 ? categories : undefined,
+      });
+      setValue("");
+      await getCurrentWindow().close();
+    } catch {
+      // If emit or close fails, at least clear the input
+      setValue("");
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

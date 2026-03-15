@@ -25,6 +25,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
   const [loading, setLoading] = useState(true);
 
   const isOnline = useNetworkStatus();
+  const isOnlineRef = useRef(isOnline);
   const listsRef = useRef<TaskList[]>([]);
   const accessTokenRef = useRef<string | null>(null);
   const dbRef = useRef<Database | null>(null);
@@ -34,6 +35,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
   useEffect(() => { listsRef.current = lists; }, [lists]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   useEffect(() => { dbRef.current = db; }, [db]);
+  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
 
   // Load lists from DB when connection is ready or account changes
   useEffect(() => {
@@ -71,7 +73,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     const token = accessTokenRef.current;
     const database = dbRef.current;
 
-    if (!token || !database || !isOnline) return;
+    if (!token || !database || !isOnlineRef.current) return;
 
     try {
       // Process pending list-create ops (lists created while offline)
@@ -133,7 +135,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     } catch (err) {
       logger.error("Failed to sync lists", err);
     }
-  }, [isOnline]);
+  }, []); // Uses refs for all dependencies to avoid re-creating the callback
 
   // Create a new standalone list
   const createList = useCallback(async (displayName: string) => {
@@ -153,7 +155,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     setLists((prev) => [...prev, newList]);
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const created = await createTaskListGraph(displayName.trim(), token);
         await saveListToDB(database, created);
         setLists((prev) => prev.map((l) => (l.id === tempId ? created : l)));
@@ -167,7 +169,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       logger.error("Failed to create list", err);
       setLists((prev) => prev.filter((l) => l.id !== tempId));
     }
-  }, [isOnline]);
+  }, []);
 
   // Create an empty local-only group heading
   const createGroup = useCallback(async (displayName: string) => {
@@ -252,7 +254,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     setLists((prev) => [...prev, newList]);
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const created = await createTaskListGraph(displayName.trim(), token);
         const withGroup = { ...created, parentGroupId: groupId };
         await saveListToDB(database, withGroup);
@@ -267,7 +269,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       logger.error("Failed to create sub-list", err);
       setLists((prev) => prev.filter((l) => l.id !== tempId));
     }
-  }, [isOnline]);
+  }, []);
 
   // Move a list into a group (or remove from group with null) — local-only
   const moveToGroup = useCallback(async (listId: string, groupId: string | null) => {
@@ -327,7 +329,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
 
     try {
       // Sync rename to Graph for non-group, non-local lists
-      if (!list.isGroup && !list.id.startsWith("local-") && isOnline && token) {
+      if (!list.isGroup && !list.id.startsWith("local-") && isOnlineRef.current && token) {
         await updateTaskListGraph(listId, { displayName: trimmed }, token);
       }
       await saveListToDB(database, updated);
@@ -335,7 +337,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       logger.error("Failed to rename list", err);
       setLists((prev) => prev.map((l) => (l.id === listId ? list : l)));
     }
-  }, [isOnline]);
+  }, []);
 
   // Delete a list or group
   const deleteList = useCallback(async (listId: string) => {
@@ -370,7 +372,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
 
     try {
       // Local-only groups don't exist on Graph — just delete from DB
-      if (!list.isGroup && isOnline && token) {
+      if (!list.isGroup && isOnlineRef.current && token) {
         await deleteTaskListGraph(listId, token);
       }
       await deleteListFromDB(database, listId);
@@ -380,7 +382,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         [...prev, list].sort((a, b) => a.displayName.localeCompare(b.displayName))
       );
     }
-  }, [isOnline]);
+  }, []);
 
   return {
     lists,
