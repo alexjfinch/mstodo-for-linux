@@ -256,6 +256,8 @@ export const TaskList = ({
   };
 
   // Drag-and-drop reordering for active tasks
+  const dragGhostRef = useRef<HTMLElement | null>(null);
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
     e.dataTransfer.effectAllowed = "move";
@@ -273,9 +275,13 @@ export const TaskList = ({
     ghost.style.top = "-9999px";
     ghost.style.left = "-9999px";
     document.body.appendChild(ghost);
+    dragGhostRef.current = ghost;
     e.dataTransfer.setDragImage(ghost, e.nativeEvent.offsetX * 0.9, e.nativeEvent.offsetY * 0.9);
     requestAnimationFrame(() => {
-      document.body.removeChild(ghost);
+      if (dragGhostRef.current?.parentNode) {
+        dragGhostRef.current.parentNode.removeChild(dragGhostRef.current);
+        dragGhostRef.current = null;
+      }
       el.classList.add("dragging");
     });
   };
@@ -313,6 +319,11 @@ export const TaskList = ({
     (e.currentTarget as HTMLElement).classList.remove("dragging");
     setDraggedTaskId(null);
     setDragOverTaskId(null);
+    // Clean up ghost element if rAF hasn't fired yet
+    if (dragGhostRef.current?.parentNode) {
+      dragGhostRef.current.parentNode.removeChild(dragGhostRef.current);
+      dragGhostRef.current = null;
+    }
   };
 
   const handleUpdateDueDate = (taskId: string, dateTime: string | undefined) => {

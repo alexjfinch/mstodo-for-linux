@@ -202,6 +202,8 @@ export default function App() {
       if (savedCompact !== null && savedCompact !== undefined) setCompactMode(savedCompact);
       const savedSyncInterval = await store.get<number>("syncInterval");
       if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
+      const savedTaskOrder = await store.get<Record<string, string[]>>("taskOrder");
+      if (savedTaskOrder) setTaskOrder(savedTaskOrder);
     })();
   }, []);
 
@@ -253,9 +255,16 @@ export default function App() {
     await store.save();
   }, []);
 
-  const handleReorderTasks = useCallback((reorderedIds: string[]) => {
-    setTaskOrder((prev) => ({ ...prev, [activeList]: reorderedIds }));
-  }, [activeList]);
+  const handleReorderTasks = useCallback(async (reorderedIds: string[]) => {
+    const next = { ...taskOrder, [activeList]: reorderedIds };
+    setTaskOrder(next);
+    try {
+      const { Store } = await import("@tauri-apps/plugin-store");
+      const store = await Store.load("settings.json");
+      await store.set("taskOrder", next);
+      await store.save();
+    } catch { /* best-effort persistence */ }
+  }, [activeList, taskOrder]);
 
   const detailTask = useMemo(
     () => (detailTaskId ? tasks.find((t) => t.id === detailTaskId) ?? null : null),

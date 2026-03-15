@@ -43,6 +43,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
 
   const isOnline = useNetworkStatus();
+  const isOnlineRef = useRef(isOnline);
   const tasksRef = useRef<Task[]>([]);
   const accessTokenRef = useRef<string | null>(null);
   const dbRef = useRef<Database | null>(null);
@@ -56,6 +57,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   useEffect(() => { dbRef.current = db; }, [db]);
+  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
 
   useEffect(() => {
     if (!db) return;
@@ -159,7 +161,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     const token = accessTokenRef.current;
     const database = dbRef.current;
 
-    if (!token || !database || !isOnline) {
+    if (!token || !database || !isOnlineRef.current) {
       syncInProgressRef.current = false;
       return;
     }
@@ -346,7 +348,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         setSyncing(false);
       }
     }
-  }, [isOnline, processPendingOps]);
+  }, [processPendingOps]);
 
   const addTask = useCallback(async (title: string, listId?: string, attributes?: Partial<Task>) => {
     const database = dbRef.current;
@@ -374,7 +376,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     setTasks((prev) => [...prev, newTask]);
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const [graphResult] = await Promise.allSettled([
           createTaskGraph(title.trim(), targetListId, token),
           insertTaskToDB(database, tempId, targetListId, title.trim(), timestamp),
@@ -406,7 +408,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       logger.error("Failed to add task", err);
       setTasks((prev) => prev.filter((t) => t.id !== tempId));
     }
-  }, [isOnline, currentListId]);
+  }, [currentListId]);
 
   const toggleTask = useCallback(async (id: string) => {
     const database = dbRef.current;
@@ -422,7 +424,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const results = await Promise.allSettled([
           toggleTaskCompletedGraph(updated, token),
           updateTaskCompletion(database, id, updated.completed, timestamp),
@@ -438,7 +440,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       logger.error("Failed to toggle task", err);
       setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
     }
-  }, [isOnline]);
+  }, []);
 
   const updateAttributes = useCallback(async (id: string, attributes: Partial<Task>) => {
     const database = dbRef.current;
@@ -454,7 +456,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const results = await Promise.allSettled([
           updateTaskAttributesGraph(task, attributes, token),
           updateTaskAttributesDB(database, id, attributes, timestamp),
@@ -470,7 +472,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       logger.error("Failed to update task attributes", err);
       setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
     }
-  }, [isOnline]);
+  }, []);
 
   const deleteTask = useCallback(async (id: string) => {
     const database = dbRef.current;
@@ -483,7 +485,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     setTasks((prev) => prev.filter((t) => t.id !== id));
 
     try {
-      if (isOnline && token) {
+      if (isOnlineRef.current && token) {
         const results = await Promise.allSettled([
           deleteTaskGraph(task.id, task.listId, token),
           deleteTaskFromDB(database, id),
@@ -499,7 +501,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       logger.error("Failed to delete task", err);
       setTasks((prev) => [...prev, task]);
     }
-  }, [isOnline]);
+  }, []);
 
   return {
     tasks,

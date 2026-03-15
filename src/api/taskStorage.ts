@@ -39,6 +39,7 @@ export async function initializeTables(db: Database): Promise<void> {
       recurrence TEXT,
       categories TEXT,
       reminderDateTime TEXT,
+      hasAttachments INTEGER DEFAULT 0,
       updatedAt INTEGER NOT NULL,
       FOREIGN KEY(listId) REFERENCES lists(id) ON DELETE CASCADE
     );
@@ -50,7 +51,8 @@ export async function initializeTables(db: Database): Promise<void> {
       taskId TEXT,
       opType TEXT,
       data TEXT,
-      createdAt INTEGER
+      createdAt INTEGER,
+      retryCount INTEGER DEFAULT 0
     );
   `);
 
@@ -60,14 +62,6 @@ export async function initializeTables(db: Database): Promise<void> {
       deltaLink TEXT NOT NULL
     );
   `);
-
-  // Migration: add retryCount column to pendingOps if it doesn't exist
-  try {
-    await db.execute("ALTER TABLE pendingOps ADD COLUMN retryCount INTEGER DEFAULT 0");
-  } catch {
-    // Column already exists — safe to ignore
-  }
-
 }
 
 /** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
@@ -155,6 +149,7 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
     recurrence: safeJsonParse(r.recurrence),
     categories: safeJsonParse(r.categories),
     reminderDateTime: safeJsonParse(r.reminderDateTime),
+    hasAttachments: !!r.hasAttachments,
     lastModified: r.updatedAt,
   }));
 }
@@ -162,8 +157,8 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
 export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   await db.execute(
     `INSERT OR REPLACE INTO tasks
-      (id, listId, title, completed, status, isInMyDay, importance, dueDateTime, body, recurrence, categories, reminderDateTime, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, listId, title, completed, status, isInMyDay, importance, dueDateTime, body, recurrence, categories, reminderDateTime, hasAttachments, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.id,
       task.listId || null,
@@ -177,6 +172,7 @@ export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
       task.recurrence ? JSON.stringify(task.recurrence) : null,
       task.categories ? JSON.stringify(task.categories) : null,
       task.reminderDateTime ? JSON.stringify(task.reminderDateTime) : null,
+      task.hasAttachments ? 1 : 0,
       task.lastModified || Date.now(),
     ]
   );
@@ -234,6 +230,7 @@ export async function updateTaskAttributesDB(
   if ("recurrence" in attributes)  { updates.push("recurrence = ?");  values.push(attributes.recurrence ? JSON.stringify(attributes.recurrence) : null); }
   if ("categories" in attributes)  { updates.push("categories = ?");  values.push(attributes.categories ? JSON.stringify(attributes.categories) : null); }
   if ("reminderDateTime" in attributes) { updates.push("reminderDateTime = ?"); values.push(attributes.reminderDateTime ? JSON.stringify(attributes.reminderDateTime) : null); }
+  if ("hasAttachments" in attributes) { updates.push("hasAttachments = ?"); values.push(attributes.hasAttachments ? 1 : 0); }
 
   if (updates.length === 0) return;
 
@@ -284,6 +281,18 @@ export async function queuePendingOp(
       "DELETE FROM pendingOps WHERE taskId = ? AND opType = ?",
       [taskId, opType]
     );
+  }
+  // Deleting a task that was created offline — cancel the create and skip the delete
+  if (taskId && opType === "delete") {
+    const existing = await db.select<{ id: number }[]>(
+      "SELECT id FROM pendingOps WHERE taskId = ? AND opType = 'create'",
+      [taskId]
+    );
+    if (existing.length > 0) {
+      // Remove all pending ops for this task — nothing needs to reach the server
+      await db.execute("DELETE FROM pendingOps WHERE taskId = ?", [taskId]);
+      return;
+    }
   }
   await db.execute(
     "INSERT INTO pendingOps (taskId, opType, data, createdAt) VALUES (?, ?, ?, ?)",
