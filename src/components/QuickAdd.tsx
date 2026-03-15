@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { parseTaskInput } from "../utils/dateParser";
 
-// Inject CSS variables so QuickAdd respects OS light/dark preference.
-// This runs once when the module loads — the QuickAdd window is a separate
-// entrypoint that doesn't inherit App.css or data-theme.
+// Theme CSS variables — dark is default, toggled via [data-theme="light"] on <html>.
 const QUICKADD_THEME_CSS = `
   :root {
     --qa-bg: #1e1e1e;
@@ -19,19 +18,17 @@ const QUICKADD_THEME_CSS = `
     --qa-preview: #4fc3f7;
     --qa-shadow: rgba(0,0,0,0.5);
   }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --qa-bg: #ffffff;
-      --qa-border: #ddd;
-      --qa-text: #333;
-      --qa-header: #666;
-      --qa-input-bg: #f5f5f5;
-      --qa-input-border: #ccc;
-      --qa-input-text: #111;
-      --qa-hint: #999;
-      --qa-preview: #1976d2;
-      --qa-shadow: rgba(0,0,0,0.15);
-    }
+  :root[data-theme="light"] {
+    --qa-bg: #ffffff;
+    --qa-border: #ddd;
+    --qa-text: #333;
+    --qa-header: #666;
+    --qa-input-bg: #f5f5f5;
+    --qa-input-border: #ccc;
+    --qa-input-text: #111;
+    --qa-hint: #999;
+    --qa-preview: #1976d2;
+    --qa-shadow: rgba(0,0,0,0.15);
   }
 `;
 
@@ -42,13 +39,21 @@ if (typeof document !== "undefined" && !document.getElementById("qa-theme")) {
   document.head.appendChild(style);
 }
 
+function applyTheme(theme: string) {
+  document.documentElement.setAttribute("data-theme", theme);
+}
+
 export const QuickAdd = () => {
   const [value, setValue] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Query system theme on mount and listen for live changes
   useEffect(() => {
     inputRef.current?.focus();
+    invoke<string>("get_system_theme").then(applyTheme).catch(() => {});
+    const unlisten = listen<string>("theme-changed", (e) => applyTheme(e.payload));
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   // Parse date preview as user types
