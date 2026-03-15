@@ -4,7 +4,7 @@ import { Task, TaskList } from "../types";
 export interface PendingOperation {
   id?: number;
   taskId: string | null;
-  opType: "create" | "toggle" | "update" | "delete";
+  opType: "create" | "toggle" | "update" | "delete" | "list-create";
   data: string;
   createdAt: number;
 }
@@ -256,7 +256,7 @@ export async function getLocalTask(db: Database, id: string): Promise<Task | nul
 export async function queuePendingOp(
   db: Database,
   taskId: string | null,
-  opType: "create" | "toggle" | "update" | "delete",
+  opType: PendingOperation["opType"],
   data: any
 ): Promise<void> {
   if (taskId && (opType === "update" || opType === "toggle")) {
@@ -279,6 +279,19 @@ export async function getPendingOps(db: Database): Promise<PendingOperation[]> {
 
 export async function deletePendingOp(db: Database, opId: number): Promise<void> {
   await db.execute("DELETE FROM pendingOps WHERE id = ?", [opId]);
+}
+
+/** Update taskId references in pending ops when a local-xxx ID is replaced by a server ID. */
+export async function updatePendingOpsTaskId(db: Database, oldId: string, newId: string): Promise<void> {
+  await db.execute("UPDATE pendingOps SET taskId = ? WHERE taskId = ?", [newId, oldId]);
+}
+
+/** Get pending ops filtered by operation type (e.g. "list-create"). */
+export async function getPendingOpsByType(db: Database, opType: string): Promise<PendingOperation[]> {
+  return await db.select<PendingOperation[]>(
+    "SELECT * FROM pendingOps WHERE opType = ? ORDER BY createdAt ASC",
+    [opType]
+  );
 }
 
 // ── Delta token persistence ─────────────────────────────────────────
@@ -305,10 +318,26 @@ export async function clearDeltaTokens(db: Database): Promise<void> {
   await db.execute("DELETE FROM deltaTokens");
 }
 
-/** Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching. */
-export async function clearAllData(db: Database): Promise<void> {
-  await db.execute("DELETE FROM tasks");
-  await db.execute("DELETE FROM lists");
-  await db.execute("DELETE FROM deltaTokens");
-  await db.execute("DELETE FROM pendingOps");
+/**
+ * Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching.
+ * Deduplicated: if multiple hooks call this concurrently (useTasks + useLists),
+ * only the first call actually runs; subsequent calls await the same promise.
+ */
+let clearInFlight: Promise<void> | null = null;
+
+export function clearAllData(db: Database): Promise<void> {
+  if (clearInFlight) return clearInFlight;
+
+  clearInFlight = (async () => {
+    try {
+      await db.execute("DELETE FROM tasks");
+      await db.execute("DELETE FROM lists");
+      await db.execute("DELETE FROM deltaTokens");
+      await db.execute("DELETE FROM pendingOps");
+    } finally {
+      clearInFlight = null;
+    }
+  })();
+
+  return clearInFlight;
 }

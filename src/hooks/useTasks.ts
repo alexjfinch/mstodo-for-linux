@@ -26,6 +26,7 @@ import {
   saveDeltaTokens,
   clearDeltaTokens,
   clearAllData,
+  updatePendingOpsTaskId,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -102,6 +103,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         if (op.opType === "create") {
           const created = await createTaskGraph(data.title, data.listId, token);
           await updateTaskId(database, data.id, created.id, Date.now());
+          // Remap any other pending ops that reference the old local ID
+          await updatePendingOpsTaskId(database, data.id, created.id);
+          // Also remap in-memory ops so subsequent iterations use the new ID
+          for (const pending of ops) {
+            if (pending.taskId === data.id) pending.taskId = created.id;
+          }
           setTasks((prev) =>
             prev.map((t) => (t.id === data.id ? { ...created, lastModified: Date.now() } : t))
           );

@@ -165,13 +165,18 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
         .unwrap_or("attachment")
         .to_string();
 
+    // Check file size BEFORE reading to avoid OOM on large files
+    let metadata = tokio::fs::metadata(&path)
+        .await
+        .map_err(|e| format!("Failed to read file metadata: {e}"))?;
+
+    if metadata.len() > 3 * 1024 * 1024 {
+        return Err("File exceeds the 3 MB limit".to_string());
+    }
+
     let bytes: Vec<u8> = tokio::fs::read(&path)
         .await
         .map_err(|e| format!("Failed to read file: {e}"))?;
-
-    if bytes.len() > 3 * 1024 * 1024 {
-        return Err("File exceeds the 3 MB limit".to_string());
-    }
 
     Ok(Some(PickedFile { name, content_bytes: base64_encode(&bytes) }))
 }

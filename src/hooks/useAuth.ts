@@ -59,8 +59,12 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const refreshTokenRef = useRef<string | null>(null);
 
+  const accountsRef = useRef<StoredAccount[]>([]);
+
   const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? null;
   const accessToken = activeAccount?.accessToken ?? null;
+
+  useEffect(() => { accountsRef.current = accounts; }, [accounts]);
 
   useEffect(() => {
     refreshTokenRef.current = activeAccount?.refreshToken ?? null;
@@ -128,7 +132,9 @@ export const useAuth = () => {
       );
       const newRefresh = tokenResp.refresh_token ?? currentRefresh;
       await storeTokens(activeAccountId!, tokenResp.access_token, newRefresh);
-      const updated = accounts.map((a) =>
+      // Use accountsRef to avoid stale closure — refresh() may be called
+      // long after the callback was created (e.g. on a 401 retry).
+      const updated = accountsRef.current.map((a) =>
         a.id === activeAccountId
           ? { ...a, accessToken: tokenResp.access_token, refreshToken: newRefresh }
           : a
@@ -141,7 +147,7 @@ export const useAuth = () => {
       await signOut();
       throw err;
     }
-  }, [activeAccountId, accounts, signOut, persistAccounts]);
+  }, [activeAccountId, signOut, persistAccounts]);
 
   // Register the refresh callback
   useEffect(() => {

@@ -12,6 +12,9 @@ import {
   deleteListFromDB,
   updateListMeta,
   clearAllData,
+  queuePendingOp,
+  getPendingOpsByType,
+  deletePendingOp,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -70,6 +73,25 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     if (!token || !database || !isOnline) return;
 
     try {
+      // Process pending list-create ops (lists created while offline)
+      const pendingListOps = await getPendingOpsByType(database, "list-create");
+      for (const op of pendingListOps) {
+        const data = JSON.parse(op.data);
+        try {
+          const created = await createTaskListGraph(data.displayName, token);
+          const withGroup = data.parentGroupId ? { ...created, parentGroupId: data.parentGroupId } : created;
+          // Update the list ID in DB
+          await deleteListFromDB(database, data.id);
+          await saveListToDB(database, withGroup);
+          // Update any tasks that reference the old local list ID
+          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, data.id]);
+          setLists((prev) => prev.map((l) => (l.id === data.id ? withGroup : l)));
+          await deletePendingOp(database, op.id!);
+        } catch (err) {
+          logger.error(`Failed to sync pending list creation: ${data.displayName}`, err);
+        }
+      }
+
       const remoteLists = await fetchTaskLists(token);
 
       // Merge remote data with local state to preserve isGroup/parentGroupId
@@ -134,6 +156,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         return created;
       } else {
         await saveListToDB(database, newList);
+        await queuePendingOp(database, tempId, "list-create", { id: tempId, displayName: displayName.trim() });
         return newList;
       }
     } catch (err) {
@@ -233,6 +256,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         return withGroup;
       } else {
         await saveListToDB(database, newList);
+        await queuePendingOp(database, tempId, "list-create", { id: tempId, displayName: displayName.trim(), parentGroupId: groupId });
         return newList;
       }
     } catch (err) {
