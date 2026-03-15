@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Task } from "../types";
+import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -72,6 +72,8 @@ type Props = {
   onToggleTask: (id: string) => Promise<void>;
   onUpdateAttributes: (id: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
+  onMoveTaskToList?: (taskId: string, targetListId: string) => Promise<void>;
+  allLists?: TaskListType[];
   selectedTasks: string[];
   onToggleSelection: (id: string, shiftKey: boolean) => void;
   onClearSelection: () => void;
@@ -84,6 +86,8 @@ export const TaskList = ({
   onToggleTask,
   onUpdateAttributes,
   onDeleteTask,
+  onMoveTaskToList,
+  allLists,
   selectedTasks,
   onToggleSelection,
   onClearSelection,
@@ -100,6 +104,7 @@ export const TaskList = ({
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
   const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
+  const [moveSubmenuOpen, setMoveSubmenuOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>(null);
@@ -181,6 +186,7 @@ export const TaskList = ({
     const y = Math.min(e.clientY, window.innerHeight - menuH - 4);
     setContextMenu({ visible: true, x, y, taskId });
     setReminderSubmenuOpen(false);
+    setMoveSubmenuOpen(false);
   };
 
   const handleToggleAttribute = (attribute: "isInMyDay" | "importance") => {
@@ -263,10 +269,10 @@ export const TaskList = ({
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", taskId);
 
-    // Create a 90%-scale ghost image with rounded corners
+    // Create a 50%-scale ghost image with rounded corners
     const el = e.currentTarget as HTMLElement;
     const ghost = el.cloneNode(true) as HTMLElement;
-    ghost.style.transform = "scale(0.9)";
+    ghost.style.transform = "scale(0.5)";
     ghost.style.transformOrigin = "top left";
     ghost.style.width = `${el.offsetWidth}px`;
     ghost.style.borderRadius = "8px";
@@ -276,7 +282,7 @@ export const TaskList = ({
     ghost.style.left = "-9999px";
     document.body.appendChild(ghost);
     dragGhostRef.current = ghost;
-    e.dataTransfer.setDragImage(ghost, e.nativeEvent.offsetX * 0.9, e.nativeEvent.offsetY * 0.9);
+    e.dataTransfer.setDragImage(ghost, e.nativeEvent.offsetX * 0.5, e.nativeEvent.offsetY * 0.5);
     requestAnimationFrame(() => {
       if (dragGhostRef.current?.parentNode) {
         dragGhostRef.current.parentNode.removeChild(dragGhostRef.current);
@@ -495,6 +501,38 @@ export const TaskList = ({
               )}
             </div>
           </div>
+
+          {onMoveTaskToList && allLists && allLists.filter(l => !l.isGroup && l.id !== currentTask.listId).length > 0 && (
+            <>
+              <li
+                className="context-menu-item context-menu-expandable"
+                onClick={() => setMoveSubmenuOpen(!moveSubmenuOpen)}
+              >
+                <span>Move to list</span>
+                <span className={`context-menu-arrow ${moveSubmenuOpen ? "expanded" : ""}`}>▸</span>
+              </li>
+              <div className={`context-menu-expand-panel ${moveSubmenuOpen ? "open" : ""}`}>
+                <div className="context-menu-expand-inner">
+                  {allLists
+                    .filter(l => !l.isGroup && l.id !== currentTask.listId)
+                    .map(l => (
+                      <li
+                        key={l.id}
+                        className="context-menu-item context-menu-inline-option"
+                        onClick={() => {
+                          onMoveTaskToList(currentTask.id, l.id);
+                          setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+                        }}
+                      >
+                        <span>{l.emoji || "📝"}</span>
+                        <span>{l.displayName}</span>
+                      </li>
+                    ))
+                  }
+                </div>
+              </div>
+            </>
+          )}
 
           <li className="context-menu-divider" />
 

@@ -26,6 +26,7 @@ type Props = {
 
 function recurrenceToOption(r?: Recurrence): string {
   if (!r) return "none";
+  // If it's a custom interval/days, still show the base type
   switch (r.pattern.type) {
     case "daily": return "daily";
     case "weekly": return "weekly";
@@ -35,19 +36,8 @@ function recurrenceToOption(r?: Recurrence): string {
   }
 }
 
-function optionToRecurrence(opt: string, startDate: string): Recurrence | undefined {
-  if (opt === "none") return undefined;
-  const typeMap: Record<string, Recurrence["pattern"]["type"]> = {
-    daily: "daily",
-    weekly: "weekly",
-    monthly: "absoluteMonthly",
-    yearly: "absoluteYearly",
-  };
-  return {
-    pattern: { type: typeMap[opt], interval: 1 },
-    range: { type: "noEnd", startDate },
-  };
-}
+const DAYS_OF_WEEK = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function cleanNotes(body?: Task["body"]): string {
   if (!body) return "";
@@ -174,10 +164,67 @@ export const TaskDetail = ({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showDueDateCalendar]);
 
-  const handleRecurrenceChange = (opt: string) => {
+  const handleRecurrenceTypeChange = (opt: string) => {
     const today = new Date().toISOString().substring(0, 10);
     const startDate = task.dueDateTime?.dateTime.substring(0, 10) || today;
-    onUpdateAttributes(task.id, { recurrence: optionToRecurrence(opt, startDate) });
+    if (opt === "none") {
+      onUpdateAttributes(task.id, { recurrence: undefined });
+      return;
+    }
+    const typeMap: Record<string, Recurrence["pattern"]["type"]> = {
+      daily: "daily",
+      weekly: "weekly",
+      monthly: "absoluteMonthly",
+      yearly: "absoluteYearly",
+    };
+    // Preserve existing interval/daysOfWeek/range if just switching type
+    const existing = task.recurrence;
+    onUpdateAttributes(task.id, {
+      recurrence: {
+        pattern: {
+          type: typeMap[opt],
+          interval: existing?.pattern.interval || 1,
+          daysOfWeek: opt === "weekly" ? (existing?.pattern.daysOfWeek || [DAYS_OF_WEEK[new Date().getDay()]]) : undefined,
+        },
+        range: existing?.range || { type: "noEnd", startDate },
+      },
+    });
+  };
+
+  const handleRecurrenceInterval = (interval: number) => {
+    if (!task.recurrence || interval < 1) return;
+    onUpdateAttributes(task.id, {
+      recurrence: {
+        ...task.recurrence,
+        pattern: { ...task.recurrence.pattern, interval },
+      },
+    });
+  };
+
+  const handleToggleDayOfWeek = (day: string) => {
+    if (!task.recurrence) return;
+    const current = task.recurrence.pattern.daysOfWeek || [];
+    const updated = current.includes(day)
+      ? current.filter(d => d !== day)
+      : [...current, day];
+    if (updated.length === 0) return; // Must have at least one day
+    onUpdateAttributes(task.id, {
+      recurrence: {
+        ...task.recurrence,
+        pattern: { ...task.recurrence.pattern, daysOfWeek: updated },
+      },
+    });
+  };
+
+  const handleRecurrenceEndType = (endType: Recurrence["range"]["type"]) => {
+    if (!task.recurrence) return;
+    const today = new Date().toISOString().substring(0, 10);
+    onUpdateAttributes(task.id, {
+      recurrence: {
+        ...task.recurrence,
+        range: { ...task.recurrence.range, type: endType, startDate: task.recurrence.range.startDate || today },
+      },
+    });
   };
 
   const handleAddCategory = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -522,21 +569,68 @@ export const TaskDetail = ({
         </div>
 
         {/* Recurrence */}
-        <div className="task-detail-row">
-          <span className="task-detail-row-icon">🔄</span>
-          <span className="task-detail-row-label">Repeat</span>
-          <CustomSelect
-            className="task-detail-select"
-            value={recurrenceToOption(task.recurrence)}
-            onChange={handleRecurrenceChange}
-            options={[
-              { value: "none", label: "None" },
-              { value: "daily", label: "Daily" },
-              { value: "weekly", label: "Weekly" },
-              { value: "monthly", label: "Monthly" },
-              { value: "yearly", label: "Yearly" },
-            ]}
-          />
+        <div className="task-detail-section">
+          <div className="task-detail-row" style={{ borderBottom: "none", paddingBottom: task.recurrence ? 4 : undefined }}>
+            <span className="task-detail-row-icon">🔄</span>
+            <span className="task-detail-row-label">Repeat</span>
+            <CustomSelect
+              className="task-detail-select"
+              value={recurrenceToOption(task.recurrence)}
+              onChange={handleRecurrenceTypeChange}
+              options={[
+                { value: "none", label: "None" },
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+                { value: "monthly", label: "Monthly" },
+                { value: "yearly", label: "Yearly" },
+              ]}
+            />
+          </div>
+          {task.recurrence && (
+            <div className="recurrence-options">
+              <div className="recurrence-interval-row">
+                <span>Every</span>
+                <input
+                  type="number"
+                  className="recurrence-interval-input"
+                  min={1}
+                  max={99}
+                  value={task.recurrence.pattern.interval}
+                  onChange={(e) => handleRecurrenceInterval(parseInt(e.target.value, 10) || 1)}
+                />
+                <span>
+                  {task.recurrence.pattern.type === "daily" ? "day(s)" :
+                   task.recurrence.pattern.type === "weekly" ? "week(s)" :
+                   task.recurrence.pattern.type === "absoluteMonthly" ? "month(s)" : "year(s)"}
+                </span>
+              </div>
+              {task.recurrence.pattern.type === "weekly" && (
+                <div className="recurrence-days-row">
+                  {DAYS_OF_WEEK.map((day, i) => (
+                    <button
+                      key={day}
+                      className={`recurrence-day-btn${(task.recurrence!.pattern.daysOfWeek || []).includes(day) ? " active" : ""}`}
+                      onClick={() => handleToggleDayOfWeek(day)}
+                    >
+                      {DAY_LABELS[i]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="recurrence-end-row">
+                <span>Ends</span>
+                <CustomSelect
+                  className="task-detail-select"
+                  value={task.recurrence.range.type}
+                  onChange={(v) => handleRecurrenceEndType(v as Recurrence["range"]["type"])}
+                  options={[
+                    { value: "noEnd", label: "Never" },
+                    { value: "endDate", label: "On a date" },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Categories */}

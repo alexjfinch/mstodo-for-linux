@@ -21,7 +21,9 @@ export async function initializeTables(db: Database): Promise<void> {
       isShared INTEGER,
       wellknownListName TEXT,
       isGroup INTEGER DEFAULT 0,
-      parentGroupId TEXT
+      parentGroupId TEXT,
+      emoji TEXT,
+      themeColor TEXT
     );
   `);
 
@@ -84,14 +86,16 @@ export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
     wellknownListName: r.wellknownListName || undefined,
     isGroup: r.isGroup === 1 ? true : undefined,
     parentGroupId: r.parentGroupId || undefined,
+    emoji: r.emoji || undefined,
+    themeColor: r.themeColor || undefined,
   }));
 }
 
 export async function saveListToDB(db: Database, list: TaskList): Promise<void> {
   await db.execute(
     `INSERT OR REPLACE INTO lists
-      (id, displayName, isOwner, isShared, wellknownListName, isGroup, parentGroupId)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (id, displayName, isOwner, isShared, wellknownListName, isGroup, parentGroupId, emoji, themeColor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       list.id,
       list.displayName,
@@ -100,6 +104,8 @@ export async function saveListToDB(db: Database, list: TaskList): Promise<void> 
       list.wellknownListName || null,
       list.isGroup ? 1 : 0,
       list.parentGroupId || null,
+      list.emoji || null,
+      list.themeColor || null,
     ]
   );
 }
@@ -111,7 +117,7 @@ export async function deleteListFromDB(db: Database, listId: string): Promise<vo
 export async function updateListMeta(
   db: Database,
   listId: string,
-  meta: { isGroup?: boolean; parentGroupId?: string | null }
+  meta: { isGroup?: boolean; parentGroupId?: string | null; emoji?: string | null; themeColor?: string | null }
 ): Promise<void> {
   const updates: string[] = [];
   const values: any[] = [];
@@ -123,6 +129,14 @@ export async function updateListMeta(
   if ("parentGroupId" in meta) {
     updates.push("parentGroupId = ?");
     values.push(meta.parentGroupId || null);
+  }
+  if ("emoji" in meta) {
+    updates.push("emoji = ?");
+    values.push(meta.emoji || null);
+  }
+  if ("themeColor" in meta) {
+    updates.push("themeColor = ?");
+    values.push(meta.themeColor || null);
   }
 
   if (updates.length === 0) return;

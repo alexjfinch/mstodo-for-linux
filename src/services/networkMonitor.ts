@@ -13,13 +13,14 @@ async function probeNetwork(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PING_TIMEOUT);
-    await fetch(PING_URL, {
-      method: "HEAD",
+    const resp = await fetch(PING_URL, {
+      method: "GET",
       signal: controller.signal,
       cache: "no-store",
     });
     clearTimeout(timer);
-    return true;
+    // Any HTTP response (even 4xx/5xx) means the network is reachable
+    return resp.status > 0;
   } catch {
     return false;
   }

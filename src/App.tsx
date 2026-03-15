@@ -94,6 +94,8 @@ export default function App() {
     createGroup,
     convertToGroup,
     moveToGroup,
+    renameList,
+    updateListTheme,
     deleteList,
     syncLists,
   } = useLists(accessToken, db, activeAccountId);
@@ -120,6 +122,7 @@ export default function App() {
     toggleTask,
     updateAttributes,
     deleteTask,
+    moveTaskToList,
     syncWithGraph,
     isOnline,
     syncing,
@@ -405,12 +408,13 @@ export default function App() {
     listen("tray-sync", () => {
       handleManualSync();
     }).then((fn) => unlisteners.push(fn));
-    listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string } }>(
+    listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string }; categories?: string[] }>(
       "quick-add-task",
       (event) => {
-        const { title, dueDateTime } = event.payload;
+        const { title, dueDateTime, categories } = event.payload;
         const attrs: Partial<typeof tasks[0]> = {};
         if (dueDateTime) attrs.dueDateTime = dueDateTime;
+        if (categories) attrs.categories = categories;
         addTask(title, undefined, Object.keys(attrs).length > 0 ? attrs : undefined);
       }
     ).then((fn) => unlisteners.push(fn));
@@ -548,6 +552,10 @@ export default function App() {
     await moveToGroup(listId, groupId);
   };
 
+  const handleRenameList = async (listId: string, newName: string) => {
+    await renameList(listId, newName);
+  };
+
   const handleDeleteList = async (listId: string) => {
     await deleteList(listId);
     if (activeList === listId) {
@@ -580,6 +588,8 @@ export default function App() {
             l.wellknownListName !== "flaggedEmails"
           )}
           onCreateList={handleCreateList}
+          onRenameList={handleRenameList}
+          onUpdateListTheme={(id, updates) => updateListTheme(id, updates)}
           onDeleteList={handleDeleteList}
           onCreateSubList={handleCreateSubList}
           onCreateGroup={handleCreateGroup}
@@ -590,6 +600,14 @@ export default function App() {
           syncError={syncError}
           lastSyncTime={lastSyncTime}
           taskCounts={taskCounts}
+          onMoveTaskToList={moveTaskToList}
+          onAddToMyDay={(taskId) => {
+            updateAttributes(taskId, { isInMyDay: true });
+          }}
+          onMarkImportant={(taskId) => {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) updateAttributes(taskId, { importance: task.importance === "high" ? "normal" : "high" });
+          }}
         />
         <main className="main">
           <Settings
@@ -644,6 +662,11 @@ export default function App() {
             {(!SPECIAL_LISTS.has(activeList) || searchQuery) && (
               <h2 className="list-title">
                 {searchQuery ? `Search: "${searchQuery}"` : getListDisplayName}
+                {!searchQuery && (
+                  <span className="list-title-count">
+                    {filteredTasks.filter(t => !t.completed).length} task{filteredTasks.filter(t => !t.completed).length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </h2>
             )}
             <div className="main-header-actions">
@@ -676,17 +699,43 @@ export default function App() {
               onOpenDetail={handleOpenDetail}
             />
           ) : (
-            <TaskList
-              tasks={filteredTasks}
-              onToggleTask={toggleTask}
-              onUpdateAttributes={updateAttributes}
-              onDeleteTask={deleteTask}
-              selectedTasks={selectedTasks}
-              onToggleSelection={handleToggleSelection}
-              onClearSelection={handleClearSelection}
-              onOpenDetail={handleOpenDetail}
-              onReorderTasks={handleReorderTasks}
-            />
+            <div
+              className={activeList === "My Day" ? "myday-drop-zone" : undefined}
+              onDragOver={activeList === "My Day" ? (e) => {
+                if (e.dataTransfer.types.includes("suggestion")) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                  e.currentTarget.classList.add("myday-drop-active");
+                }
+              } : undefined}
+              onDragLeave={activeList === "My Day" ? (e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  e.currentTarget.classList.remove("myday-drop-active");
+                }
+              } : undefined}
+              onDrop={activeList === "My Day" ? (e) => {
+                e.currentTarget.classList.remove("myday-drop-active");
+                if (e.dataTransfer.types.includes("suggestion")) {
+                  e.preventDefault();
+                  const taskId = e.dataTransfer.getData("text/plain");
+                  if (taskId) updateAttributes(taskId, { isInMyDay: true });
+                }
+              } : undefined}
+            >
+              <TaskList
+                tasks={filteredTasks}
+                onToggleTask={toggleTask}
+                onUpdateAttributes={updateAttributes}
+                onDeleteTask={deleteTask}
+                onMoveTaskToList={moveTaskToList}
+                allLists={lists}
+                selectedTasks={selectedTasks}
+                onToggleSelection={handleToggleSelection}
+                onClearSelection={handleClearSelection}
+                onOpenDetail={handleOpenDetail}
+                onReorderTasks={handleReorderTasks}
+              />
+            </div>
           )}
 
           {activeList === "My Day" && (
@@ -707,7 +756,19 @@ export default function App() {
                 if (activeList === "My Day") viewAttributes.isInMyDay = true;
                 if (activeList === "Important") viewAttributes.importance = "high";
                 if (parsed.dueDateTime) viewAttributes.dueDateTime = parsed.dueDateTime;
-                addTask(parsed.title, undefined, Object.keys(viewAttributes).length > 0 ? viewAttributes : undefined);
+                // Extract #hashtags as categories
+                const hashtagRegex = /#([\w-]+)/g;
+                const hashtags: string[] = [];
+                let match;
+                let cleanTitle = parsed.title;
+                while ((match = hashtagRegex.exec(parsed.title)) !== null) {
+                  if (match[1] !== "MyDay") hashtags.push(match[1]);
+                }
+                if (hashtags.length > 0) {
+                  cleanTitle = cleanTitle.replace(/#[\w-]+/g, "").replace(/\s+/g, " ").trim();
+                  viewAttributes.categories = hashtags;
+                }
+                addTask(cleanTitle || parsed.title, undefined, Object.keys(viewAttributes).length > 0 ? viewAttributes : undefined);
                 setNewTaskTitle("");
               }}
             />

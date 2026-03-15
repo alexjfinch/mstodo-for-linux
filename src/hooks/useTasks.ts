@@ -174,7 +174,18 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       // Bail if account switched while processing pending ops
       if (syncGenerationRef.current !== generation) return;
 
-      const deltaTokens = await loadDeltaTokens(database);
+      let deltaTokens = await loadDeltaTokens(database);
+
+      // If we have delta tokens but no tasks in DB, the tokens are stale
+      // (e.g. DB was recreated). Clear them to force a full initial sync.
+      if (Object.keys(deltaTokens).length > 0) {
+        const existingTasks = await loadTasksFromDB(database);
+        if (existingTasks.length === 0) {
+          logger.info("Delta tokens exist but DB has no tasks — clearing tokens for full sync");
+          await clearDeltaTokens(database);
+          deltaTokens = {};
+        }
+      }
 
       let deltaResult;
       try {
@@ -214,6 +225,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       if (syncGenerationRef.current !== generation) return;
 
       const { delta, assignedTasks } = deltaResult;
+      logger.info(`Delta sync returned ${delta.changes.length} changes, ${Object.keys(delta.newDeltaTokens).length} tokens, ${assignedTasks.length} assigned tasks`);
       const localTasks = await loadTasksFromDB(database);
       const localMap = new Map<string, Task>();
       for (const t of localTasks) localMap.set(t.id, t);
@@ -503,6 +515,53 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     }
   }, []);
 
+  const moveTaskToList = useCallback(async (taskId: string, targetListId: string) => {
+    const database = dbRef.current;
+    const token = accessTokenRef.current;
+    if (!database) return;
+
+    const task = tasksRef.current.find((t) => t.id === taskId);
+    if (!task || task.listId === targetListId) return;
+
+    const oldListId = task.listId;
+    const updated = { ...task, listId: targetListId, lastModified: Date.now() };
+
+    // Optimistic UI update
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t)));
+
+    try {
+      // Update locally
+      await database.execute("UPDATE tasks SET listId = ?, updatedAt = ? WHERE id = ?", [targetListId, Date.now(), taskId]);
+
+      // Sync via Graph: create on target list, delete from source
+      if (isOnlineRef.current && token && oldListId && !taskId.startsWith("local-")) {
+        try {
+          const created = await createTaskGraph(task.title, targetListId, token);
+          // Copy attributes to the new task
+          if (task.importance !== "normal" || task.dueDateTime || task.body || task.recurrence || task.categories?.length) {
+            await updateTaskAttributesGraph(created, {
+              importance: task.importance,
+              dueDateTime: task.dueDateTime,
+              body: task.body,
+              recurrence: task.recurrence,
+              categories: task.categories,
+              isInMyDay: task.isInMyDay,
+            }, token);
+          }
+          await deleteTaskGraph(taskId, oldListId, token);
+          // Update local ID to match the new server task
+          await database.execute("UPDATE tasks SET id = ? WHERE id = ?", [created.id, taskId]);
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...updated, id: created.id } : t)));
+        } catch (err) {
+          logger.warn("Failed to move task on Graph — will sync on next cycle", err);
+        }
+      }
+    } catch (err) {
+      logger.error("Failed to move task to list", err);
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
+    }
+  }, []);
+
   return {
     tasks,
     loading,
@@ -510,6 +569,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     toggleTask,
     updateAttributes,
     deleteTask,
+    moveTaskToList,
     syncWithGraph,
     isOnline,
     syncing,

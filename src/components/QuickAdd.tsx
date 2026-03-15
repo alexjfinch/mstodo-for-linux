@@ -79,9 +79,21 @@ export const QuickAdd = () => {
   const handleSubmit = async () => {
     if (!value.trim()) return;
     const parsed = parseTaskInput(value);
+    // Extract #hashtags as categories
+    const hashtagRegex = /#([\w-]+)/g;
+    const categories: string[] = [];
+    let match;
+    let cleanTitle = parsed.title;
+    while ((match = hashtagRegex.exec(parsed.title)) !== null) {
+      if (match[1] !== "MyDay") categories.push(match[1]);
+    }
+    if (categories.length > 0) {
+      cleanTitle = cleanTitle.replace(/#[\w-]+/g, "").replace(/\s+/g, " ").trim();
+    }
     await emit("quick-add-task", {
-      title: parsed.title,
+      title: cleanTitle || parsed.title,
       dueDateTime: parsed.dueDateTime,
+      categories: categories.length > 0 ? categories : undefined,
     });
     setValue("");
     await getCurrentWindow().close();

@@ -4,6 +4,7 @@ import Database from "@tauri-apps/plugin-sql";
 import {
   fetchTaskLists,
   createTaskList as createTaskListGraph,
+  updateTaskList as updateTaskListGraph,
   deleteTaskList as deleteTaskListGraph,
 } from "../api/graph";
 import {
@@ -103,6 +104,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           parentGroupId: remote.parentGroupId ?? existing?.parentGroupId,
           // Always preserve local isGroup flag (groups are local-only)
           isGroup: existing?.isGroup,
+          // Preserve local-only theme customisation
+          emoji: existing?.emoji,
+          themeColor: existing?.themeColor,
         };
       });
 
@@ -285,6 +289,54 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     }
   }, []);
 
+  // Update list emoji/colour
+  const updateListTheme = useCallback(async (listId: string, updates: { emoji?: string | null; themeColor?: string | null }) => {
+    const database = dbRef.current;
+    if (!database) return;
+
+    const list = listsRef.current.find((l) => l.id === listId);
+    if (!list) return;
+
+    const updated = {
+      ...list,
+      emoji: "emoji" in updates ? (updates.emoji ?? undefined) : list.emoji,
+      themeColor: "themeColor" in updates ? (updates.themeColor ?? undefined) : list.themeColor,
+    };
+    setLists((prev) => prev.map((l) => (l.id === listId ? updated : l)));
+
+    try {
+      await updateListMeta(database, listId, updates);
+    } catch (err) {
+      logger.error("Failed to update list theme", err);
+      setLists((prev) => prev.map((l) => (l.id === listId ? list : l)));
+    }
+  }, []);
+
+  // Rename a list or group
+  const renameList = useCallback(async (listId: string, newName: string) => {
+    const database = dbRef.current;
+    const token = accessTokenRef.current;
+    if (!database || !newName.trim()) return;
+
+    const list = listsRef.current.find((l) => l.id === listId);
+    if (!list) return;
+
+    const trimmed = newName.trim();
+    const updated = { ...list, displayName: trimmed };
+    setLists((prev) => prev.map((l) => (l.id === listId ? updated : l)));
+
+    try {
+      // Sync rename to Graph for non-group, non-local lists
+      if (!list.isGroup && !list.id.startsWith("local-") && isOnline && token) {
+        await updateTaskListGraph(listId, { displayName: trimmed }, token);
+      }
+      await saveListToDB(database, updated);
+    } catch (err) {
+      logger.error("Failed to rename list", err);
+      setLists((prev) => prev.map((l) => (l.id === listId ? list : l)));
+    }
+  }, [isOnline]);
+
   // Delete a list or group
   const deleteList = useCallback(async (listId: string) => {
     const token = accessTokenRef.current;
@@ -338,6 +390,8 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     createGroup,
     convertToGroup,
     moveToGroup,
+    renameList,
+    updateListTheme,
     deleteList,
     syncLists,
     isOnline,

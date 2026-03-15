@@ -16,6 +16,8 @@ export type TaskList = {
   wellknownListName?: "none" | "defaultList" | "flaggedEmails";
   isGroup?: boolean;      // local-only: renders as collapsible heading, not a task list
   parentGroupId?: string; // local-only: the group this sub-list belongs to
+  emoji?: string;         // local-only: custom emoji icon for the list
+  themeColor?: string;    // local-only: custom accent colour for the list
 };
 
 export type ChecklistItem = {

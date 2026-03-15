@@ -529,6 +529,13 @@ body {
   margin: 0;
 }
 
+.list-title-count {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: 10px;
+}
+
 /* ── List Banners ─────────────────────────────────────────── */
 
 .list-banner {
@@ -1274,6 +1281,23 @@ body {
   padding: 8px 12px;
   border-radius: 6px;
   transition: background 0.12s;
+  cursor: grab;
+}
+
+.myday-suggestion-item:active {
+  cursor: grabbing;
+}
+
+/* Drop zone highlight when dragging a suggestion over the My Day task list */
+.myday-drop-zone {
+  transition: outline 0.15s;
+  border-radius: 8px;
+}
+
+.myday-drop-active {
+  outline: 2px dashed var(--accent-primary, #0078d4);
+  outline-offset: -2px;
+  background: rgba(0, 120, 212, 0.05);
 }
 
 .myday-suggestion-item:hover {
@@ -2749,6 +2773,14 @@ kbd {
   color: #fff;
 }
 
+/* Highlight sidebar items when a task is dragged over them */
+.sidebar li.drag-over,
+.sidebar-sublist-item.drag-over {
+  background: var(--accent-primary, #0078d4) !important;
+  color: #fff !important;
+  border-radius: 6px;
+}
+
 /* Make draggable list items show grab cursor */
 .custom-lists li[draggable="true"] {
   cursor: grab;
@@ -3130,4 +3162,189 @@ kbd {
 .toast-dismiss:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+
+/* ── Sidebar rename input ──────────────────────────────────────────── */
+
+.sidebar-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 13px;
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--accent);
+}
+
+/* ── Sidebar theme picker ──────────────────────────────────────────── */
+
+.sidebar-theme-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+li:hover .sidebar-theme-btn,
+.sidebar-sublist-item:hover .sidebar-theme-btn,
+.sidebar-group-heading:hover .sidebar-theme-btn {
+  opacity: 0.7;
+}
+.sidebar-theme-btn:hover {
+  opacity: 1 !important;
+}
+
+.sidebar-theme-picker {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px;
+  margin: 4px 0 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.sidebar-theme-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sidebar-theme-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.sidebar-theme-swatch:hover {
+  transform: scale(1.15);
+}
+.sidebar-theme-swatch.active {
+  border-color: var(--text-primary);
+}
+.sidebar-theme-clear {
+  background: var(--bg-hover) !important;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.sidebar-theme-emoji-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.sidebar-theme-emoji-input {
+  width: 50px;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 16px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.sidebar-theme-emoji-save {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  background: var(--accent-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.sidebar-theme-done {
+  width: 100%;
+  padding: 4px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+.sidebar-theme-done:hover {
+  background: var(--bg-hover);
+}
+
+/* ── Recurrence editor ─────────────────────────────────────────────── */
+
+.recurrence-options {
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recurrence-interval-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.recurrence-interval-input {
+  width: 48px;
+  padding: 4px 6px;
+  font-size: 13px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.recurrence-days-row {
+  display: flex;
+  gap: 4px;
+}
+
+.recurrence-day-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.recurrence-day-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.recurrence-day-btn:hover:not(.active) {
+  background: var(--hover-bg);
+}
+
+.recurrence-end-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Ensure relative positioning on list items for theme picker */
+.custom-lists li,
+.sidebar-sublist-item {
+  position: relative;
 }

@@ -1,8 +1,13 @@
-import { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ListName, TaskList } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 type ConfirmState = { message: string; danger?: boolean; onConfirm: () => void };
+
+const LIST_COLORS = [
+  "#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0",
+  "#00BCD4", "#FF5722", "#795548", "#607D8B", "#F44336",
+];
 
 type Props = {
   activeList: ListName | string;
@@ -13,6 +18,8 @@ type Props = {
   groups: TaskList[];
   allCustomLists: TaskList[];
   onCreateList: (name: string) => void;
+  onRenameList?: (listId: string, newName: string) => void;
+  onUpdateListTheme?: (listId: string, updates: { emoji?: string | null; themeColor?: string | null }) => void;
   onDeleteList?: (listId: string) => void;
   onCreateSubList: (groupId: string, name: string) => void;
   onCreateGroup: (name: string) => void;
@@ -23,6 +30,9 @@ type Props = {
   syncError: string | null;
   lastSyncTime: Date | null;
   taskCounts?: Record<string, number>;
+  onMoveTaskToList?: (taskId: string, targetListId: string) => Promise<void>;
+  onAddToMyDay?: (taskId: string) => void;
+  onMarkImportant?: (taskId: string) => void;
 };
 
 export const Sidebar = ({
@@ -34,6 +44,8 @@ export const Sidebar = ({
   groups,
   allCustomLists,
   onCreateList,
+  onRenameList,
+  onUpdateListTheme,
   onDeleteList,
   onCreateSubList,
   onCreateGroup,
@@ -44,6 +56,9 @@ export const Sidebar = ({
   syncError,
   lastSyncTime,
   taskCounts = {},
+  onMoveTaskToList,
+  onAddToMyDay,
+  onMarkImportant,
 }: Props) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCreatingList, setIsCreatingList] = useState(false);
@@ -55,6 +70,23 @@ export const Sidebar = ({
   const [newSubListName, setNewSubListName] = useState("");
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [renamingListId, setRenamingListId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [themingListId, setThemingListId] = useState<string | null>(null);
+  const [emojiInput, setEmojiInput] = useState("");
+  const themePickerRef = useRef<HTMLDivElement>(null);
+
+  // Close theme picker on click outside
+  useEffect(() => {
+    if (!themingListId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setThemingListId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [themingListId]);
 
   const flaggedEmailsList = allLists.find(l => l.wellknownListName === "flaggedEmails");
 
@@ -112,6 +144,72 @@ export const Sidebar = ({
     setCollapsedGroups(prev => ({ ...prev, [groupId]: false }));
   };
 
+  const startRenaming = (listId: string, currentName: string) => {
+    setRenamingListId(listId);
+    setRenameValue(currentName);
+  };
+
+  const commitRename = () => {
+    if (renamingListId && renameValue.trim() && onRenameList) {
+      onRenameList(renamingListId, renameValue.trim());
+    }
+    setRenamingListId(null);
+    setRenameValue("");
+  };
+
+  const startTheming = (listId: string) => {
+    const list = [...allCustomLists, ...groups].find(l => l.id === listId);
+    setThemingListId(listId);
+    setEmojiInput(list?.emoji || "");
+  };
+
+  const renderThemePicker = (listId: string) => {
+    if (themingListId !== listId) return null;
+    const list = [...allCustomLists, ...groups].find(l => l.id === listId);
+    return (
+      <div ref={themePickerRef} className="sidebar-theme-picker" onClick={(e) => e.stopPropagation()}>
+        <div className="sidebar-theme-colors">
+          {LIST_COLORS.map(c => (
+            <button
+              key={c}
+              className={`sidebar-theme-swatch${list?.themeColor === c ? " active" : ""}`}
+              style={{ background: c }}
+              onClick={() => onUpdateListTheme?.(listId, { themeColor: c })}
+            />
+          ))}
+          {list?.themeColor && (
+            <button
+              className="sidebar-theme-swatch sidebar-theme-clear"
+              onClick={() => onUpdateListTheme?.(listId, { themeColor: null })}
+              title="Remove colour"
+            >×</button>
+          )}
+        </div>
+        <div className="sidebar-theme-emoji-row">
+          <input
+            type="text"
+            className="sidebar-theme-emoji-input"
+            placeholder="Emoji"
+            value={emojiInput}
+            maxLength={2}
+            onChange={(e) => setEmojiInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onUpdateListTheme?.(listId, { emoji: emojiInput || null });
+                setThemingListId(null);
+              }
+            }}
+          />
+          <button
+            className="sidebar-theme-emoji-save"
+            onClick={() => { onUpdateListTheme?.(listId, { emoji: emojiInput || null }); setThemingListId(null); }}
+          >✓</button>
+        </div>
+        <button className="sidebar-theme-done" onClick={() => setThemingListId(null)}>Done</button>
+      </div>
+    );
+  };
+
   // Drag-and-drop handlers
   const handleDragStart = (e: React.DragEvent, listId: string) => {
     e.dataTransfer.setData("listId", listId);
@@ -146,6 +244,40 @@ export const Sidebar = ({
     setDragOverGroupId(null);
   };
 
+  // Task-to-list drop: accept tasks dragged from TaskList onto sidebar items
+  const [taskDropTarget, setTaskDropTarget] = useState<string | null>(null);
+
+  const handleTaskDragOver = (e: React.DragEvent, targetId: string) => {
+    // Only accept if it's a task drag (has text/plain but no listId)
+    if (e.dataTransfer.types.includes("text/plain") && !e.dataTransfer.types.includes("listId")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setTaskDropTarget(targetId);
+    }
+  };
+
+  const handleTaskDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setTaskDropTarget(null);
+    }
+  };
+
+  const handleTaskDrop = (e: React.DragEvent, targetId: string) => {
+    const taskId = e.dataTransfer.getData("text/plain");
+    if (!taskId) return;
+    e.preventDefault();
+    setTaskDropTarget(null);
+
+    if (targetId === "My Day") {
+      onAddToMyDay?.(taskId);
+    } else if (targetId === "Important") {
+      onMarkImportant?.(taskId);
+    } else {
+      // It's a real list ID — move task to that list
+      onMoveTaskToList?.(taskId, targetId);
+    }
+  };
+
   return (
     <>
       <aside className={`sidebar${isCollapsed ? " collapsed" : ""}`}>
@@ -166,9 +298,12 @@ export const Sidebar = ({
           {builtInLists.map((list) => (
             <li
               key={list}
-              className={activeList === list ? "active" : ""}
+              className={`${activeList === list ? "active" : ""}${taskDropTarget === list ? " drag-over" : ""}`}
               onClick={() => onSelectList(list)}
               title={isCollapsed ? list : undefined}
+              onDragOver={(e) => handleTaskDragOver(e, list)}
+              onDragLeave={handleTaskDragLeave}
+              onDrop={(e) => handleTaskDrop(e, list)}
             >
               <span className="sidebar-list-icon">{getListIcon(list)}</span>
               <span className="sidebar-list-name">{list}</span>
@@ -206,7 +341,28 @@ export const Sidebar = ({
                   </button>
                 )}
                 <span className="sidebar-list-icon">📁</span>
-                <span className="sidebar-group-name">{group.displayName}</span>
+                {renamingListId === group.id ? (
+                  <input
+                    type="text"
+                    className="new-list-input sidebar-rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      else if (e.key === "Escape") { setRenamingListId(null); setRenameValue(""); }
+                    }}
+                    onBlur={commitRename}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className="sidebar-group-name"
+                    onDoubleClick={(e) => { e.stopPropagation(); startRenaming(group.id, group.displayName); }}
+                  >
+                    {group.displayName}
+                  </span>
+                )}
                 {!isCollapsed && (
                   <span className="sidebar-group-actions">
                     <button
@@ -238,34 +394,68 @@ export const Sidebar = ({
               {!isCollapsed && !isCollapsedGroup && (
                 <ul className="sidebar-sublist">
                   {subLists.map(sub => (
-                    <li
-                      key={sub.id}
-                      className={`sidebar-sublist-item${activeList === sub.id ? " active" : ""}`}
-                      onClick={() => onSelectList(sub.id)}
-                    >
-                      <span className="sidebar-list-icon">📝</span>
-                      <span className="sidebar-list-name">{sub.displayName}</span>
-                      {taskCounts[sub.id] > 0 && (
-                        <span className="sidebar-task-count">{taskCounts[sub.id]}</span>
-                      )}
-                      {onDeleteList && (
-                        <span className="sidebar-list-actions">
-                          <button
-                            className="delete-list-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              showConfirm(
-                                `Delete "${sub.displayName}"?`,
-                                () => onDeleteList!(sub.id)
-                              );
+                    <React.Fragment key={sub.id}>
+                      <li
+                        className={`sidebar-sublist-item${activeList === sub.id ? " active" : ""}${taskDropTarget === sub.id ? " drag-over" : ""}`}
+                        onClick={() => onSelectList(sub.id)}
+                        onDragOver={(e) => handleTaskDragOver(e, sub.id)}
+                        onDragLeave={handleTaskDragLeave}
+                        onDrop={(e) => handleTaskDrop(e, sub.id)}
+                        style={sub.themeColor ? { borderLeft: `3px solid ${sub.themeColor}` } : undefined}
+                      >
+                        <span className="sidebar-list-icon">{sub.emoji || "📝"}</span>
+                        {renamingListId === sub.id ? (
+                          <input
+                            type="text"
+                            className="new-list-input sidebar-rename-input"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitRename();
+                              else if (e.key === "Escape") { setRenamingListId(null); setRenameValue(""); }
                             }}
-                            aria-label={`Delete ${sub.displayName}`}
+                            onBlur={commitRename}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="sidebar-list-name"
+                            onDoubleClick={(e) => { e.stopPropagation(); startRenaming(sub.id, sub.displayName); }}
                           >
-                            ×
-                          </button>
+                            {sub.displayName}
+                          </span>
+                        )}
+                        {taskCounts[sub.id] > 0 && (
+                          <span className="sidebar-task-count">{taskCounts[sub.id]}</span>
+                        )}
+                        <span className="sidebar-list-actions">
+                          {onUpdateListTheme && (
+                            <button
+                              className="sidebar-theme-btn"
+                              onClick={(e) => { e.stopPropagation(); startTheming(sub.id); }}
+                              title="Customise"
+                            >🎨</button>
+                          )}
+                          {onDeleteList && (
+                            <button
+                              className="delete-list-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                showConfirm(
+                                  `Delete "${sub.displayName}"?`,
+                                  () => onDeleteList!(sub.id)
+                                );
+                              }}
+                              aria-label={`Delete ${sub.displayName}`}
+                            >
+                              ×
+                            </button>
+                          )}
                         </span>
-                      )}
-                    </li>
+                      </li>
+                      {renderThemePicker(sub.id)}
+                    </React.Fragment>
                   ))}
                   {addingSubListToGroup === group.id ? (
                     <li className="sidebar-sublist-input-row">
@@ -305,55 +495,89 @@ export const Sidebar = ({
 
         <ul className="custom-lists">
           {customLists.map((list) => (
-            <li
-              key={list.id}
-              className={activeList === list.id ? "active" : ""}
-              onClick={() => onSelectList(list.id)}
-              title={isCollapsed ? list.displayName : undefined}
-              draggable={!isCollapsed}
-              onDragStart={(e) => handleDragStart(e, list.id)}
-              onDragEnd={handleDragEnd}
-            >
-              <span className="sidebar-list-icon">📝</span>
-              <span className="sidebar-list-name">{list.displayName}</span>
-              {taskCounts[list.id] > 0 && (
-                <span className="sidebar-task-count">{taskCounts[list.id]}</span>
-              )}
-              {!isCollapsed && (
-                <span className="sidebar-list-actions">
-                  <button
-                    className="sidebar-convert-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showConfirm(
-                        `Convert "${list.displayName}" into a group heading?\nA new group will be created and this list will move inside it.`,
-                        () => onConvertToGroup(list.id),
-                        false
-                      );
+            <React.Fragment key={list.id}>
+              <li
+                className={`${activeList === list.id ? "active" : ""}${taskDropTarget === list.id ? " drag-over" : ""}`}
+                onClick={() => onSelectList(list.id)}
+                title={isCollapsed ? list.displayName : undefined}
+                draggable={!isCollapsed && renamingListId !== list.id}
+                onDragStart={(e) => handleDragStart(e, list.id)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleTaskDragOver(e, list.id)}
+                onDragLeave={handleTaskDragLeave}
+                onDrop={(e) => handleTaskDrop(e, list.id)}
+                style={list.themeColor ? { borderLeft: `3px solid ${list.themeColor}` } : undefined}
+              >
+                <span className="sidebar-list-icon">{list.emoji || "📝"}</span>
+                {renamingListId === list.id ? (
+                  <input
+                    type="text"
+                    className="new-list-input sidebar-rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      else if (e.key === "Escape") { setRenamingListId(null); setRenameValue(""); }
                     }}
-                    title="Convert to group"
-                    aria-label={`Convert ${list.displayName} to group`}
+                    onBlur={commitRename}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className="sidebar-list-name"
+                    onDoubleClick={(e) => { e.stopPropagation(); startRenaming(list.id, list.displayName); }}
                   >
-                    📁
-                  </button>
-                  {onDeleteList && (
+                    {list.displayName}
+                  </span>
+                )}
+                {taskCounts[list.id] > 0 && (
+                  <span className="sidebar-task-count">{taskCounts[list.id]}</span>
+                )}
+                {!isCollapsed && (
+                  <span className="sidebar-list-actions">
+                    {onUpdateListTheme && (
+                      <button
+                        className="sidebar-theme-btn"
+                        onClick={(e) => { e.stopPropagation(); startTheming(list.id); }}
+                        title="Customise"
+                      >🎨</button>
+                    )}
                     <button
-                      className="delete-list-btn"
+                      className="sidebar-convert-btn"
                       onClick={(e) => {
                         e.stopPropagation();
                         showConfirm(
-                          `Delete "${list.displayName}"?`,
-                          () => onDeleteList!(list.id)
+                          `Convert "${list.displayName}" into a group heading?\nA new group will be created and this list will move inside it.`,
+                          () => onConvertToGroup(list.id),
+                          false
                         );
                       }}
-                      aria-label={`Delete ${list.displayName}`}
+                      title="Convert to group"
+                      aria-label={`Convert ${list.displayName} to group`}
                     >
-                      ×
+                      📁
                     </button>
-                  )}
-                </span>
-              )}
-            </li>
+                    {onDeleteList && (
+                      <button
+                        className="delete-list-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showConfirm(
+                            `Delete "${list.displayName}"?`,
+                            () => onDeleteList!(list.id)
+                          );
+                        }}
+                        aria-label={`Delete ${list.displayName}`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                )}
+              </li>
+              {renderThemePicker(list.id)}
+            </React.Fragment>
           ))}
         </ul>
 

@@ -201,6 +201,17 @@ export async function createTaskList(displayName: string, accessToken: string): 
   };
 }
 
+export async function updateTaskList(listId: string, updates: { displayName: string }, accessToken: string): Promise<TaskList> {
+  const data = await graphRequest<GraphTaskList>("patch", `${GRAPH_BASE}/${listId}`, accessToken, updates);
+  return {
+    id: data.id,
+    displayName: data.displayName,
+    isOwner: data.isOwner,
+    isShared: data.isShared,
+    wellknownListName: data.wellknownListName as TaskList["wellknownListName"],
+  };
+}
+
 export async function deleteTaskList(listId: string, accessToken: string): Promise<void> {
   await graphRequest("delete", `${GRAPH_BASE}/${listId}`, accessToken);
 }
@@ -336,7 +347,10 @@ export async function fetchAllTasksDelta(
 
   // Process lists sequentially to avoid bursting Microsoft Graph rate limits.
   // Promise.all on many lists causes immediate 429 throttling.
-  for (const list of lists) {
+  // Skip flaggedEmails — its tasks endpoint returns 400 (Exchange-backed, not To Do).
+  const syncableLists = lists.filter(l => l.wellknownListName !== "flaggedEmails");
+  logger.info(`fetchAllTasksDelta: ${lists.length} total lists, ${syncableLists.length} syncable, ${Object.keys(deltaTokens).length} existing tokens`);
+  for (const list of syncableLists) {
     let result: { changes: DeltaChange[]; deltaLink: string };
 
     if (deltaUnsupportedLists.has(list.id)) {
@@ -365,6 +379,7 @@ export async function fetchAllTasksDelta(
       }
     }
 
+    logger.info(`List "${list.displayName}" (${list.id.slice(-8)}): ${result.changes.length} changes, deltaLink=${result.deltaLink ? "yes" : "no"}`);
     allChanges.push(...result.changes);
     if (result.deltaLink) newTokens[list.id] = result.deltaLink;
   }

@@ -85,6 +85,9 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :star: | **Important** | Quick access to starred tasks |
 | :calendar: | **Planned** | Tasks grouped by due date and reminders |
 | :file_folder: | **List groups** | Organise lists into collapsible groups with drag-and-drop |
+| :label: | **List renaming** | Double-click a list name to rename it inline |
+| :art: | **List theming** | Customise lists with accent colours and emoji icons |
+| :1234: | **Task counts** | Badge showing number of tasks next to each list in the sidebar |
 | :mag: | **Search** | Search across all lists by title |
 | :bar_chart: | **Sort** | Sort by due date, importance, alphabetical, or creation date |
 
@@ -93,11 +96,13 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | | Feature | Description |
 |---|---|---|
 | :pencil2: | **Detail panel** | Edit title, notes, due date, importance, recurrence, categories, steps, and attachments |
+| :repeat: | **Recurrence editor** | Full recurrence UI with interval, day-of-week picker, and end date controls |
 | :white_check_mark: | **Subtasks / steps** | Add, check off, and delete checklist items synced with Microsoft To Do |
 | :paperclip: | **File attachments** | Attach files (up to 3 MB) and download them using the OS file picker |
 | :date: | **Custom calendar picker** | Inline calendar for setting due dates from the task list or detail panel |
-| :point_up_2: | **Drag-and-drop** | Reorder tasks within a list by dragging |
+| :point_up_2: | **Drag-and-drop** | Reorder tasks within a list, drag tasks between lists, and drag suggestions into My Day |
 | :clipboard: | **Multi-select** | Shift-click to select multiple tasks for bulk actions |
+| :hash: | **Hashtag categories** | Type `#tag` in quick add or task title to auto-assign categories |
 | :warning: | **Overdue highlighting** | Overdue tasks are visually highlighted with a red accent |
 
 ### Appearance & UI
@@ -110,6 +115,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :desktop_computer: | **Custom title bar** | Native window controls without OS decorations |
 | :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count |
 | :zap: | **Auto-sync** | Configurable sync interval (30s, 1m, 5m, or manual) |
+| :rocket: | **Global quick-add** | System-wide shortcut to add a task from anywhere with natural language date parsing |
 
 ---
 
@@ -118,9 +124,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 Planned features, roughly in priority order:
 
 - [ ] **Keyboard shortcuts** - Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
-- [ ] **Global quick-add** - system-wide keyboard shortcut to add a task from anywhere
 - [ ] **Thunderbird integration** - add emails as tasks from other email accounts
-- [ ] **Phrase parsing** - natural language input to auto-set due dates
 - [ ] **Flatpak packaging** - for easier cross-distro installation
 
 ---

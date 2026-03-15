@@ -100,7 +100,37 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
       {!collapsed && (
         <ul className="myday-suggestions-list">
           {visible.map(({ task, reason }) => (
-            <li key={task.id} className="myday-suggestion-item">
+            <li
+              key={task.id}
+              className="myday-suggestion-item"
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", task.id);
+                e.dataTransfer.setData("suggestion", "true");
+                e.dataTransfer.effectAllowed = "copy";
+                const el = e.currentTarget as HTMLElement;
+                const ghost = el.cloneNode(true) as HTMLElement;
+                const computed = getComputedStyle(el);
+                ghost.style.background = computed.backgroundColor;
+                ghost.style.color = computed.color;
+                ghost.style.border = computed.border || `1px solid ${computed.borderColor}`;
+                ghost.style.padding = computed.padding;
+                ghost.style.display = computed.display;
+                ghost.style.alignItems = computed.alignItems;
+                ghost.style.justifyContent = computed.justifyContent;
+                ghost.style.transform = "scale(0.5)";
+                ghost.style.transformOrigin = "top left";
+                ghost.style.width = `${el.offsetWidth}px`;
+                ghost.style.borderRadius = "8px";
+                ghost.style.overflow = "hidden";
+                ghost.style.position = "absolute";
+                ghost.style.top = "-9999px";
+                ghost.style.left = "-9999px";
+                document.body.appendChild(ghost);
+                e.dataTransfer.setDragImage(ghost, e.nativeEvent.offsetX * 0.5, e.nativeEvent.offsetY * 0.5);
+                requestAnimationFrame(() => ghost.remove());
+              }}
+            >
               <div className="myday-suggestion-info">
                 <span className="myday-suggestion-title">{task.title}</span>
                 <span className="myday-suggestion-reason">{REASON_LABELS[reason]}</span>
