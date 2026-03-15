@@ -290,37 +290,28 @@ export async function queuePendingOp(
   opType: PendingOperation["opType"],
   data: any
 ): Promise<void> {
-  // Wrap in a transaction to prevent inconsistent state on crash
-  await db.execute("BEGIN TRANSACTION");
-  try {
-    if (taskId && (opType === "update" || opType === "toggle")) {
-      await db.execute(
-        "DELETE FROM pendingOps WHERE taskId = ? AND opType = ?",
-        [taskId, opType]
-      );
-    }
-    // Deleting a task that was created offline — cancel the create and skip the delete
-    if (taskId && opType === "delete") {
-      const existing = await db.select<{ id: number }[]>(
-        "SELECT id FROM pendingOps WHERE taskId = ? AND opType = 'create'",
-        [taskId]
-      );
-      if (existing.length > 0) {
-        // Remove all pending ops for this task — nothing needs to reach the server
-        await db.execute("DELETE FROM pendingOps WHERE taskId = ?", [taskId]);
-        await db.execute("COMMIT");
-        return;
-      }
-    }
+  if (taskId && (opType === "update" || opType === "toggle")) {
     await db.execute(
-      "INSERT INTO pendingOps (taskId, opType, data, createdAt) VALUES (?, ?, ?, ?)",
-      [taskId, opType, JSON.stringify(data), Date.now()]
+      "DELETE FROM pendingOps WHERE taskId = ? AND opType = ?",
+      [taskId, opType]
     );
-    await db.execute("COMMIT");
-  } catch (err) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw err;
   }
+  // Deleting a task that was created offline — cancel the create and skip the delete
+  if (taskId && opType === "delete") {
+    const existing = await db.select<{ id: number }[]>(
+      "SELECT id FROM pendingOps WHERE taskId = ? AND opType = 'create'",
+      [taskId]
+    );
+    if (existing.length > 0) {
+      // Remove all pending ops for this task — nothing needs to reach the server
+      await db.execute("DELETE FROM pendingOps WHERE taskId = ?", [taskId]);
+      return;
+    }
+  }
+  await db.execute(
+    "INSERT INTO pendingOps (taskId, opType, data, createdAt) VALUES (?, ?, ?, ?)",
+    [taskId, opType, JSON.stringify(data), Date.now()]
+  );
 }
 
 export async function getPendingOps(db: Database): Promise<PendingOperation[]> {
@@ -365,19 +356,11 @@ export async function loadDeltaTokens(db: Database): Promise<Record<string, stri
 }
 
 export async function saveDeltaTokens(db: Database, tokens: Record<string, string>): Promise<void> {
-  // Wrap in transaction so partial token updates can't leave inconsistent state
-  await db.execute("BEGIN TRANSACTION");
-  try {
-    for (const [listId, deltaLink] of Object.entries(tokens)) {
-      await db.execute(
-        "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
-        [listId, deltaLink]
-      );
-    }
-    await db.execute("COMMIT");
-  } catch (err) {
-    await db.execute("ROLLBACK").catch(() => {});
-    throw err;
+  for (const [listId, deltaLink] of Object.entries(tokens)) {
+    await db.execute(
+      "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
+      [listId, deltaLink]
+    );
   }
 }
 
@@ -397,15 +380,10 @@ export function clearAllData(db: Database): Promise<void> {
 
   clearInFlight = (async () => {
     try {
-      await db.execute("BEGIN TRANSACTION");
       await db.execute("DELETE FROM tasks");
       await db.execute("DELETE FROM lists");
       await db.execute("DELETE FROM deltaTokens");
       await db.execute("DELETE FROM pendingOps");
-      await db.execute("COMMIT");
-    } catch (err) {
-      await db.execute("ROLLBACK").catch(() => {});
-      throw err;
     } finally {
       clearInFlight = null;
     }
