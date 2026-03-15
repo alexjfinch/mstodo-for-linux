@@ -7,7 +7,10 @@ export interface PendingOperation {
   opType: "create" | "toggle" | "update" | "delete" | "list-create";
   data: string;
   createdAt: number;
+  retryCount?: number;
 }
+
+export const MAX_PENDING_OP_RETRIES = 5;
 
 export async function initializeTables(db: Database): Promise<void> {
   await db.execute(`
@@ -57,6 +60,13 @@ export async function initializeTables(db: Database): Promise<void> {
       deltaLink TEXT NOT NULL
     );
   `);
+
+  // Migration: add retryCount column to pendingOps if it doesn't exist
+  try {
+    await db.execute("ALTER TABLE pendingOps ADD COLUMN retryCount INTEGER DEFAULT 0");
+  } catch {
+    // Column already exists — safe to ignore
+  }
 
 }
 
@@ -289,6 +299,13 @@ export async function getPendingOps(db: Database): Promise<PendingOperation[]> {
 
 export async function deletePendingOp(db: Database, opId: number): Promise<void> {
   await db.execute("DELETE FROM pendingOps WHERE id = ?", [opId]);
+}
+
+/** Increment retry count for a failed pending op. Returns the new count. */
+export async function incrementPendingOpRetry(db: Database, opId: number): Promise<number> {
+  await db.execute("UPDATE pendingOps SET retryCount = COALESCE(retryCount, 0) + 1 WHERE id = ?", [opId]);
+  const rows = await db.select<{ retryCount: number }[]>("SELECT retryCount FROM pendingOps WHERE id = ?", [opId]);
+  return rows[0]?.retryCount ?? 0;
 }
 
 /** Update taskId references in pending ops when a local-xxx ID is replaced by a server ID. */

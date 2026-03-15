@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useSyncExternalStore } from "react";
 
 const PING_URL = "https://graph.microsoft.com/v1.0/$metadata";
 const PING_INTERVAL = 30_000; // Re-check every 30 seconds
@@ -25,35 +25,59 @@ async function probeNetwork(): Promise<boolean> {
   }
 }
 
-export function useNetworkStatus() {
-  const [isOnline, setIsOnline] = useState(true); // Assume online until proven otherwise
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+// ── Shared singleton ────────────────────────────────────────────────
+// A single polling loop is shared across all consumers (useTasks, useLists, etc.)
+// to avoid duplicate HEAD requests.
 
-  const check = useCallback(async () => {
-    const online = await probeNetwork();
-    setIsOnline(online);
-  }, []);
+let isOnline = true;
+let subscribers = new Set<() => void>();
+let started = false;
 
-  useEffect(() => {
-    // Initial check
-    check();
+function notify() {
+  for (const cb of subscribers) cb();
+}
 
-    // Periodic re-check
-    intervalRef.current = setInterval(check, PING_INTERVAL);
+async function check() {
+  const online = await probeNetwork();
+  if (online !== isOnline) {
+    isOnline = online;
+    notify();
+  }
+}
 
-    // Browser events as supplementary signal (trigger an immediate re-check)
-    const handleOnline = () => { check(); };
-    const handleOffline = () => { setIsOnline(false); };
+function start() {
+  if (started) return;
+  started = true;
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
+  check();
+  const interval = setInterval(check, PING_INTERVAL);
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, [check]);
+  const handleOnline = () => { check(); };
+  const handleOffline = () => {
+    if (isOnline) {
+      isOnline = false;
+      notify();
+    }
+  };
 
+  window.addEventListener("online", handleOnline);
+  window.addEventListener("offline", handleOffline);
+
+  // Cleanup is intentionally omitted — the monitor runs for the app's lifetime.
+  // If needed in the future, store the interval/listeners for teardown.
+  void interval;
+}
+
+function subscribe(cb: () => void) {
+  start();
+  subscribers.add(cb);
+  return () => { subscribers.delete(cb); };
+}
+
+function getSnapshot() {
   return isOnline;
+}
+
+export function useNetworkStatus() {
+  return useSyncExternalStore(subscribe, getSnapshot);
 }

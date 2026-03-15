@@ -66,6 +66,7 @@ export default function App() {
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
+  const detailPanelRef = useRef<HTMLDivElement>(null);
   // Fetch/update account profile info (handles migrated accounts too)
   useEffect(() => {
     if (!accessToken || !activeAccountId || profileFetched.current) return;
@@ -336,12 +337,16 @@ export default function App() {
     }
   }, [detailTaskId, tasks]);
 
-  // Close detail when clicking outside the panel or task list
+  // Close detail when clicking outside the panel
   useEffect(() => {
     if (!detailTaskId) return;
-    const fn = () => setDetailTaskId(null);
-    document.addEventListener("click", fn);
-    return () => document.removeEventListener("click", fn);
+    const fn = (e: MouseEvent) => {
+      if (detailPanelRef.current && !detailPanelRef.current.contains(e.target as Node)) {
+        setDetailTaskId(null);
+      }
+    };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
   }, [detailTaskId]);
 
   // Global Escape: clear multi-select and close detail
@@ -702,14 +707,16 @@ export default function App() {
       </div>
 
       {detailTask && (
-        <TaskDetail
-          task={detailTask}
-          accessToken={accessToken}
-          onClose={handleCloseDetail}
-          onUpdateAttributes={updateAttributes}
-          onToggleComplete={toggleTask}
-          onDeleteTask={deleteTask}
-        />
+        <div ref={detailPanelRef}>
+          <TaskDetail
+            task={detailTask}
+            accessToken={accessToken}
+            onClose={handleCloseDetail}
+            onUpdateAttributes={updateAttributes}
+            onToggleComplete={toggleTask}
+            onDeleteTask={deleteTask}
+          />
+        </div>
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

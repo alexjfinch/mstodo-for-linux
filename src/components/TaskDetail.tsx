@@ -308,7 +308,7 @@ export const TaskDetail = ({
         onCancel={() => setShowDeleteConfirm(false)}
       />
     )}
-    <div className="task-detail-panel" onClick={(e) => e.stopPropagation()}>
+    <div className="task-detail-panel">
       <div className="task-detail-header">
         <input
           className="task-detail-title-input"

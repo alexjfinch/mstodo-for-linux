@@ -24,7 +24,9 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   let client = build_oauth_client(client_id);
 
   let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-  *PKCE_VERIFIER.lock().unwrap() = Some(pkce_verifier);
+  *PKCE_VERIFIER
+    .lock()
+    .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
 
   // CSRF token intentionally unused: PKCE already prevents authorization code
   // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).

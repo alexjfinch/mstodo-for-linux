@@ -27,6 +27,8 @@ import {
   clearDeltaTokens,
   clearAllData,
   updatePendingOpsTaskId,
+  incrementPendingOpRetry,
+  MAX_PENDING_OP_RETRIES,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -131,6 +133,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         await deletePendingOp(database, op.id!);
       } catch (err) {
         logger.error(`Failed to sync pending operation: ${op.opType}`, err);
+        // Increment retry count; drop the op after too many failures
+        const retries = await incrementPendingOpRetry(database, op.id!);
+        if (retries >= MAX_PENDING_OP_RETRIES) {
+          logger.warn(`Dropping pending op ${op.opType} (id=${op.id}) after ${retries} retries`);
+          await deletePendingOp(database, op.id!);
+        }
       }
     }
   }, []);
