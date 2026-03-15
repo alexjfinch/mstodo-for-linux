@@ -31,9 +31,9 @@
 
 ## Why?
 
-Microsoft doesn't offer a native To Do app for Linux. This project fills that gap with a lightweight desktop app that authenticates with your Microsoft account and syncs tasks, lists, attachments, and more -- all through the official Graph API.
+Microsoft doesn't offer a native To Do app for Linux and when I was looking at learning something new to do I thought about creating an electron wrapper for the webapp - I then found through research that most Linux users hate this approach due to the overhead of electron. This project fills that gap with a lightweight desktop app that authenticates with your Microsoft account and syncs tasks, lists, attachments, and more - all through the official Graph API.
 
-> **Note:** I am not a trained app developer -- this started as a personal project to learn coding with the help of AI. Feel free to submit PRs to improve things. If you find anything rough around the edges, I apologise -- but I hope it's useful to you!
+> **Note:** I am not a trained app developer, this started as a personal project to learn coding with the help of AI. Feel free to submit PRs to improve things. If you find anything rough around the edges, I apologise but I hope it's useful to you!
 
 ---
 
@@ -58,7 +58,7 @@ Grab the latest package from the [Releases](https://github.com/alexjfinch/mstodo
 ## Getting Started
 
 1. Launch the app
-2. Click **Sign In** -- your browser opens to the Microsoft login page
+2. Click **Sign In** - your browser opens to the Microsoft login page
 3. Sign in and grant the app permission to access your tasks
 4. Your tasks sync automatically
 
@@ -117,11 +117,11 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 
 Planned features, roughly in priority order:
 
-- [ ] **Keyboard shortcuts** -- Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
-- [ ] **Global quick-add** -- system-wide keyboard shortcut to add a task from anywhere
-- [ ] **Thunderbird integration** -- add emails as tasks from other email accounts
-- [ ] **Phrase parsing** -- natural language input to auto-set due dates
-- [ ] **Flatpak packaging** -- for easier cross-distro installation
+- [ ] **Keyboard shortcuts** - Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
+- [ ] **Global quick-add** - system-wide keyboard shortcut to add a task from anywhere
+- [ ] **Thunderbird integration** - add emails as tasks from other email accounts
+- [ ] **Phrase parsing** - natural language input to auto-set due dates
+- [ ] **Flatpak packaging** - for easier cross-distro installation
 
 ---
 
@@ -166,14 +166,14 @@ The built packages (`.deb`, `.rpm`, `.AppImage`) will be in `src-tauri/target/re
 
 ## Security & Privacy
 
-Authentication uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) -- a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. Tokens are stored in your system keyring (e.g. GNOME Keyring, KWallet).
+Authentication uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) - a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. Tokens are stored in your system keyring (e.g. GNOME Keyring, KWallet).
 
 **No telemetry. No analytics. No backend server.** Data only leaves your machine via requests to the Microsoft Graph API on your behalf.
 
 <details>
 <summary>Azure AD permissions</summary>
 
-This app uses a publicly registered Azure AD client (ID: `2a0ee15b-0a96-44d2-b30d-3cf604947669`). This is not a secret -- it identifies the app to Microsoft during sign-in.
+This app uses a publicly registered Azure AD client (ID: `2a0ee15b-0a96-44d2-b30d-3cf604947669`). This is not a secret - it identifies the app to Microsoft during sign-in.
 
 | Scope | Reason |
 |---|---|
