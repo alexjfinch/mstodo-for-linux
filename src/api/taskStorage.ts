@@ -255,6 +255,15 @@ export async function updateTaskAttributesDB(
   await db.execute(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`, values);
 }
 
+export async function updateTaskListId(
+  db: Database,
+  id: string,
+  listId: string,
+  timestamp: number
+): Promise<void> {
+  await db.execute("UPDATE tasks SET listId = ?, updatedAt = ? WHERE id = ?", [listId, timestamp, id]);
+}
+
 export async function deleteTaskFromDB(db: Database, id: string): Promise<void> {
   await db.execute("DELETE FROM tasks WHERE id = ?", [id]);
 }

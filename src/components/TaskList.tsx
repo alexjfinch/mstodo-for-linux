@@ -189,7 +189,7 @@ export const TaskList = ({
     setMoveSubmenuOpen(false);
   };
 
-  const handleToggleAttribute = (attribute: "isInMyDay" | "importance") => {
+  const handleToggleAttribute = async (attribute: "isInMyDay" | "importance") => {
     if (!contextMenu.taskId) return;
 
     // Apply to all selected tasks if right-clicked task is in the selection
@@ -197,17 +197,18 @@ export const TaskList = ({
       ? selectedTasks
       : [contextMenu.taskId];
 
-    for (const id of idsToUpdate) {
+    await Promise.all(idsToUpdate.map((id) => {
       const task = tasks.find((t) => t.id === id);
-      if (!task) continue;
+      if (!task) return Promise.resolve();
 
       if (attribute === "importance") {
         const newValue = task.importance === "high" ? "normal" : "high";
-        onUpdateAttributes(id, { importance: newValue });
+        return onUpdateAttributes(id, { importance: newValue });
       } else if (attribute === "isInMyDay") {
-        onUpdateAttributes(id, { isInMyDay: !task.isInMyDay });
+        return onUpdateAttributes(id, { isInMyDay: !task.isInMyDay });
       }
-    }
+      return Promise.resolve();
+    }));
 
     if (idsToUpdate.length > 1) onClearSelection();
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });

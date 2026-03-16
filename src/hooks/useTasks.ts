@@ -16,6 +16,7 @@ import {
   updateTaskId,
   updateTaskCompletion,
   updateTaskAttributesDB,
+  updateTaskListId,
   queuePendingOp,
   deleteTaskFromDB,
   saveTaskToDB,
@@ -536,7 +537,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
     try {
       // Update locally
-      await database.execute("UPDATE tasks SET listId = ?, updatedAt = ? WHERE id = ?", [targetListId, Date.now(), taskId]);
+      await updateTaskListId(database, taskId, targetListId, Date.now());
 
       // Sync via Graph: create on target list, then delete from source.
       // If create succeeds but delete fails, we clean up the created task.
@@ -567,7 +568,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           // Update local ID to match the new server task
           if (created) {
             const newId = created.id;
-            await database.execute("UPDATE tasks SET id = ? WHERE id = ?", [newId, taskId]);
+            await updateTaskId(database, taskId, newId, Date.now());
             setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...updated, id: newId } : t)));
           }
         } catch (err) {

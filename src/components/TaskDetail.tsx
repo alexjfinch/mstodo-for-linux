@@ -99,12 +99,18 @@ export const TaskDetail = ({
   // Reset local state when task changes
   useEffect(() => {
     setTitle(task.title);
-    setNotes(cleanNotes(task.body));
     setNewCategory("");
     setUploadError(null);
     setDownloadError(null);
     setNewStepName("");
   }, [task.id]);
+
+  // Update notes from external changes (e.g. sync) when not actively editing
+  useEffect(() => {
+    if (!notesEditing) {
+      setNotes(cleanNotes(task.body));
+    }
+  }, [task.id, task.body, notesEditing]);
 
   // Fetch attachments and checklist items when task changes
   useEffect(() => {

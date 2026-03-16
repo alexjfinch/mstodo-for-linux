@@ -674,16 +674,19 @@ export default function App() {
           ) : null}
 
           <div className={`main-header${SPECIAL_LISTS.has(activeList) && !searchQuery ? " main-header-compact" : ""}`}>
-            {(!SPECIAL_LISTS.has(activeList) || searchQuery) && (
-              <h2 className="list-title">
-                {searchQuery ? `Search: "${searchQuery}"` : getListDisplayName}
-                {!searchQuery && (
-                  <span className="list-title-count">
-                    {filteredTasks.filter(t => !t.completed).length} task{filteredTasks.filter(t => !t.completed).length !== 1 ? "s" : ""}
-                  </span>
-                )}
-              </h2>
-            )}
+            {(!SPECIAL_LISTS.has(activeList) || searchQuery) && (() => {
+              const activeCount = filteredTasks.filter(t => !t.completed).length;
+              return (
+                <h2 className="list-title">
+                  {searchQuery ? `Search: "${searchQuery}"` : getListDisplayName}
+                  {!searchQuery && (
+                    <span className="list-title-count">
+                      {activeCount} task{activeCount !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </h2>
+              );
+            })()}
             <div className="main-header-actions">
               <SearchBar query={searchQuery} onQueryChange={setSearchQuery} />
               {selectedTasks.length > 0 && (

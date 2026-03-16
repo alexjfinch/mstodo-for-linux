@@ -441,7 +441,7 @@ export async function updateTaskAttributes(
     };
   }
 
-  if (updates.importance) body.importance = updates.importance;
+  if ("importance" in updates) body.importance = updates.importance;
 
   if ("dueDateTime" in updates) {
     body.dueDateTime = updates.dueDateTime

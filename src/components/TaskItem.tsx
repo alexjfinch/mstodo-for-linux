@@ -341,7 +341,7 @@ export const TaskItem = ({
               onChange={handleDateInputChange}
               onBlur={handleDateInputBlur}
               onKeyDown={handleDateInputKeyDown}
-              placeholder="e.g., 20/01/2025, 01/20/2025, tomorrow"
+              placeholder="e.g., 20/01/2025, 2025-01-20, tomorrow"
             />
           </div>
         ) : (

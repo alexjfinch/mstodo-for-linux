@@ -182,7 +182,7 @@ export const useAuth = () => {
         refreshToken: tokenResp.refresh_token ?? "",
       };
 
-      const existing = accounts.filter((a) => a.id !== accountId);
+      const existing = accountsRef.current.filter((a) => a.id !== accountId);
       const updated = [...existing, newAccount];
       setAccounts(updated);
       setActiveAccountId(accountId);
@@ -193,7 +193,7 @@ export const useAuth = () => {
     } finally {
       setLoading(false);
     }
-  }, [accounts, persistAccounts]);
+  }, [persistAccounts]);
 
   const switchAccount = useCallback(async (accountId: string) => {
     const account = accounts.find((a) => a.id === accountId);
