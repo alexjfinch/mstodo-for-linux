@@ -510,7 +510,7 @@ export const Settings = ({
             <div className="settings-item">
               <div className="settings-item-info">
                 <div className="settings-item-label">Version</div>
-                <div className="settings-item-description">0.1.0</div>
+                <div className="settings-item-description">0.1.4</div>
               </div>
             </div>
 
