@@ -41,6 +41,9 @@ async function loadTokens(id: string): Promise<{ accessToken: string; refreshTok
     keyringGet(id, "access_token"),
     keyringGet(id, "refresh_token"),
   ]);
+  if (!accessToken && !refreshToken) {
+    logger.warn(`No tokens found in keyring for account ${id} — account may need re-authentication`);
+  }
   return { accessToken: accessToken ?? "", refreshToken: refreshToken ?? "" };
 }
 
@@ -58,6 +61,7 @@ export const useAuth = () => {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const refreshTokenRef = useRef<string | null>(null);
+  const activeAccountIdRef = useRef<string | null>(null);
 
   const accountsRef = useRef<StoredAccount[]>([]);
 
@@ -65,6 +69,7 @@ export const useAuth = () => {
   const accessToken = activeAccount?.accessToken ?? null;
 
   useEffect(() => { accountsRef.current = accounts; }, [accounts]);
+  useEffect(() => { activeAccountIdRef.current = activeAccountId; }, [activeAccountId]);
 
   useEffect(() => {
     refreshTokenRef.current = activeAccount?.refreshToken ?? null;
@@ -126,6 +131,11 @@ export const useAuth = () => {
     const currentRefresh = refreshTokenRef.current;
     if (!currentRefresh) throw new Error("No refresh token available");
 
+    // Use refs to avoid stale closures — refresh() may be called long after
+    // the callback was created (e.g. on a 401 retry during account switch).
+    const currentAccountId = activeAccountIdRef.current;
+    if (!currentAccountId) throw new Error("No active account");
+
     try {
       const tokenResp = await invoke<{ access_token: string; refresh_token?: string }>(
         "refresh_token", { refreshToken: currentRefresh }
@@ -134,23 +144,21 @@ export const useAuth = () => {
       if (!tokenResp.refresh_token) {
         logger.warn("Token refresh response did not include a new refresh token — reusing existing one");
       }
-      await storeTokens(activeAccountId!, tokenResp.access_token, newRefresh);
-      // Use accountsRef to avoid stale closure — refresh() may be called
-      // long after the callback was created (e.g. on a 401 retry).
+      await storeTokens(currentAccountId, tokenResp.access_token, newRefresh);
       const updated = accountsRef.current.map((a) =>
-        a.id === activeAccountId
+        a.id === currentAccountId
           ? { ...a, accessToken: tokenResp.access_token, refreshToken: newRefresh }
           : a
       );
       setAccounts(updated);
-      await persistAccounts(updated, activeAccountId);
+      await persistAccounts(updated, currentAccountId);
       return tokenResp.access_token;
     } catch (err) {
       logger.error("Refresh failed", err);
       await signOut();
       throw err;
     }
-  }, [activeAccountId, signOut, persistAccounts]);
+  }, [signOut, persistAccounts]);
 
   // Register the refresh callback
   useEffect(() => {

@@ -82,16 +82,18 @@ export function importFromJson(content: string): ImportResult {
   if (!data.tasks || !Array.isArray(data.tasks)) {
     throw new Error("Invalid backup format: missing 'tasks' array.");
   }
-  const tasks: Omit<Task, "id">[] = data.tasks.map((t) => ({
-    title: t.title || "Untitled",
-    completed: !!t.completed,
-    status: t.completed ? "completed" : "notStarted",
-    isInMyDay: t.isInMyDay,
-    importance: t.importance,
-    dueDateTime: t.dueDateTime,
-    body: t.body,
-    categories: t.categories,
-  }));
+  const tasks: Omit<Task, "id">[] = data.tasks
+    .filter((t): t is Task => t != null && typeof t === "object" && typeof t.title === "string")
+    .map((t) => ({
+      title: t.title || "Untitled",
+      completed: !!t.completed,
+      status: t.completed ? "completed" : "notStarted",
+      isInMyDay: typeof t.isInMyDay === "boolean" ? t.isInMyDay : undefined,
+      importance: (t.importance === "high" || t.importance === "low" || t.importance === "normal") ? t.importance : undefined,
+      dueDateTime: t.dueDateTime && typeof t.dueDateTime === "object" && "dateTime" in t.dueDateTime ? t.dueDateTime : undefined,
+      body: t.body && typeof t.body === "object" && "content" in t.body ? t.body : undefined,
+      categories: Array.isArray(t.categories) ? t.categories.filter((c): c is string => typeof c === "string") : undefined,
+    }));
   return { tasks, count: tasks.length };
 }
 
@@ -264,11 +266,16 @@ function parseCsvLines(content: string): string[][] {
   const rows: string[][] = [];
   const lines = content.split(/\r?\n/);
 
+  let row: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
   for (const line of lines) {
-    if (!line.trim()) continue;
-    const row: string[] = [];
-    let current = "";
-    let inQuotes = false;
+    // If we're not inside a quoted field and the line is empty, skip it
+    if (!inQuotes && !line.trim()) continue;
+
+    // If we're continuing a quoted field from a previous line, add the newline
+    if (inQuotes) current += "\n";
 
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
@@ -286,6 +293,18 @@ function parseCsvLines(content: string): string[][] {
         current += ch;
       }
     }
+
+    // Only finalize the row if we're not inside a quoted field
+    if (!inQuotes) {
+      row.push(current);
+      current = "";
+      rows.push(row);
+      row = [];
+    }
+  }
+
+  // Handle trailing data (e.g. unterminated quote)
+  if (current || row.length > 0) {
     row.push(current);
     rows.push(row);
   }

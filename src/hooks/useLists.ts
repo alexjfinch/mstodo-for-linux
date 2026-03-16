@@ -79,7 +79,14 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       // Process pending list-create ops (lists created while offline)
       const pendingListOps = await getPendingOpsByType(database, "list-create");
       for (const op of pendingListOps) {
-        const data = JSON.parse(op.data);
+        let data: any;
+        try {
+          data = JSON.parse(op.data);
+        } catch (parseErr) {
+          logger.warn(`Dropping pending list op (id=${op.id}) — corrupt JSON data`, parseErr);
+          await deletePendingOp(database, op.id!);
+          continue;
+        }
         try {
           const created = await createTaskListGraph(data.displayName, token);
           const withGroup = data.parentGroupId ? { ...created, parentGroupId: data.parentGroupId } : created;

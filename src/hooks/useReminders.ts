@@ -178,14 +178,19 @@ export const useReminders = (
 
   // Prune stale notification keys for tasks that no longer exist.
   // Keys are formatted as "taskId-dateTime" or "reminder-taskId-dateTime",
-  // so we check if any current task ID is a prefix of the key.
+  // so we extract the task ID from each key and check the Set.
   useEffect(() => {
-    const taskIds = tasks.map((t) => t.id);
+    const taskIdSet = new Set(tasks.map((t) => t.id));
     for (const key of notifiedRef.current) {
-      const belongsToExistingTask = taskIds.some(
-        (id) => key === id || key.startsWith(id + "-") || key.startsWith("reminder-" + id + "-")
-      );
-      if (!belongsToExistingTask) {
+      // Extract task ID: "reminder-<id>-<datetime>" or "<id>-<datetime>"
+      let taskId: string;
+      if (key.startsWith("reminder-")) {
+        const rest = key.slice("reminder-".length);
+        taskId = rest.substring(0, rest.lastIndexOf("-"));
+      } else {
+        taskId = key.substring(0, key.lastIndexOf("-"));
+      }
+      if (taskId && !taskIdSet.has(taskId)) {
         notifiedRef.current.delete(key);
       }
     }

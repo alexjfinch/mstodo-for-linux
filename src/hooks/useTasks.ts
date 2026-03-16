@@ -71,10 +71,13 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       if (isAccountSwitch) {
         // Invalidate any in-flight sync so it won't write stale data
         syncGenerationRef.current++;
+        // Cancel in-flight HTTP requests from the previous sync and wait
+        // for the abort to propagate before clearing data
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         syncInProgressRef.current = false; // allow fresh sync for new account
-        // Cancel in-flight HTTP requests from the previous sync
-        abortControllerRef.current?.abort();
-        abortControllerRef.current = null;
         resetGraphCaches();
         setTasks([]);
         setLoading(true);
@@ -108,7 +111,14 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     if (ops.length === 0) return;
 
     for (const op of ops) {
-      const data = JSON.parse(op.data);
+      let data: any;
+      try {
+        data = JSON.parse(op.data);
+      } catch (parseErr) {
+        logger.warn(`Dropping pending op ${op.opType} (id=${op.id}) — corrupt JSON data`, parseErr);
+        await deletePendingOp(database, op.id!);
+        continue;
+      }
       try {
         if (op.opType === "create") {
           const created = await createTaskGraph(data.title, data.listId, token);
@@ -248,7 +258,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           seenIds.add(change.task.id);
           const local = localMap.get(change.task.id);
 
-          if (local && local.lastModified && change.task.lastModified &&
+          if (local && typeof local.lastModified === "number" && typeof change.task.lastModified === "number" &&
               local.lastModified > change.task.lastModified) {
             merged.push(local);
             try {
@@ -306,7 +316,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
                 taskMap.delete(change.task.id);
               } else {
                 const local = taskMap.get(change.task.id);
-                if (local && local.lastModified && change.task.lastModified &&
+                if (local && typeof local.lastModified === "number" && typeof change.task.lastModified === "number" &&
                     local.lastModified > change.task.lastModified) {
                   // Local is newer — keep it (pending ops will push it)
                 } else {

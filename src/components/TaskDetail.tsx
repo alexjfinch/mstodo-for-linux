@@ -235,8 +235,13 @@ export const TaskDetail = ({
 
   const handleAddCategory = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && newCategory.trim()) {
-      const updated = [...(task.categories || []), newCategory.trim()];
-      onUpdateAttributes(task.id, { categories: updated });
+      const trimmed = newCategory.trim();
+      const existing = task.categories || [];
+      if (existing.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+        setNewCategory("");
+        return;
+      }
+      onUpdateAttributes(task.id, { categories: [...existing, trimmed] });
       setNewCategory("");
     }
   };
@@ -316,7 +321,7 @@ export const TaskDetail = ({
       setSteps((prev) => [...prev, item]);
       setNewStepName("");
     } catch {
-      // silently fail
+      setUploadError("Failed to add step. Please try again.");
     }
   };
 

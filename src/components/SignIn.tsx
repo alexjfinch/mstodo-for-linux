@@ -107,8 +107,8 @@ export const SignIn = ({ signIn }: Props) => {
         <div className="signin-info">
           <p>
             <span className="info-icon">🔒</span>
-            Your credentials are never stored in this app. 
-            Authentication is handled securely by Microsoft.
+            Your password is never stored in this app.
+            Auth tokens are kept securely in your system keyring.
           </p>
         </div>
 

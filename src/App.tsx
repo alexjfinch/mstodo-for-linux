@@ -315,17 +315,20 @@ export default function App() {
     // prefers-color-scheme. Read the initial theme via the freedesktop portal
     // (works cross-DE: GNOME, KDE, etc.) and listen for live changes emitted
     // by the Rust portal watcher.
+    // Register the listener BEFORE invoking get_system_theme to avoid missing
+    // a theme change that fires between the invoke and the listen.
     let unlisten: (() => void) | undefined;
     let cancelled = false;
 
-    invoke<string>("get_system_theme").then(osTheme => {
-      if (!cancelled) root.setAttribute("data-theme", osTheme);
-      return listen<string>("theme-changed", ({ payload }) => {
-        root.setAttribute("data-theme", payload);
-      });
+    listen<string>("theme-changed", ({ payload }) => {
+      if (!cancelled) root.setAttribute("data-theme", payload);
     }).then(fn => {
       if (cancelled) fn();
       else unlisten = fn;
+    });
+
+    invoke<string>("get_system_theme").then(osTheme => {
+      if (!cancelled) root.setAttribute("data-theme", osTheme);
     });
 
     return () => {

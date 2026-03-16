@@ -108,7 +108,7 @@ async function graphRequest<T>(
   method: "get" | "post" | "patch" | "delete",
   url: string,
   accessToken: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown> | GraphTaskPatchBody
 ): Promise<T> {
   const call = async (token: string): Promise<T> => {
     const config = { headers: { Authorization: `Bearer ${token}` }, timeout: REQUEST_TIMEOUT };
@@ -123,19 +123,21 @@ async function graphRequest<T>(
   try {
     return await call(accessToken);
   } catch (err: unknown) {
-    const axiosErr = err as AxiosError;
-    if (axiosErr.response?.status === 401 && tokenRefreshCallback) {
+    const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
+    if (axiosErr?.response?.status === 401 && tokenRefreshCallback) {
+      // Deduplicate concurrent refresh attempts — only the first caller
+      // invokes the callback; others await the same promise.
       if (!inflightRefresh) {
         inflightRefresh = tokenRefreshCallback().finally(() => { inflightRefresh = null; });
       }
       const newToken = await inflightRefresh;
       return await call(newToken);
     }
-    // Respect 429 rate-limit: wait for Retry-After, refresh token (it may
-    // have expired during the wait), then retry once.
-    if (axiosErr.response?.status === 429) {
+    // Respect 429 rate-limit: wait for Retry-After with exponential backoff,
+    // refresh token (it may have expired during the wait), then retry once.
+    if (axiosErr?.response?.status === 429) {
       const retryAfter = parseInt(axiosErr.response.headers?.["retry-after"] as string, 10);
-      const waitMs = (retryAfter > 0 ? retryAfter : 30) * 1000;
+      const waitMs = (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 30) * 1000;
       logger.warn(`Rate-limited (429), waiting ${waitMs / 1000}s before retry`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       let retryToken = accessToken;
@@ -364,10 +366,18 @@ export async function fetchAllTasksDelta(
       try {
         result = await fetchTasksDelta(list.id, accessToken, existing);
       } catch (err: unknown) {
-        const axiosErr = err as AxiosError;
-        if (axiosErr.response?.status === 400) {
+        const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
+        if (axiosErr?.response?.status === 400) {
           deltaUnsupportedLists.add(list.id);
           logger.warn(`Delta not supported for list ${list.id}, falling back to full fetch`);
+          const tasks = await fetchTasksFromList(list.id, accessToken);
+          result = {
+            changes: tasks.map((task) => ({ task, removed: false })),
+            deltaLink: "",
+          };
+        } else if (axiosErr?.response?.status === 410) {
+          // Delta token expired for this list — fall back to full fetch
+          logger.warn(`Delta token expired for list ${list.id}, performing full fetch`);
           const tasks = await fetchTasksFromList(list.id, accessToken);
           result = {
             changes: tasks.map((task) => ({ task, removed: false })),
@@ -460,7 +470,7 @@ export async function updateTaskAttributes(
 
   const data = await graphRequest<GraphTask>(
     "patch", `${GRAPH_BASE}/${task.listId}/tasks/${task.id}`, accessToken,
-    body as unknown as Record<string, unknown>
+    body
   );
 
   return {

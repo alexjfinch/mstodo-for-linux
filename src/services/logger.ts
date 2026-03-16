@@ -4,16 +4,28 @@ type LogLevel = "error" | "warn" | "info" | "debug";
 
 const isDev = import.meta.env.DEV;
 
+/** Redact bearer tokens and other secrets from log output. */
+function redactSecrets(text: string): string {
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, "Bearer [REDACTED]")
+    .replace(/access_token["\s:=]+[A-Za-z0-9\-._~+/]+=*/g, "access_token=[REDACTED]")
+    .replace(/refresh_token["\s:=]+[A-Za-z0-9\-._~+/]+=*/g, "refresh_token=[REDACTED]");
+}
+
 function formatError(err: unknown): string {
+  let text: string;
   if (err instanceof Error) {
-    return err.stack || err.message;
+    text = err.stack || err.message;
+  } else if (typeof err === "string") {
+    text = err;
+  } else {
+    try {
+      text = JSON.stringify(err);
+    } catch {
+      text = String(err);
+    }
   }
-  if (typeof err === "string") return err;
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return String(err);
-  }
+  return redactSecrets(text);
 }
 
 function writeToFile(level: LogLevel, message: string) {
@@ -23,7 +35,7 @@ function writeToFile(level: LogLevel, message: string) {
 }
 
 function log(level: LogLevel, message: string, err?: unknown) {
-  const full = err ? `${message}: ${formatError(err)}` : message;
+  const full = err ? `${redactSecrets(message)}: ${formatError(err)}` : redactSecrets(message);
 
   // Always write to log file
   writeToFile(level, full);
