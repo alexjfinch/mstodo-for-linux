@@ -50,6 +50,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         if (isAccountSwitch) {
           syncGenerationRef.current++;
           syncInProgressRef.current = false;
+          listsRef.current = []; // Clear ref immediately so syncLists doesn't re-add stale groups
           setLists([]);
           setLoading(true);
           const clearing = clearAllData(db);
