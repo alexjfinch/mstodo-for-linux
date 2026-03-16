@@ -164,26 +164,24 @@ export const TaskList = ({
     }
   }, [contextMenu.visible]);
 
-  // Close context menu when clicking outside or scrolling
+  // Close context menu when clicking outside or scrolling (only when visible)
   useEffect(() => {
+    if (!contextMenu.visible) return;
+
+    const closeMenu = () => setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-      }
-    };
-
-    const handleScroll = () => {
-      if (contextMenu.visible) {
-        setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+        closeMenu();
       }
     };
 
     document.addEventListener("click", handleClickOutside);
-    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("scroll", closeMenu, true);
 
     return () => {
       document.removeEventListener("click", handleClickOutside);
-      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("scroll", closeMenu, true);
     };
   }, [contextMenu.visible]);
 
@@ -357,6 +355,13 @@ export const TaskList = ({
   };
 
   const currentTask = contextMenu.taskId ? tasks.find((t) => t.id === contextMenu.taskId) ?? null : null;
+
+  // Close context menu if the referenced task was deleted externally
+  useEffect(() => {
+    if (contextMenu.visible && contextMenu.taskId && !currentTask) {
+      setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+    }
+  }, [contextMenu.visible, contextMenu.taskId, currentTask]);
 
   const renderTask = (task: Task, draggable: boolean = false) => (
     <TaskItem

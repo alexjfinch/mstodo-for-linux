@@ -417,6 +417,7 @@ export const TaskDetail = ({
                   setShowDueDateCalendar(false);
                 }}
                 title="Clear due date"
+                aria-label="Clear due date"
               >
                 ×
               </button>
@@ -425,9 +426,9 @@ export const TaskDetail = ({
           {showDueDateCalendar && (
             <div className="mini-calendar task-detail-calendar" ref={dueDateCalendarRef}>
               <div className="calendar-header">
-                <button onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() - 1, 1))}>‹</button>
+                <button aria-label="Previous month" onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() - 1, 1))}>‹</button>
                 <span>{dueDateCalendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
-                <button onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() + 1, 1))}>›</button>
+                <button aria-label="Next month" onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() + 1, 1))}>›</button>
               </div>
               <div className="calendar-weekdays">
                 <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
@@ -698,6 +699,7 @@ export const TaskDetail = ({
                     className="task-detail-attachment-action"
                     onClick={() => handleDownload(att)}
                     title="Download"
+                    aria-label={`Download ${att.name}`}
                   >
                     ⬇
                   </button>
@@ -705,6 +707,7 @@ export const TaskDetail = ({
                     className="task-detail-attachment-action task-detail-attachment-delete"
                     onClick={() => handleDeleteAttachment(att.id)}
                     title="Remove"
+                    aria-label={`Remove ${att.name}`}
                   >
                     ×
                   </button>

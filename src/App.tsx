@@ -70,6 +70,7 @@ export default function App() {
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
   const detailPanelRef = useRef<HTMLDivElement>(null);
+  const pushToastRef = useRef<((toast: { title: string; body: string; type?: "reminder" | "success" | "error" }) => void) | null>(null);
   // Fetch/update account profile info (handles migrated accounts too)
   useEffect(() => {
     if (!accessToken || !activeAccountId || profileFetched.current) return;
@@ -132,7 +133,13 @@ export default function App() {
     syncing,
     syncError,
     lastSyncTime,
-  } = useTasks(accessToken, currentListId, db, activeAccountId);
+  } = useTasks(accessToken, currentListId, db, activeAccountId, (info) => {
+    pushToastRef.current?.({
+      type: "error",
+      title: "Sync failed",
+      body: `A pending ${info.opType} operation could not be synced and was discarded.`,
+    });
+  });
 
   // Compute uncompleted task counts for sidebar badges
   const taskCounts = useMemo(() => {
@@ -193,6 +200,7 @@ export default function App() {
 
   // Due-date reminder notifications
   const { toasts, dismissToast, pushToast } = useReminders(tasks, remindersEnabled, reminderTiming);
+  pushToastRef.current = pushToast;
 
   const handleReorderTasks = useCallback((reorderedIds: string[]) => {
     reorderTasks(activeList, reorderedIds);

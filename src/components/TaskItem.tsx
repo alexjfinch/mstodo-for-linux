@@ -332,6 +332,7 @@ export const TaskItem = ({
               className="calendar-icon-btn"
               onClick={handleCalendarIconClick}
               title="Open calendar"
+              aria-label="Open calendar"
             >
               📅
             </button>
@@ -366,6 +367,7 @@ export const TaskItem = ({
                       className="date-clear-btn"
                       onClick={(e) => { e.stopPropagation(); onUpdateDueDate(undefined); }}
                       title="Clear due date"
+                      aria-label="Clear due date"
                     >
                       ×
                     </button>

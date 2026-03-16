@@ -29,3 +29,5 @@ export const NewTaskInput = forwardRef<HTMLInputElement, Props>(
     );
   }
 );
+
+NewTaskInput.displayName = "NewTaskInput";

@@ -179,6 +179,7 @@ export const Sidebar = ({
               className={`sidebar-theme-swatch${list?.themeColor === c ? " active" : ""}`}
               style={{ background: c }}
               onClick={() => onUpdateListTheme?.(listId, { themeColor: c })}
+              aria-label={`Set color to ${c}`}
             />
           ))}
           {list?.themeColor && (
@@ -186,6 +187,7 @@ export const Sidebar = ({
               className="sidebar-theme-swatch sidebar-theme-clear"
               onClick={() => onUpdateListTheme?.(listId, { themeColor: null })}
               title="Remove colour"
+              aria-label="Remove list color"
             >×</button>
           )}
         </div>
@@ -207,6 +209,7 @@ export const Sidebar = ({
           <button
             className="sidebar-theme-emoji-save"
             onClick={() => { onUpdateListTheme?.(listId, { emoji: emojiInput || null }); setThemingListId(null); }}
+            aria-label="Save emoji"
           >✓</button>
         </div>
         <button className="sidebar-theme-done" onClick={() => setThemingListId(null)}>Done</button>
@@ -373,6 +376,7 @@ export const Sidebar = ({
                       className="sidebar-group-add-btn"
                       onClick={() => startAddingSubList(group.id)}
                       title="Add list to group"
+                      aria-label={`Add list to ${group.displayName}`}
                     >
                       +
                     </button>
@@ -439,6 +443,7 @@ export const Sidebar = ({
                               className="sidebar-theme-btn"
                               onClick={(e) => { e.stopPropagation(); startTheming(sub.id); }}
                               title="Customise"
+                              aria-label={`Customize ${sub.displayName}`}
                             >🎨</button>
                           )}
                           {onDeleteList && (
@@ -545,6 +550,7 @@ export const Sidebar = ({
                         className="sidebar-theme-btn"
                         onClick={(e) => { e.stopPropagation(); startTheming(list.id); }}
                         title="Customise"
+                        aria-label={`Customize ${list.displayName}`}
                       >🎨</button>
                     )}
                     <button

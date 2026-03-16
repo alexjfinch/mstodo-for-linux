@@ -50,10 +50,20 @@ export const QuickAdd = () => {
 
   // Query system theme on mount and listen for live changes
   useEffect(() => {
+    let cancelled = false;
     inputRef.current?.focus();
     invoke<string>("get_system_theme").then(applyTheme).catch(() => {});
-    const unlisten = listen<string>("theme-changed", (e) => applyTheme(e.payload));
-    return () => { unlisten.then((fn) => fn()); };
+    let unlistenFn: (() => void) | null = null;
+    listen<string>("theme-changed", (e) => applyTheme(e.payload))
+      .then((fn) => {
+        if (cancelled) fn(); // Already unmounted — unregister immediately
+        else unlistenFn = fn;
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      unlistenFn?.();
+    };
   }, []);
 
   // Parse date preview as user types

@@ -64,6 +64,7 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
   const refreshTokenRef = useRef<string | null>(null);
   const activeAccountIdRef = useRef<string | null>(null);
+  const consecutiveRefreshFailuresRef = useRef(0);
 
   const accountsRef = useRef<StoredAccount[]>([]);
 
@@ -150,6 +151,7 @@ export const useAuth = () => {
         logger.warn("Token refresh response did not include a new refresh token — reusing existing one");
       }
       await storeTokens(currentAccountId, tokenResp.access_token, newRefresh);
+      consecutiveRefreshFailuresRef.current = 0;
       const updated = accountsRef.current.map((a) =>
         a.id === currentAccountId
           ? { ...a, accessToken: tokenResp.access_token, refreshToken: newRefresh }
@@ -164,8 +166,14 @@ export const useAuth = () => {
       // Transient errors (network timeouts, 5xx) should not force re-authentication.
       const errMsg = err instanceof Error ? err.message : String(err);
       const isPermanent = /invalid_grant|interaction_required|invalid_client|unauthorized_client|consent_required/.test(errMsg);
-      if (isPermanent) {
-        logger.warn("Permanent auth failure — signing out");
+      consecutiveRefreshFailuresRef.current++;
+      if (isPermanent || consecutiveRefreshFailuresRef.current >= 5) {
+        if (!isPermanent) {
+          logger.warn(`Token refresh failed ${consecutiveRefreshFailuresRef.current} consecutive times — forcing re-authentication`);
+        } else {
+          logger.warn("Permanent auth failure — signing out");
+        }
+        consecutiveRefreshFailuresRef.current = 0;
         await signOut();
       }
       throw err;

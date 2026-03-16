@@ -36,7 +36,9 @@ import { logger } from "../services/logger";
 
 // Reset per account via syncGenerationRef — not a module-level flag
 
-export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null, activeAccountId: string | null) => {
+type DroppedOpInfo = { opType: string; taskId: string | null };
+
+export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null, activeAccountId: string | null, onDroppedPendingOp?: (info: DroppedOpInfo) => void) => {
   const currentListIdRef = useRef(currentListId);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +61,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   const abortControllerRef = useRef<AbortController | null>(null);
   // Track whether the planner (Assigned to Me) warning has been logged for this account
   const plannerWarningLoggedRef = useRef(false);
+  const [plannerError, setPlannerError] = useState(false);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -83,6 +86,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         }
         syncInProgressRef.current = false; // allow fresh sync for new account
         plannerWarningLoggedRef.current = false; // reset per-account warning
+        setPlannerError(false);
         resetGraphCaches();
         setTasks([]);
         setLoading(true);
@@ -187,6 +191,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         if (retries >= MAX_PENDING_OP_RETRIES) {
           logger.warn(`Dropping pending op ${op.opType} (id=${op.id}) after ${retries} retries`);
           await deletePendingOp(database, op.id!);
+          onDroppedPendingOp?.({ opType: op.opType, taskId: op.taskId });
         }
       }
     }
@@ -243,6 +248,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               logger.warn("Failed to fetch assigned tasks (Planner may not be available for this account)", err);
               plannerWarningLoggedRef.current = true;
             }
+            setPlannerError(true);
             return [] as Task[];
           }),
         ]);
@@ -641,5 +647,6 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     syncing,
     syncError,
     lastSyncTime,
+    plannerError,
   };
 };
