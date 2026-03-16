@@ -4,7 +4,7 @@ import { Task, TaskList } from "../types";
 export interface PendingOperation {
   id?: number;
   taskId: string | null;
-  opType: "create" | "toggle" | "update" | "delete" | "list-create";
+  opType: "create" | "toggle" | "update" | "delete" | "move" | "list-create";
   data: string;
   createdAt: number;
   retryCount?: number;
@@ -13,6 +13,11 @@ export interface PendingOperation {
 export const MAX_PENDING_OP_RETRIES = 5;
 
 export async function initializeTables(db: Database): Promise<void> {
+  // Disable FK enforcement — offline task creation may reference local-xxx list IDs
+  // that don't yet exist in the lists table. The app manages referential integrity
+  // at the application level (via sync and pending ops).
+  await db.execute(`PRAGMA foreign_keys = OFF;`);
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS lists (
       id TEXT PRIMARY KEY,
@@ -64,6 +69,10 @@ export async function initializeTables(db: Database): Promise<void> {
       deltaLink TEXT NOT NULL
     );
   `);
+
+  // Indexes for common query patterns
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_listId ON tasks(listId);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_pendingOps_taskId_opType ON pendingOps(taskId, opType);`);
 }
 
 /** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
@@ -76,8 +85,14 @@ function safeJsonParse<T>(value: string | null | undefined): T | undefined {
   }
 }
 
+type ListRow = {
+  id: string; displayName: string; isOwner: number; isShared: number;
+  wellknownListName: TaskList["wellknownListName"] | null; isGroup: number;
+  parentGroupId: string | null; emoji: string | null; themeColor: string | null;
+};
+
 export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
-  const rows = await db.select<any[]>("SELECT * FROM lists");
+  const rows = await db.select<ListRow[]>("SELECT * FROM lists");
   return rows.map((r) => ({
     id: r.id,
     displayName: r.displayName,
@@ -120,7 +135,7 @@ export async function updateListMeta(
   meta: { isGroup?: boolean; parentGroupId?: string | null; emoji?: string | null; themeColor?: string | null }
 ): Promise<void> {
   const updates: string[] = [];
-  const values: any[] = [];
+  const values: (string | number | null)[] = [];
 
   if ("isGroup" in meta) {
     updates.push("isGroup = ?");
@@ -148,8 +163,16 @@ export async function updateListMeta(
   );
 }
 
+type TaskRow = {
+  id: string; listId: string; title: string; completed: number;
+  status: Task["status"]; isInMyDay: number; importance: string;
+  dueDateTime: string | null; body: string | null; recurrence: string | null;
+  categories: string | null; reminderDateTime: string | null;
+  hasAttachments: number; updatedAt: number;
+};
+
 export async function loadTasksFromDB(db: Database): Promise<Task[]> {
-  const rows = await db.select<any[]>("SELECT * FROM tasks");
+  const rows = await db.select<TaskRow[]>("SELECT * FROM tasks");
   return rows.map((r) => ({
     id: r.id,
     listId: r.listId,
@@ -234,7 +257,7 @@ export async function updateTaskAttributesDB(
   timestamp: number
 ): Promise<void> {
   const updates: string[] = [];
-  const values: any[] = [];
+  const values: (string | number | null)[] = [];
 
   if ("isInMyDay" in attributes)   { updates.push("isInMyDay = ?");   values.push(attributes.isInMyDay ? 1 : 0); }
   if ("importance" in attributes)  { updates.push("importance = ?");  values.push(attributes.importance || "normal"); }
@@ -269,7 +292,7 @@ export async function deleteTaskFromDB(db: Database, id: string): Promise<void> 
 }
 
 export async function getLocalTask(db: Database, id: string): Promise<Task | null> {
-  const rows = await db.select<any[]>("SELECT * FROM tasks WHERE id = ?", [id]);
+  const rows = await db.select<TaskRow[]>("SELECT * FROM tasks WHERE id = ?", [id]);
   if (rows.length === 0) return null;
   const r = rows[0];
   return {
@@ -298,9 +321,9 @@ export async function queuePendingOp(
   db: Database,
   taskId: string | null,
   opType: PendingOperation["opType"],
-  data: any
+  data: Record<string, unknown>
 ): Promise<void> {
-  if (taskId && (opType === "update" || opType === "toggle")) {
+  if (taskId && (opType === "update" || opType === "toggle" || opType === "move")) {
     await db.execute(
       "DELETE FROM pendingOps WHERE taskId = ? AND opType = ?",
       [taskId, opType]
@@ -368,20 +391,11 @@ export async function loadDeltaTokens(db: Database): Promise<Record<string, stri
 export async function saveDeltaTokens(db: Database, tokens: Record<string, string>): Promise<void> {
   const entries = Object.entries(tokens);
   if (entries.length === 0) return;
-  const sp = `sp_delta_${Date.now()}`;
-  await db.execute(`SAVEPOINT ${sp}`);
-  try {
-    for (const [listId, deltaLink] of entries) {
-      await db.execute(
-        "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
-        [listId, deltaLink]
-      );
-    }
-    await db.execute(`RELEASE ${sp}`);
-  } catch (err) {
-    await db.execute(`ROLLBACK TO ${sp}`);
-    await db.execute(`RELEASE ${sp}`);
-    throw err;
+  for (const [listId, deltaLink] of entries) {
+    await db.execute(
+      "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
+      [listId, deltaLink]
+    );
   }
 }
 
@@ -400,20 +414,11 @@ export function clearAllData(db: Database): Promise<void> {
   if (clearInFlight) return clearInFlight;
 
   clearInFlight = (async () => {
-    const sp = `sp_clear_${Date.now()}`;
     try {
-      await db.execute(`SAVEPOINT ${sp}`);
-      try {
-        await db.execute("DELETE FROM tasks");
-        await db.execute("DELETE FROM lists");
-        await db.execute("DELETE FROM deltaTokens");
-        await db.execute("DELETE FROM pendingOps");
-        await db.execute(`RELEASE ${sp}`);
-      } catch (err) {
-        await db.execute(`ROLLBACK TO ${sp}`);
-        await db.execute(`RELEASE ${sp}`);
-        throw err;
-      }
+      await db.execute("DELETE FROM tasks");
+      await db.execute("DELETE FROM lists");
+      await db.execute("DELETE FROM deltaTokens");
+      await db.execute("DELETE FROM pendingOps");
     } finally {
       clearInFlight = null;
     }

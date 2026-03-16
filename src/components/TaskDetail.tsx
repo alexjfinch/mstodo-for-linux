@@ -281,9 +281,10 @@ export const TaskDetail = ({
       const { name, contentType, contentBytes } = await fetchAttachmentContent(
         task.listId, task.id, attachment.id, accessToken
       );
-      const binary = atob(contentBytes);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      // Decode base64 → binary using fetch + data URL to avoid atob's issues
+      // with non-ASCII bytes in WebKitGTK.
+      const resp = await fetch(`data:${contentType};base64,${contentBytes}`);
+      const bytes = new Uint8Array(await resp.arrayBuffer());
       const blob = new Blob([bytes], { type: contentType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

@@ -30,7 +30,9 @@ async function probeNetwork(): Promise<boolean> {
 // A single polling loop is shared across all consumers (useTasks, useLists, etc.)
 // to avoid duplicate HEAD requests.
 
-let isOnline = true;
+// Start as false — the first probe (fired immediately on start()) will set the real value.
+// This prevents premature API calls when the app launches offline.
+let isOnline = false;
 let subscribers = new Set<() => void>();
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

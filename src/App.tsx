@@ -19,8 +19,10 @@ import { useDatabase } from "./hooks/useDatabase";
 import { useTasks } from "./hooks/useTasks";
 import { useLists } from "./hooks/useLists";
 import { useFilteredTasks } from "./hooks/useFilteredTasks";
-import { useReminders, ReminderTiming } from "./hooks/useReminders";
+import { useReminders } from "./hooks/useReminders";
+import { useSettings } from "./hooks/useSettings";
 import { ToastContainer } from "./components/ToastContainer";
+import { ComponentBoundary } from "./components/ComponentBoundary";
 import { ListBanner, SPECIAL_LISTS } from "./components/ListBanner";
 import { MyDaySuggestions } from "./components/MyDaySuggestions";
 import { fetchUserProfile } from "./api/graph";
@@ -50,20 +52,20 @@ export default function App() {
     updateAccountProfile,
   } = useAuth();
   const { db, ready: dbReady, dbError } = useDatabase();
+  const {
+    theme, fontSize, compactMode, syncInterval, taskOrder,
+    remindersEnabled, reminderTiming,
+    handleThemeChange, handleFontSizeChange, handleCompactModeChange,
+    handleSyncIntervalChange, handleRemindersEnabledChange,
+    handleReminderTimingChange, handleReorderTasks: reorderTasks,
+  } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
-  const [fontSize, setFontSize] = useState<"small" | "normal" | "large">("normal");
-  const [compactMode, setCompactMode] = useState(false);
-  const [syncInterval, setSyncInterval] = useState(30);
-  const [taskOrder, setTaskOrder] = useState<Record<string, string[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
-  const [remindersEnabled, setRemindersEnabled] = useState(true);
-  const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
   const detailPanelRef = useRef<HTMLDivElement>(null);
@@ -191,92 +193,9 @@ export default function App() {
   // Due-date reminder notifications
   const { toasts, dismissToast, pushToast } = useReminders(tasks, remindersEnabled, reminderTiming);
 
-  // Load all persisted settings on mount
-  useEffect(() => {
-    (async () => {
-      const { Store } = await import("@tauri-apps/plugin-store");
-      const store = await Store.load("settings.json");
-      const enabled = await store.get<boolean>("remindersEnabled");
-      const timing = await store.get<ReminderTiming>("reminderTiming");
-      if (enabled !== null && enabled !== undefined) setRemindersEnabled(enabled);
-      if (timing) setReminderTiming(timing);
-
-      const savedTheme = await store.get<"light" | "dark" | "system">("theme");
-      if (savedTheme) setTheme(savedTheme);
-      const savedFontSize = await store.get<"small" | "normal" | "large">("fontSize");
-      if (savedFontSize) setFontSize(savedFontSize);
-      const savedCompact = await store.get<boolean>("compactMode");
-      if (savedCompact !== null && savedCompact !== undefined) setCompactMode(savedCompact);
-      const savedSyncInterval = await store.get<number>("syncInterval");
-      if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
-      const savedTaskOrder = await store.get<Record<string, string[]>>("taskOrder");
-      if (savedTaskOrder) setTaskOrder(savedTaskOrder);
-    })();
-  }, []);
-
-  const handleRemindersEnabledChange = useCallback(async (enabled: boolean) => {
-    setRemindersEnabled(enabled);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("remindersEnabled", enabled);
-    await store.save();
-  }, []);
-
-  const handleReminderTimingChange = useCallback(async (timing: ReminderTiming) => {
-    setReminderTiming(timing);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("reminderTiming", timing);
-    await store.save();
-  }, []);
-
-  const handleThemeChange = useCallback(async (t: "light" | "dark" | "system") => {
-    setTheme(t);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("theme", t);
-    await store.save();
-  }, []);
-
-  const handleFontSizeChange = useCallback(async (s: "small" | "normal" | "large") => {
-    setFontSize(s);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("fontSize", s);
-    await store.save();
-  }, []);
-
-  const handleCompactModeChange = useCallback(async (c: boolean) => {
-    setCompactMode(c);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("compactMode", c);
-    await store.save();
-  }, []);
-
-  const handleSyncIntervalChange = useCallback(async (interval: number) => {
-    setSyncInterval(interval);
-    const { Store } = await import("@tauri-apps/plugin-store");
-    const store = await Store.load("settings.json");
-    await store.set("syncInterval", interval);
-    await store.save();
-  }, []);
-
-  const handleReorderTasks = useCallback(async (reorderedIds: string[]) => {
-    setTaskOrder((prev) => {
-      const next = { ...prev, [activeList]: reorderedIds };
-      // Best-effort persistence (fire-and-forget)
-      (async () => {
-        try {
-          const { Store } = await import("@tauri-apps/plugin-store");
-          const store = await Store.load("settings.json");
-          await store.set("taskOrder", next);
-          await store.save();
-        } catch { /* best-effort persistence */ }
-      })();
-      return next;
-    });
-  }, [activeList]);
+  const handleReorderTasks = useCallback((reorderedIds: string[]) => {
+    reorderTasks(activeList, reorderedIds);
+  }, [activeList, reorderTasks]);
 
   const detailTask = useMemo(
     () => (detailTaskId ? tasks.find((t) => t.id === detailTaskId) ?? null : null),
@@ -539,12 +458,16 @@ export default function App() {
   }, [filteredTasks]);
 
   const handleBulkComplete = useCallback(async () => {
-    await Promise.all(selectedTasks.map((id) => toggleTask(id)));
+    for (const id of selectedTasks) {
+      await toggleTask(id);
+    }
     setSelectedTasks([]);
   }, [selectedTasks, toggleTask]);
 
   const handleBulkDelete = useCallback(async () => {
-    await Promise.all(selectedTasks.map((id) => deleteTask(id)));
+    for (const id of selectedTasks) {
+      await deleteTask(id);
+    }
     setSelectedTasks([]);
   }, [selectedTasks, deleteTask]);
 
@@ -592,6 +515,7 @@ export default function App() {
     <div className="app">
       <Titlebar />
       <div className="app-content">
+        <ComponentBoundary>
         <Sidebar
           activeList={activeList}
           onSelectList={setActiveList}
@@ -630,6 +554,7 @@ export default function App() {
             if (task) updateAttributes(taskId, { importance: task.importance === "high" ? "normal" : "high" });
           }}
         />
+        </ComponentBoundary>
         <main className="main">
           <Settings
             isOpen={isSettingsOpen}
@@ -802,14 +727,16 @@ export default function App() {
 
       {detailTask && (
         <div ref={detailPanelRef}>
-          <TaskDetail
-            task={detailTask}
-            accessToken={accessToken}
-            onClose={handleCloseDetail}
-            onUpdateAttributes={updateAttributes}
-            onToggleComplete={toggleTask}
-            onDeleteTask={deleteTask}
-          />
+          <ComponentBoundary>
+            <TaskDetail
+              task={detailTask}
+              accessToken={accessToken}
+              onClose={handleCloseDetail}
+              onUpdateAttributes={updateAttributes}
+              onToggleComplete={toggleTask}
+              onDeleteTask={deleteTask}
+            />
+          </ComponentBoundary>
         </div>
       )}
 

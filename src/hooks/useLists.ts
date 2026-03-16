@@ -53,6 +53,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           listsRef.current = []; // Clear ref immediately so syncLists doesn't re-add stale groups
           setLists([]);
           setLoading(true);
+          // clearAllData is called by useTasks on account switch — we just need to
+          // wait for it to finish before loading new data. The module-level dedup
+          // in taskStorage.ts ensures only one clear actually runs.
           const clearing = clearAllData(db);
           clearingRef.current = clearing;
           await clearing;
@@ -91,7 +94,7 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       // Process pending list-create ops (lists created while offline)
       const pendingListOps = await getPendingOpsByType(database, "list-create");
       for (const op of pendingListOps) {
-        let data: any;
+        let data: Record<string, unknown>;
         try {
           data = JSON.parse(op.data);
         } catch (parseErr) {
@@ -100,14 +103,17 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           continue;
         }
         try {
-          const created = await createTaskListGraph(data.displayName, token);
-          const withGroup = data.parentGroupId ? { ...created, parentGroupId: data.parentGroupId } : created;
+          const displayName = data.displayName as string;
+          const localId = data.id as string;
+          const parentGroupId = data.parentGroupId as string | undefined;
+          const created = await createTaskListGraph(displayName, token);
+          const withGroup = parentGroupId ? { ...created, parentGroupId } : created;
           // Update the list ID in DB
-          await deleteListFromDB(database, data.id);
+          await deleteListFromDB(database, localId);
           await saveListToDB(database, withGroup);
           // Update any tasks that reference the old local list ID
-          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, data.id]);
-          setLists((prev) => prev.map((l) => (l.id === data.id ? withGroup : l)));
+          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, localId]);
+          setLists((prev) => prev.map((l) => (l.id === localId ? withGroup : l)));
           await deletePendingOp(database, op.id!);
         } catch (err) {
           logger.error(`Failed to sync pending list creation: ${data.displayName}`, err);

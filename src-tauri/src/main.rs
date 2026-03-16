@@ -253,12 +253,12 @@ async fn write_log(level: String, message: String) -> Result<(), String> {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let prev_epoch = LOG_EPOCH.load(std::sync::atomic::Ordering::Relaxed);
+    let prev_epoch = LOG_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
     if now_secs != prev_epoch {
-        LOG_EPOCH.store(now_secs, std::sync::atomic::Ordering::Relaxed);
-        LOG_COUNT.store(1, std::sync::atomic::Ordering::Relaxed);
+        LOG_EPOCH.store(now_secs, std::sync::atomic::Ordering::SeqCst);
+        LOG_COUNT.store(1, std::sync::atomic::Ordering::SeqCst);
     } else {
-        let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if count >= 100 {
             return Ok(()); // silently drop excess log messages
         }

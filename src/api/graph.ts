@@ -160,6 +160,7 @@ async function graphRequest<T>(
 /** Clear module-level caches (call on account switch). */
 export function resetGraphCaches() {
   deltaUnsupportedLists.clear();
+  unfetchableLists.clear();
 }
 
 // ── User profile ─────────────────────────────────────────────────────
@@ -249,6 +250,7 @@ function mapGraphTask(t: GraphTask, listId: string): Task {
 // ── Fetch tasks ──────────────────────────────────────────────────────
 
 export async function fetchTasksFromList(listId: string, accessToken: string): Promise<Task[]> {
+  validateListId(listId);
   const allTasks: Task[] = [];
   let url: string | null = `${GRAPH_BASE}/${listId}/tasks?$top=100`;
   let pages = 0;
@@ -280,6 +282,8 @@ export async function fetchAllTasks(accessToken: string): Promise<Task[]> {
 
 // Track lists where delta isn't supported to avoid repeated 400s
 const deltaUnsupportedLists = new Set<string>();
+// Track lists where even the regular tasks endpoint fails (Exchange-backed, etc.)
+const unfetchableLists = new Set<string>();
 
 // ── Delta sync ───────────────────────────────────────────────────────
 
@@ -356,14 +360,26 @@ export async function fetchAllTasksDelta(
   const syncableLists = lists.filter(l => l.wellknownListName !== "flaggedEmails");
   logger.info(`fetchAllTasksDelta: ${lists.length} total lists, ${syncableLists.length} syncable, ${Object.keys(deltaTokens).length} existing tokens`);
   for (const list of syncableLists) {
+    if (unfetchableLists.has(list.id)) continue;
+
     let result: { changes: DeltaChange[]; deltaLink: string };
 
     if (deltaUnsupportedLists.has(list.id)) {
-      const tasks = await fetchTasksFromList(list.id, accessToken);
-      result = {
-        changes: tasks.map((task) => ({ task, removed: false })),
-        deltaLink: "",
-      };
+      try {
+        const tasks = await fetchTasksFromList(list.id, accessToken);
+        result = {
+          changes: tasks.map((task) => ({ task, removed: false })),
+          deltaLink: "",
+        };
+      } catch (err: unknown) {
+        const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
+        if (axiosErr?.response?.status === 400) {
+          unfetchableLists.add(list.id);
+          logger.warn(`List ${list.id} ("${list.displayName}") does not support task fetching, skipping permanently`);
+          continue;
+        }
+        throw err;
+      }
     } else {
       const existing = deltaTokens[list.id] || null;
       try {
@@ -373,11 +389,21 @@ export async function fetchAllTasksDelta(
         if (axiosErr?.response?.status === 400) {
           deltaUnsupportedLists.add(list.id);
           logger.warn(`Delta not supported for list ${list.id}, falling back to full fetch`);
-          const tasks = await fetchTasksFromList(list.id, accessToken);
-          result = {
-            changes: tasks.map((task) => ({ task, removed: false })),
-            deltaLink: "",
-          };
+          try {
+            const tasks = await fetchTasksFromList(list.id, accessToken);
+            result = {
+              changes: tasks.map((task) => ({ task, removed: false })),
+              deltaLink: "",
+            };
+          } catch (fallbackErr: unknown) {
+            const fallbackAxios = fallbackErr instanceof Error && "response" in fallbackErr ? (fallbackErr as AxiosError) : null;
+            if (fallbackAxios?.response?.status === 400) {
+              unfetchableLists.add(list.id);
+              logger.warn(`List ${list.id} ("${list.displayName}") does not support task fetching, skipping permanently`);
+              continue;
+            }
+            throw fallbackErr;
+          }
         } else if (axiosErr?.response?.status === 410) {
           // Delta token expired for this list — fall back to full fetch and get a fresh delta token
           logger.warn(`Delta token expired for list ${list.id}, performing full fetch with fresh delta`);
@@ -398,7 +424,15 @@ export async function fetchAllTasksDelta(
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
+/** Validates that a listId looks reasonable before using it in an API URL. */
+function validateListId(listId: string): void {
+  if (!listId || listId.startsWith("local-") || listId === "__assigned__") {
+    throw new Error(`Invalid listId for Graph API: "${listId}"`);
+  }
+}
+
 export async function createTask(title: string, listId: string, accessToken: string): Promise<Task> {
+  validateListId(listId);
   const data = await graphRequest<GraphTask>(
     "post", `${GRAPH_BASE}/${listId}/tasks`, accessToken, { title }
   );
@@ -408,7 +442,9 @@ export async function createTask(title: string, listId: string, accessToken: str
 export async function toggleTaskCompleted(task: Task, accessToken: string): Promise<Task> {
   if (!task.listId) throw new Error("Task must have a listId");
 
-  const newStatus = task.completed ? "notStarted" : "completed";
+  // Use the task's current completed state directly — callers pass the
+  // already-toggled task, so we must NOT flip it again here.
+  const newStatus = task.completed ? "completed" : "notStarted";
   const data = await graphRequest<GraphTask>(
     "patch", `${GRAPH_BASE}/${task.listId}/tasks/${task.id}`, accessToken, { status: newStatus }
   );
@@ -484,6 +520,7 @@ export async function updateTaskAttributes(
 }
 
 export async function deleteTask(taskId: string, listId: string, accessToken: string): Promise<void> {
+  validateListId(listId);
   await graphRequest("delete", `${GRAPH_BASE}/${listId}/tasks/${taskId}`, accessToken);
 }
 

@@ -196,18 +196,17 @@ export const useReminders = (
   useEffect(() => {
     const taskIdSet = new Set(tasks.map((t) => t.id));
     for (const key of notifiedRef.current) {
-      // Check if any known task ID is a prefix of the key (after optional "reminder-" prefix)
+      // Keys are "taskId-dateTime" or "reminder-taskId-dateTime".
+      // Strip optional "reminder-" prefix, then check if any hyphen-delimited
+      // prefix of the remainder matches a known task ID (O(1) Set lookup per prefix).
       const rest = key.startsWith("reminder-") ? key.slice("reminder-".length) : key;
       let found = false;
-      for (const id of taskIdSet) {
-        if (rest.startsWith(id + "-")) {
-          found = true;
-          break;
-        }
+      let idx = rest.indexOf("-");
+      while (idx !== -1) {
+        if (taskIdSet.has(rest.slice(0, idx))) { found = true; break; }
+        idx = rest.indexOf("-", idx + 1);
       }
-      if (!found) {
-        notifiedRef.current.delete(key);
-      }
+      if (!found) notifiedRef.current.delete(key);
     }
   }, [tasks]);
 

@@ -160,7 +160,14 @@ export const useAuth = () => {
       return tokenResp.access_token;
     } catch (err) {
       logger.error("Refresh failed", err);
-      await signOut();
+      // Only sign out on permanent failures (invalid_grant, interaction_required).
+      // Transient errors (network timeouts, 5xx) should not force re-authentication.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isPermanent = /invalid_grant|interaction_required|invalid_client|unauthorized_client|consent_required/.test(errMsg);
+      if (isPermanent) {
+        logger.warn("Permanent auth failure — signing out");
+        await signOut();
+      }
       throw err;
     }
   }, [signOut, persistAccounts]);

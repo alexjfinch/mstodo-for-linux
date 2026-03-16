@@ -37,6 +37,7 @@ import { logger } from "../services/logger";
 // Reset per account via syncGenerationRef — not a module-level flag
 
 export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null, activeAccountId: string | null) => {
+  const currentListIdRef = useRef(currentListId);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -63,6 +64,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   useEffect(() => { dbRef.current = db; }, [db]);
   useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+  useEffect(() => { currentListIdRef.current = currentListId; }, [currentListId]);
 
   useEffect(() => {
     if (!db) return;
@@ -117,7 +119,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       // Bail if account switched while processing
       if (syncGenerationRef.current !== generation) return;
 
-      let data: any;
+      let data: Record<string, unknown>;
       try {
         data = JSON.parse(op.data);
       } catch (parseErr) {
@@ -127,16 +129,16 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       }
       try {
         if (op.opType === "create") {
-          const created = await createTaskGraph(data.title, data.listId, token);
-          await updateTaskId(database, data.id, created.id, Date.now());
+          const created = await createTaskGraph(data.title as string, data.listId as string, token);
+          await updateTaskId(database, data.id as string, created.id, Date.now());
           // Remap any other pending ops that reference the old local ID
-          await updatePendingOpsTaskId(database, data.id, created.id);
+          await updatePendingOpsTaskId(database, data.id as string, created.id);
           // Also remap in-memory ops so subsequent iterations use the new ID
           for (const pending of ops) {
             if (pending.taskId === data.id) pending.taskId = created.id;
           }
           setTasks((prev) =>
-            prev.map((t) => (t.id === data.id ? { ...created, lastModified: Date.now() } : t))
+            prev.map((t) => (t.id === (data.id as string) ? { ...created, lastModified: Date.now() } : t))
           );
         } else if (op.opType === "toggle" && op.taskId) {
           // Last-write-wins: only apply if local change is newer than server
@@ -151,8 +153,31 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             const task = tasksRef.current.find((t) => t.id === op.taskId);
             if (task) await updateTaskAttributesGraph(task, data, token);
           }
+        } else if (op.opType === "move" && op.taskId) {
+          // Replay the move: create on target, copy attributes, delete from source
+          const created = await createTaskGraph(data.title as string, data.targetListId as string, token);
+          const taskData = data.task as unknown as Task | undefined;
+          if (taskData && (taskData.importance !== "normal" || taskData.dueDateTime || taskData.body || taskData.recurrence || taskData.categories?.length)) {
+            await updateTaskAttributesGraph(created, {
+              importance: taskData.importance,
+              dueDateTime: taskData.dueDateTime,
+              body: taskData.body,
+              recurrence: taskData.recurrence,
+              categories: taskData.categories,
+              isInMyDay: taskData.isInMyDay,
+            }, token);
+          }
+          await deleteTaskGraph(op.taskId, data.oldListId as string, token);
+          await updateTaskId(database, op.taskId, created.id, Date.now());
+          await updatePendingOpsTaskId(database, op.taskId, created.id);
+          for (const pending of ops) {
+            if (pending.taskId === op.taskId) pending.taskId = created.id;
+          }
+          setTasks((prev) =>
+            prev.map((t) => (t.id === op.taskId ? { ...t, id: created.id, listId: data.targetListId as string } : t))
+          );
         } else if (op.opType === "delete" && op.taskId) {
-          await deleteTaskGraph(op.taskId, data.listId, token);
+          await deleteTaskGraph(op.taskId, data.listId as string, token);
         }
         await deletePendingOp(database, op.id!);
       } catch (err) {
@@ -222,9 +247,10 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           }),
         ]);
         deltaResult = { delta, assignedTasks };
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Delta token expired or invalid — clear tokens and do a full sync
-        if (err?.response?.status === 410) {
+        const errWithResponse = err as { response?: { status: number } };
+        if (errWithResponse?.response?.status === 410) {
           logger.warn("Delta token expired, performing full sync");
           await clearDeltaTokens(database);
           const [delta, assignedTasks] = await Promise.all([
@@ -370,7 +396,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     } catch (err) {
       // Don't report errors from stale syncs
       if (syncGenerationRef.current !== generation) return;
-      const axiosErr = err as any;
+      const axiosErr = err as { response?: { status: number; statusText: string; data: unknown } };
       const detail = axiosErr?.response
         ? `${axiosErr.response.status} ${axiosErr.response.statusText}: ${JSON.stringify(axiosErr.response.data)}`
         : undefined;
@@ -389,7 +415,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     const token = accessTokenRef.current;
     if (!database || !title.trim()) return;
 
-    const targetListId = listId || currentListId;
+    const targetListId = listId || currentListIdRef.current;
     if (!targetListId) {
       logger.error("Cannot add task: no list selected");
       return;
@@ -432,17 +458,17 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             )
           );
         } else {
-          await queuePendingOp(database, tempId, "create", newTask);
+          await queuePendingOp(database, tempId, "create", newTask as unknown as Record<string, unknown>);
         }
       } else {
         await insertTaskToDB(database, tempId, targetListId, title.trim(), timestamp);
-        await queuePendingOp(database, tempId, "create", newTask);
+        await queuePendingOp(database, tempId, "create", newTask as unknown as Record<string, unknown>);
       }
     } catch (err) {
       logger.error("Failed to add task", err);
       setTasks((prev) => prev.filter((t) => t.id !== tempId));
     }
-  }, [currentListId]);
+  }, []);
 
   const toggleTask = useCallback(async (id: string) => {
     const database = dbRef.current;
@@ -557,7 +583,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
       // Sync via Graph: create on target list, then delete from source.
       // If create succeeds but delete fails, we clean up the created task.
-      if (isOnlineRef.current && token && oldListId && !taskId.startsWith("local-")) {
+      if (isOnlineRef.current && token && oldListId && !taskId.startsWith("local-") && !oldListId.startsWith("local-")) {
         let created: Task | null = null;
         try {
           created = await createTaskGraph(task.title, targetListId, token);
@@ -589,7 +615,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           }
         } catch (err) {
           logger.warn("Failed to move task on Graph — will sync on next cycle", err);
+          // Queue for retry on next sync
+          await queuePendingOp(database, taskId, "move", { oldListId, targetListId, title: task.title, task });
         }
+      } else if (!isOnlineRef.current && oldListId && !taskId.startsWith("local-")) {
+        // Offline: queue the move for later
+        await queuePendingOp(database, taskId, "move", { oldListId, targetListId, title: task.title, task });
       }
     } catch (err) {
       logger.error("Failed to move task to list", err);
