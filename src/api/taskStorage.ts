@@ -368,7 +368,8 @@ export async function loadDeltaTokens(db: Database): Promise<Record<string, stri
 export async function saveDeltaTokens(db: Database, tokens: Record<string, string>): Promise<void> {
   const entries = Object.entries(tokens);
   if (entries.length === 0) return;
-  await db.execute("BEGIN TRANSACTION");
+  const sp = `sp_delta_${Date.now()}`;
+  await db.execute(`SAVEPOINT ${sp}`);
   try {
     for (const [listId, deltaLink] of entries) {
       await db.execute(
@@ -376,9 +377,10 @@ export async function saveDeltaTokens(db: Database, tokens: Record<string, strin
         [listId, deltaLink]
       );
     }
-    await db.execute("COMMIT");
+    await db.execute(`RELEASE ${sp}`);
   } catch (err) {
-    await db.execute("ROLLBACK");
+    await db.execute(`ROLLBACK TO ${sp}`);
+    await db.execute(`RELEASE ${sp}`);
     throw err;
   }
 }
@@ -398,16 +400,18 @@ export function clearAllData(db: Database): Promise<void> {
   if (clearInFlight) return clearInFlight;
 
   clearInFlight = (async () => {
+    const sp = `sp_clear_${Date.now()}`;
     try {
-      await db.execute("BEGIN TRANSACTION");
+      await db.execute(`SAVEPOINT ${sp}`);
       try {
         await db.execute("DELETE FROM tasks");
         await db.execute("DELETE FROM lists");
         await db.execute("DELETE FROM deltaTokens");
         await db.execute("DELETE FROM pendingOps");
-        await db.execute("COMMIT");
+        await db.execute(`RELEASE ${sp}`);
       } catch (err) {
-        await db.execute("ROLLBACK");
+        await db.execute(`ROLLBACK TO ${sp}`);
+        await db.execute(`RELEASE ${sp}`);
         throw err;
       }
     } finally {
