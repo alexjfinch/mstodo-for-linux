@@ -1,3 +1,4 @@
+import "./Sidebar.css";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ListName, TaskList } from "../types";
 import { ConfirmDialog } from "./ConfirmDialog";

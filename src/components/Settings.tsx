@@ -1,3 +1,4 @@
+import "./Settings.css";
 import { useState } from "react";
 import { StoredAccount } from "../hooks/useAuth";
 import { CustomSelect } from "./CustomSelect";

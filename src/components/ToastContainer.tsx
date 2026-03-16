@@ -1,3 +1,4 @@
+import "./ToastContainer.css";
 import { ToastNotification } from "../hooks/useReminders";
 
 type Props = {

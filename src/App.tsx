@@ -1,4 +1,5 @@
-import "./App.css";
+import "./styles/theme.css";
+import "./styles/global.css";
 import { Titlebar } from "./components/Titlebar";
 import { Sidebar } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";

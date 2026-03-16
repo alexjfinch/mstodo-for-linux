@@ -1,0 +1,83 @@
+/* Context Menu */
+.context-menu {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  min-width: 180px;
+  z-index: 1200;
+}
+
+.context-menu-item {
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item-danger {
+  color: var(--danger-color);
+}
+
+.context-menu-item-danger:hover {
+  background: color-mix(in srgb, var(--danger-color) 10%, transparent);
+}
+
+.context-menu-expandable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.context-menu-arrow {
+  font-size: 0.65rem;
+  opacity: 0.45;
+  margin-left: 12px;
+  transition: transform 0.15s ease;
+}
+
+.context-menu-arrow.expanded {
+  transform: rotate(90deg);
+}
+
+.context-menu-expand-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.context-menu-expand-panel.open {
+  grid-template-rows: 1fr;
+}
+
+.context-menu-expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.context-menu-inline-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 24px;
+}
+
+.context-menu-hint {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  text-align: right;
+}
+
+.context-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border-color);
+}

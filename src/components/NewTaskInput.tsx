@@ -1,3 +1,4 @@
+import "./NewTaskInput.css";
 import { forwardRef } from "react";
 
 type Props = {

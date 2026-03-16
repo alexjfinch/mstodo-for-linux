@@ -1,3 +1,4 @@
+import "./SearchBar.css";
 import { useState, useRef, useEffect } from "react";
 
 type Props = {

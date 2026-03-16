@@ -1,3 +1,4 @@
+import "./TaskList.css";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";

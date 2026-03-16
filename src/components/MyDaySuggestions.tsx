@@ -1,3 +1,4 @@
+import "./MyDaySuggestions.css";
 import { useState, useMemo } from "react";
 import { Task } from "../types";
 

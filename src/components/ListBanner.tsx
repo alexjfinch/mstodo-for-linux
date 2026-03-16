@@ -1,3 +1,4 @@
+import "./ListBanner.css";
 import { useMemo } from "react";
 import { ListName } from "../types";
 

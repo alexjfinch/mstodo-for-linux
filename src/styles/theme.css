@@ -1,0 +1,96 @@
+/* ============================================
+   CSS Variables for Theming
+   ============================================ */
+
+:root {
+  --bg-primary: #faf9f8;
+  --bg-secondary: #ffffff;
+  --bg-hover: #f3f2f1;
+  --bg-active: #edebe9;
+  --bg-sidebar: #faf9f8;
+  --text-primary: #323130;
+  --text-secondary: #605e5c;
+  --text-tertiary: #8a8886;
+  --text-disabled: #c8c6c4;
+  --border-color: #edebe9;
+  --divider-color: #e1dfdd;
+  --accent-primary: #0078d4;
+  --accent-hover: #106ebe;
+  --accent-active: #005a9e;
+  --task-completed-bg: #f3f2f1;
+  --task-completed-text: #8a8886;
+  --shadow-sm: 0 1.6px 3.6px rgba(0, 0, 0, 0.13), 0 0.3px 0.9px rgba(0, 0, 0, 0.11);
+  --shadow-md: 0 3.2px 7.2px rgba(0, 0, 0, 0.13), 0 0.6px 1.8px rgba(0, 0, 0, 0.11);
+  --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.13), 0 1.2px 3.6px rgba(0, 0, 0, 0.11);
+  --danger-color: #d13438;
+  --danger-hover: #a4262c;
+  --bg-tertiary: #f3f2f1;
+  --hover-bg: #f3f2f1;
+  --surface-primary: #ffffff;
+  --checkbox-border: #8a8886;
+  --checkbox-checked: #0078d4;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-primary: #1f1f1f;
+  --bg-secondary: #2d2d2d;
+  --bg-hover: #3a3a3a;
+  --bg-active: #444444;
+  --bg-sidebar: #252525;
+  --text-primary: #ffffff;
+  --text-secondary: #d1d1d1;
+  --text-tertiary: #a0a0a0;
+  --text-disabled: #6e6e6e;
+  --border-color: #3a3a3a;
+  --divider-color: #444444;
+  --accent-primary: #4aa3ff;
+  --accent-hover: #6bb3ff;
+  --accent-active: #2e8bff;
+  --task-completed-bg: #3a3a3a;
+  --task-completed-text: #858585;
+  --shadow-sm: 0 1.6px 3.6px rgba(0, 0, 0, 0.4), 0 0.3px 0.9px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 3.2px 7.2px rgba(0, 0, 0, 0.4), 0 0.6px 1.8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.5), 0 1.2px 3.6px rgba(0, 0, 0, 0.4);
+  --danger-color: #f85149;
+  --danger-hover: #ff6b6b;
+  --bg-tertiary: #3a3a3a;
+  --hover-bg: #3a3a3a;
+  --surface-primary: #2d2d2d;
+  --checkbox-border: #a0a0a0;
+  --checkbox-checked: #4aa3ff;
+}
+
+/* Fallback for the brief window before JS sets data-theme.
+   IMPORTANT: Keep these values in sync with [data-theme="dark"] above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg-primary: #1f1f1f;
+    --bg-secondary: #2d2d2d;
+    --bg-hover: #3a3a3a;
+    --bg-active: #444444;
+    --bg-sidebar: #252525;
+    --text-primary: #ffffff;
+    --text-secondary: #d1d1d1;
+    --text-tertiary: #a0a0a0;
+    --text-disabled: #6e6e6e;
+    --border-color: #3a3a3a;
+    --divider-color: #444444;
+    --accent-primary: #4aa3ff;
+    --accent-hover: #6bb3ff;
+    --accent-active: #2e8bff;
+    --task-completed-bg: #3a3a3a;
+    --task-completed-text: #858585;
+    --shadow-sm: 0 1.6px 3.6px rgba(0, 0, 0, 0.4), 0 0.3px 0.9px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 3.2px 7.2px rgba(0, 0, 0, 0.4), 0 0.6px 1.8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 6.4px 14.4px rgba(0, 0, 0, 0.5), 0 1.2px 3.6px rgba(0, 0, 0, 0.4);
+    --danger-color: #f85149;
+    --danger-hover: #ff6b6b;
+    --bg-tertiary: #3a3a3a;
+    --hover-bg: #3a3a3a;
+    --surface-primary: #2d2d2d;
+    --checkbox-border: #a0a0a0;
+    --checkbox-checked: #4aa3ff;
+  }
+}

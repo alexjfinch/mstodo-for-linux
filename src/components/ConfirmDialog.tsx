@@ -1,3 +1,4 @@
+import "./ConfirmDialog.css";
 import { useEffect, useRef } from "react";
 
 type Props = {

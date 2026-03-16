@@ -1,0 +1,46 @@
+.new-task {
+  display: flex;
+  margin-top: 16px;
+  gap: 8px;
+}
+
+.new-task input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 0.9375rem;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.new-task input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.new-task input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+}
+
+.new-task button {
+  padding: 12px 24px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background-color: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.new-task button:hover {
+  background-color: var(--accent-hover);
+}
+
+.new-task button:active {
+  background-color: var(--accent-active);
+}

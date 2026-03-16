@@ -1,3 +1,4 @@
+import "./CustomSelect.css";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 type Option = { value: string; label: string };

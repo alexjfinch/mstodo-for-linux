@@ -1,3 +1,4 @@
+import "./TaskDetail.css";
 import { useState, useEffect, useRef } from "react";
 import Markdown from "react-markdown";
 import { Task, TaskAttachment, ChecklistItem, Recurrence } from "../types";
