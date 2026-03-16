@@ -42,6 +42,7 @@ export const useReminders = (
   timing: ReminderTiming
 ) => {
   const notifiedRef = useRef<Set<string>>(new Set());
+  const permissionCachedRef = useRef<boolean | null>(null);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const dismissToast = useCallback((id: string) => {
@@ -93,12 +94,16 @@ export const useReminders = (
 
       if (dueTasks.length === 0 && reminderTasks.length === 0) return;
 
-      // Request notification permission if needed
-      let permitted = await isPermissionGranted();
-      if (!permitted) {
-        const result = await requestPermission();
-        permitted = result === "granted";
+      // Request notification permission if needed (cache result to avoid repeated IPC calls)
+      if (permissionCachedRef.current === null) {
+        let permitted = await isPermissionGranted();
+        if (!permitted) {
+          const result = await requestPermission();
+          permitted = result === "granted";
+        }
+        permissionCachedRef.current = permitted;
       }
+      const permitted = permissionCachedRef.current;
 
       // Fire explicit reminder notifications
       for (const task of reminderTasks) {
@@ -176,21 +181,31 @@ export const useReminders = (
     return () => clearInterval(interval);
   }, [tasks, enabled, timing]);
 
+  // Clear all notification keys on account switch (tasks array becomes empty)
+  const hasTasks = tasks.length > 0;
+  useEffect(() => {
+    if (!hasTasks) {
+      notifiedRef.current.clear();
+    }
+  }, [hasTasks]);
+
   // Prune stale notification keys for tasks that no longer exist.
-  // Keys are formatted as "taskId-dateTime" or "reminder-taskId-dateTime",
-  // so we extract the task ID from each key and check the Set.
+  // Keys are formatted as "taskId-dateTime" or "reminder-taskId-dateTime".
+  // Since both taskIds and datetimes contain hyphens (GUIDs, ISO dates), we
+  // store a reverse lookup to extract the taskId reliably.
   useEffect(() => {
     const taskIdSet = new Set(tasks.map((t) => t.id));
     for (const key of notifiedRef.current) {
-      // Extract task ID: "reminder-<id>-<datetime>" or "<id>-<datetime>"
-      let taskId: string;
-      if (key.startsWith("reminder-")) {
-        const rest = key.slice("reminder-".length);
-        taskId = rest.substring(0, rest.lastIndexOf("-"));
-      } else {
-        taskId = key.substring(0, key.lastIndexOf("-"));
+      // Check if any known task ID is a prefix of the key (after optional "reminder-" prefix)
+      const rest = key.startsWith("reminder-") ? key.slice("reminder-".length) : key;
+      let found = false;
+      for (const id of taskIdSet) {
+        if (rest.startsWith(id + "-")) {
+          found = true;
+          break;
+        }
       }
-      if (taskId && !taskIdSet.has(taskId)) {
+      if (!found) {
         notifiedRef.current.delete(key);
       }
     }

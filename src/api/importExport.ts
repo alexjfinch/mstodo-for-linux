@@ -27,7 +27,7 @@ export function buildJsonExport(tasks: Task[], lists: TaskList[]): string {
 
 export function buildCsvExport(tasks: Task[], lists: TaskList[]): string {
   const listMap = new Map(lists.map((l) => [l.id, l.displayName]));
-  const header = ["Title", "Notes", "List", "Due Date", "Priority", "Completed", "Categories"];
+  const header = ["Title", "Notes", "List", "Due Date", "Priority", "Completed", "Categories"].map(csvEscape);
   const rows = tasks.map((t) => [
     csvEscape(t.title),
     csvEscape(t.body?.content || ""),
@@ -47,16 +47,26 @@ function csvEscape(value: string): string {
   return value;
 }
 
-export function downloadTextFile(filename: string, content: string, mimeType = "text/plain"): void {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export async function downloadTextFile(filename: string, content: string, _mimeType = "text/plain"): Promise<void> {
+  try {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+    const path = await save({ defaultPath: filename });
+    if (path) {
+      await writeTextFile(path, content);
+    }
+  } catch {
+    // Fallback to browser download if Tauri APIs are unavailable
+    const blob = new Blob([content], { type: _mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 }
 
 interface PickedFile {
@@ -72,7 +82,12 @@ export async function pickImportFile(): Promise<{ name: string; content: string 
   return { name: result.name, content };
 }
 
+const MAX_IMPORT_SIZE = 50 * 1024 * 1024; // 50 MB
+
 export function importFromJson(content: string): ImportResult {
+  if (content.length > MAX_IMPORT_SIZE) {
+    throw new Error(`File too large (${(content.length / 1024 / 1024).toFixed(1)} MB). Maximum import size is 50 MB.`);
+  }
   let data: ExportData;
   try {
     data = JSON.parse(content);
@@ -87,6 +102,7 @@ export function importFromJson(content: string): ImportResult {
     .map((t) => ({
       title: t.title || "Untitled",
       completed: !!t.completed,
+      listId: typeof t.listId === "string" ? t.listId : undefined,
       status: t.completed ? "completed" : "notStarted",
       isInMyDay: typeof t.isInMyDay === "boolean" ? t.isInMyDay : undefined,
       importance: (t.importance === "high" || t.importance === "low" || t.importance === "normal") ? t.importance : undefined,
@@ -98,6 +114,9 @@ export function importFromJson(content: string): ImportResult {
 }
 
 export function importFromTodoistCsv(content: string): ImportResult {
+  if (content.length > MAX_IMPORT_SIZE) {
+    throw new Error(`File too large. Maximum import size is 50 MB.`);
+  }
   const lines = parseCsvLines(content);
   if (lines.length < 2) throw new Error("Invalid Todoist CSV: no data rows.");
 
@@ -161,6 +180,9 @@ export function importFromTodoistCsv(content: string): ImportResult {
 }
 
 export function importFromEvernoteEnex(content: string): ImportResult {
+  if (content.length > MAX_IMPORT_SIZE) {
+    throw new Error(`File too large. Maximum import size is 50 MB.`);
+  }
   const parser = new DOMParser();
   const doc = parser.parseFromString(content, "text/xml");
 
@@ -202,26 +224,33 @@ export function importFromEvernoteEnex(content: string): ImportResult {
 }
 
 export function importFromGenericCsv(content: string): ImportResult {
+  if (content.length > MAX_IMPORT_SIZE) {
+    throw new Error(`File too large. Maximum import size is 50 MB.`);
+  }
   const lines = parseCsvLines(content);
   if (lines.length < 2) throw new Error("Invalid CSV: no data rows.");
 
   const header = lines[0].map((h) => h.toLowerCase().trim());
 
+  // Use word-boundary-aware matching to avoid false positives (e.g. "update" matching "date")
+  const matchesKeyword = (h: string, keywords: string[]) =>
+    keywords.some((k) => new RegExp(`\\b${k}\\b`).test(h));
+
   const titleIdx = header.findIndex((h) =>
-    ["title", "task", "name", "content", "subject"].some((k) => h.includes(k))
+    matchesKeyword(h, ["title", "task", "name", "content", "subject"])
   );
   const notesIdx = header.findIndex((h) =>
-    ["note", "description", "body", "detail"].some((k) => h.includes(k))
+    matchesKeyword(h, ["note", "description", "body", "detail"])
   );
-  const dueDateIdx = header.findIndex((h) => ["due", "date", "deadline"].some((k) => h.includes(k)));
+  const dueDateIdx = header.findIndex((h) => matchesKeyword(h, ["due", "due_date", "duedate", "deadline"]));
   const priorityIdx = header.findIndex((h) =>
-    ["priority", "importance"].some((k) => h.includes(k))
+    matchesKeyword(h, ["priority", "importance"])
   );
   const completedIdx = header.findIndex((h) =>
-    ["complet", "done", "status", "checked", "finished"].some((k) => h.includes(k))
+    matchesKeyword(h, ["completed", "done", "status", "checked", "finished"])
   );
   const categoriesIdx = header.findIndex((h) =>
-    ["categor", "label", "tag"].some((k) => h.includes(k))
+    matchesKeyword(h, ["category", "categories", "label", "tag"])
   );
 
   if (titleIdx === -1) throw new Error("Invalid CSV: could not find a title/task/name column.");

@@ -28,7 +28,7 @@ export const SignIn = ({ signIn }: Props) => {
         <div className="signin-icon">
           <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
             {/* Background Circle */}
-            <circle cx="40" cy="40" r="40" fill="url(#gradient)" />
+            <circle cx="40" cy="40" r="40" fill="url(#signin-gradient)" />
             {/* Checkmark */}
             <path
               d="M25 42L35 52L57 30"
@@ -39,7 +39,7 @@ export const SignIn = ({ signIn }: Props) => {
               fill="none"
             />
             <defs>
-              <linearGradient id="gradient" x1="0" y1="0" x2="80" y2="80">
+              <linearGradient id="signin-gradient" x1="0" y1="0" x2="80" y2="80">
                 <stop offset="0%" stopColor="#0078d4" />
                 <stop offset="100%" stopColor="#005a9e" />
               </linearGradient>

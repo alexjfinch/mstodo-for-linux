@@ -16,6 +16,11 @@ export function parseTaskInput(input: string): ParsedTask {
   const match = results[0];
   const date = match.start.date();
 
+  // Guard against invalid/NaN dates from ambiguous input
+  if (isNaN(date.getTime())) {
+    return { title: input };
+  }
+
   // Remove the date phrase from the title
   const before = input.slice(0, match.index).trim();
   const after = input.slice(match.index + match.text.length).trim();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
 import { setTokenRefreshCallback } from "../api/graph";
@@ -42,7 +42,9 @@ async function loadTokens(id: string): Promise<{ accessToken: string; refreshTok
     keyringGet(id, "refresh_token"),
   ]);
   if (!accessToken && !refreshToken) {
-    logger.warn(`No tokens found in keyring for account ${id} — account may need re-authentication`);
+    logger.warn(`No tokens found in keyring for account [redacted] — account may need re-authentication`);
+  } else if (!accessToken || !refreshToken) {
+    logger.warn(`Partial tokens found in keyring for account [redacted] — ${!accessToken ? "access" : "refresh"} token missing`);
   }
   return { accessToken: accessToken ?? "", refreshToken: refreshToken ?? "" };
 }
@@ -65,7 +67,10 @@ export const useAuth = () => {
 
   const accountsRef = useRef<StoredAccount[]>([]);
 
-  const activeAccount = accounts.find((a) => a.id === activeAccountId) ?? null;
+  const activeAccount = useMemo(
+    () => accounts.find((a) => a.id === activeAccountId) ?? null,
+    [accounts, activeAccountId]
+  );
   const accessToken = activeAccount?.accessToken ?? null;
 
   useEffect(() => { accountsRef.current = accounts; }, [accounts]);

@@ -269,10 +269,13 @@ export async function fetchTasksFromList(listId: string, accessToken: string): P
 
 export async function fetchAllTasks(accessToken: string): Promise<Task[]> {
   const lists = await fetchTaskLists(accessToken);
-  const taskArrays = await Promise.all(
-    lists.map(list => fetchTasksFromList(list.id, accessToken))
-  );
-  return taskArrays.flat();
+  // Process lists sequentially to avoid bursting Microsoft Graph rate limits.
+  const allTasks: Task[] = [];
+  for (const list of lists) {
+    const tasks = await fetchTasksFromList(list.id, accessToken);
+    allTasks.push(...tasks);
+  }
+  return allTasks;
 }
 
 // Track lists where delta isn't supported to avoid repeated 400s
@@ -376,13 +379,9 @@ export async function fetchAllTasksDelta(
             deltaLink: "",
           };
         } else if (axiosErr?.response?.status === 410) {
-          // Delta token expired for this list — fall back to full fetch
-          logger.warn(`Delta token expired for list ${list.id}, performing full fetch`);
-          const tasks = await fetchTasksFromList(list.id, accessToken);
-          result = {
-            changes: tasks.map((task) => ({ task, removed: false })),
-            deltaLink: "",
-          };
+          // Delta token expired for this list — fall back to full fetch and get a fresh delta token
+          logger.warn(`Delta token expired for list ${list.id}, performing full fetch with fresh delta`);
+          result = await fetchTasksDelta(list.id, accessToken, null);
         } else {
           throw err;
         }
@@ -409,7 +408,7 @@ export async function createTask(title: string, listId: string, accessToken: str
 export async function toggleTaskCompleted(task: Task, accessToken: string): Promise<Task> {
   if (!task.listId) throw new Error("Task must have a listId");
 
-  const newStatus = task.completed ? "completed" : "notStarted";
+  const newStatus = task.completed ? "notStarted" : "completed";
   const data = await graphRequest<GraphTask>(
     "patch", `${GRAPH_BASE}/${task.listId}/tasks/${task.id}`, accessToken, { status: newStatus }
   );

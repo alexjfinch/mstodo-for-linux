@@ -61,6 +61,8 @@
   --checkbox-checked: #4aa3ff;
 }
 
+/* Fallback for the brief window before JS sets data-theme.
+   IMPORTANT: Keep these values in sync with [data-theme="dark"] above. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -2894,6 +2896,12 @@ kbd {
 
 .custom-select-option:hover {
   background: var(--bg-hover);
+}
+
+.custom-select-option.focused {
+  background: var(--bg-hover);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
 }
 
 .custom-select-option.selected {

@@ -285,6 +285,7 @@ export async function getLocalTask(db: Database, id: string): Promise<Task | nul
     recurrence: safeJsonParse(r.recurrence),
     categories: safeJsonParse(r.categories),
     reminderDateTime: safeJsonParse(r.reminderDateTime),
+    hasAttachments: !!r.hasAttachments,
     lastModified: r.updatedAt,
   };
 }
@@ -365,11 +366,20 @@ export async function loadDeltaTokens(db: Database): Promise<Record<string, stri
 }
 
 export async function saveDeltaTokens(db: Database, tokens: Record<string, string>): Promise<void> {
-  for (const [listId, deltaLink] of Object.entries(tokens)) {
-    await db.execute(
-      "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
-      [listId, deltaLink]
-    );
+  const entries = Object.entries(tokens);
+  if (entries.length === 0) return;
+  await db.execute("BEGIN TRANSACTION");
+  try {
+    for (const [listId, deltaLink] of entries) {
+      await db.execute(
+        "INSERT OR REPLACE INTO deltaTokens (listId, deltaLink) VALUES (?, ?)",
+        [listId, deltaLink]
+      );
+    }
+    await db.execute("COMMIT");
+  } catch (err) {
+    await db.execute("ROLLBACK");
+    throw err;
   }
 }
 
@@ -389,10 +399,17 @@ export function clearAllData(db: Database): Promise<void> {
 
   clearInFlight = (async () => {
     try {
-      await db.execute("DELETE FROM tasks");
-      await db.execute("DELETE FROM lists");
-      await db.execute("DELETE FROM deltaTokens");
-      await db.execute("DELETE FROM pendingOps");
+      await db.execute("BEGIN TRANSACTION");
+      try {
+        await db.execute("DELETE FROM tasks");
+        await db.execute("DELETE FROM lists");
+        await db.execute("DELETE FROM deltaTokens");
+        await db.execute("DELETE FROM pendingOps");
+        await db.execute("COMMIT");
+      } catch (err) {
+        await db.execute("ROLLBACK");
+        throw err;
+      }
     } finally {
       clearInFlight = null;
     }

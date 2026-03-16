@@ -34,7 +34,7 @@ import {
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
 
-let plannerWarningLogged = false;
+// Reset per account via syncGenerationRef — not a module-level flag
 
 export const useTasks = (accessToken: string | null, currentListId: string | null, db: Database | null, activeAccountId: string | null) => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -56,6 +56,8 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   const syncInProgressRef = useRef(false);
   // AbortController for cancelling in-flight requests on account switch
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Track whether the planner (Assigned to Me) warning has been logged for this account
+  const plannerWarningLoggedRef = useRef(false);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -78,6 +80,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           abortControllerRef.current = null;
         }
         syncInProgressRef.current = false; // allow fresh sync for new account
+        plannerWarningLoggedRef.current = false; // reset per-account warning
         resetGraphCaches();
         setTasks([]);
         setLoading(true);
@@ -102,7 +105,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     init();
   }, [db, activeAccountId]);
 
-  const processPendingOps = useCallback(async () => {
+  const processPendingOps = useCallback(async (generation: number) => {
     const token = accessTokenRef.current;
     const database = dbRef.current;
     if (!token || !database) return;
@@ -111,6 +114,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     if (ops.length === 0) return;
 
     for (const op of ops) {
+      // Bail if account switched while processing
+      if (syncGenerationRef.current !== generation) return;
+
       let data: any;
       try {
         data = JSON.parse(op.data);
@@ -185,7 +191,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     setSyncing(true);
     setSyncError(null);
     try {
-      await processPendingOps();
+      await processPendingOps(generation);
 
       // Bail if account switched while processing pending ops
       if (syncGenerationRef.current !== generation) return;
@@ -208,9 +214,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         const [delta, assignedTasks] = await Promise.all([
           fetchAllTasksDelta(token, deltaTokens),
           fetchAssignedTasks(token).catch((err) => {
-            if (!plannerWarningLogged) {
+            if (!plannerWarningLoggedRef.current) {
               logger.warn("Failed to fetch assigned tasks (Planner may not be available for this account)", err);
-              plannerWarningLogged = true;
+              plannerWarningLoggedRef.current = true;
             }
             return [] as Task[];
           }),
@@ -224,9 +230,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           const [delta, assignedTasks] = await Promise.all([
             fetchAllTasksDelta(token, {}),
             fetchAssignedTasks(token).catch((err) => {
-              if (!plannerWarningLogged) {
+              if (!plannerWarningLoggedRef.current) {
                 logger.warn("Failed to fetch assigned tasks (Planner may not be available for this account)", err);
-                plannerWarningLogged = true;
+                plannerWarningLoggedRef.current = true;
               }
               return [] as Task[];
             }),

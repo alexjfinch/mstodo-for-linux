@@ -49,7 +49,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#1e1e1e",
+    background: "var(--bg-primary, #1e1e1e)",
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
   card: {
@@ -58,12 +58,12 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: "420px",
   },
   title: {
-    color: "#e0e0e0",
+    color: "var(--text-primary, #e0e0e0)",
     fontSize: "20px",
     marginBottom: "12px",
   },
   message: {
-    color: "#999",
+    color: "var(--text-secondary, #999)",
     fontSize: "14px",
     marginBottom: "24px",
     wordBreak: "break-word",
@@ -72,7 +72,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 24px",
     fontSize: "14px",
     fontWeight: 600,
-    background: "#2196F3",
+    background: "var(--accent-primary, #2196F3)",
     color: "#fff",
     border: "none",
     borderRadius: "6px",

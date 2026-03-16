@@ -18,7 +18,7 @@ export const useFilteredTasks = (
         case "My Day":         return task.isInMyDay === true && !task.completed;
         case "Important":      return task.importance === "high" && !task.completed;
         case "Planned":        return !!task.dueDateTime && !task.completed;
-        case "Assigned to Me": return task.listId === "__assigned__";
+        case "Assigned to Me": return task.listId === "__assigned__" && !task.completed;
         case "Tasks":          return task.listId === defaultListId;
         case "Flagged Emails": return task.listId === flaggedListId;
         default:               return task.listId === activeFilter;

@@ -178,6 +178,11 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
         .await
         .map_err(|e| format!("Failed to read file: {e}"))?;
 
+    // Re-check size after read to mitigate TOCTOU race (file could have grown)
+    if bytes.len() > 3 * 1024 * 1024 {
+        return Err("File exceeds the 3 MB limit".to_string());
+    }
+
     Ok(Some(PickedFile { name, content_bytes: base64_encode(&bytes) }))
 }
 
@@ -237,8 +242,28 @@ fn get_log_path() -> std::path::PathBuf {
     dir.join("app.log")
 }
 
+/// Simple rate limiter: allow at most 100 log writes per second to prevent frontend flooding.
+static LOG_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LOG_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[tauri::command]
 async fn write_log(level: String, message: String) -> Result<(), String> {
+    // Rate-limit: max 100 log writes per second
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let prev_epoch = LOG_EPOCH.load(std::sync::atomic::Ordering::Relaxed);
+    if now_secs != prev_epoch {
+        LOG_EPOCH.store(now_secs, std::sync::atomic::Ordering::Relaxed);
+        LOG_COUNT.store(1, std::sync::atomic::Ordering::Relaxed);
+    } else {
+        let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count >= 100 {
+            return Ok(()); // silently drop excess log messages
+        }
+    }
+
     tokio::task::spawn_blocking(move || {
         use std::io::Write;
 

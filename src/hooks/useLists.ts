@@ -31,6 +31,8 @@ export const useLists = (accessToken: string | null, db: Database | null, active
   const dbRef = useRef<Database | null>(null);
   const prevAccountIdRef = useRef<string | null>(null);
   const clearingRef = useRef<Promise<void> | null>(null);
+  const syncInProgressRef = useRef(false);
+  const syncGenerationRef = useRef(0);
 
   useEffect(() => { listsRef.current = lists; }, [lists]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
@@ -46,6 +48,8 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         prevAccountIdRef.current = activeAccountId;
 
         if (isAccountSwitch) {
+          syncGenerationRef.current++;
+          syncInProgressRef.current = false;
           setLists([]);
           setLoading(true);
           const clearing = clearAllData(db);
@@ -67,13 +71,20 @@ export const useLists = (accessToken: string | null, db: Database | null, active
 
   // Sync lists with Microsoft Graph — try beta (for linkedGroupId), fall back to v1.0
   const syncLists = useCallback(async () => {
+    if (syncInProgressRef.current) return;
+    syncInProgressRef.current = true;
+    const generation = syncGenerationRef.current;
+
     // Wait for any in-progress account-switch DB clear to finish
     if (clearingRef.current) await clearingRef.current;
 
     const token = accessTokenRef.current;
     const database = dbRef.current;
 
-    if (!token || !database || !isOnlineRef.current) return;
+    if (!token || !database || !isOnlineRef.current) {
+      syncInProgressRef.current = false;
+      return;
+    }
 
     try {
       // Process pending list-create ops (lists created while offline)
@@ -103,6 +114,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       }
 
       const remoteLists = await fetchTaskLists(token);
+
+      // Bail if account switched during fetch
+      if (syncGenerationRef.current !== generation) return;
 
       // Merge remote data with local state to preserve isGroup/parentGroupId
       const mergedLists = remoteLists.map((remote: TaskList) => {
@@ -138,9 +152,15 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         }
       }
 
-      setLists(allLists);
+      if (syncGenerationRef.current === generation) {
+        setLists(allLists);
+      }
     } catch (err) {
-      logger.error("Failed to sync lists", err);
+      if (syncGenerationRef.current === generation) {
+        logger.error("Failed to sync lists", err);
+      }
+    } finally {
+      syncInProgressRef.current = false;
     }
   }, []); // Uses refs for all dependencies to avoid re-creating the callback
 
@@ -356,21 +376,22 @@ export const useLists = (accessToken: string | null, db: Database | null, active
     const list = listsRef.current.find((l) => l.id === listId);
     if (!list) return;
 
-    // If deleting a group, unparent all children first
-    if (list.isGroup) {
-      const children = listsRef.current.filter((l) => l.parentGroupId === listId);
-      if (children.length > 0) {
-        setLists((prev) =>
-          prev.map((l) =>
-            l.parentGroupId === listId ? { ...l, parentGroupId: undefined } : l
-          )
-        );
-        for (const child of children) {
-          try {
-            await updateListMeta(database, child.id, { parentGroupId: null });
-          } catch (err) {
-            logger.error("Failed to unparent child list", err);
-          }
+    // If deleting a group, remember children so we can rollback
+    const children = list.isGroup
+      ? listsRef.current.filter((l) => l.parentGroupId === listId)
+      : [];
+
+    if (list.isGroup && children.length > 0) {
+      setLists((prev) =>
+        prev.map((l) =>
+          l.parentGroupId === listId ? { ...l, parentGroupId: undefined } : l
+        )
+      );
+      for (const child of children) {
+        try {
+          await updateListMeta(database, child.id, { parentGroupId: null });
+        } catch (err) {
+          logger.error("Failed to unparent child list", err);
         }
       }
     }
@@ -385,9 +406,22 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       await deleteListFromDB(database, listId);
     } catch (err) {
       logger.error("Failed to delete list", err);
-      setLists((prev) =>
-        [...prev, list].sort((a, b) => a.displayName.localeCompare(b.displayName))
-      );
+      // Restore the list AND re-parent children on failure
+      setLists((prev) => {
+        let restored = [...prev, list].sort((a, b) => a.displayName.localeCompare(b.displayName));
+        if (children.length > 0) {
+          restored = restored.map((l) =>
+            children.some((c) => c.id === l.id) ? { ...l, parentGroupId: listId } : l
+          );
+        }
+        return restored;
+      });
+      // Restore children in DB
+      for (const child of children) {
+        try {
+          await updateListMeta(database, child.id, { parentGroupId: listId });
+        } catch { /* best effort */ }
+      }
     }
   }, []);
 

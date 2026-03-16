@@ -361,11 +361,14 @@ export default function App() {
     }
   }, [detailTaskId, tasks]);
 
-  // Close detail when clicking outside the panel
+  // Close detail when clicking outside the panel (but not on task rows or overlays like ConfirmDialog)
   useEffect(() => {
     if (!detailTaskId) return;
     const fn = (e: MouseEvent) => {
-      if (detailPanelRef.current && !detailPanelRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      if (detailPanelRef.current && !detailPanelRef.current.contains(target)) {
+        // Don't close if clicking a task row (user is switching tasks) or a modal overlay
+        if (target.closest(".task-item, .confirm-overlay, .context-menu")) return;
         setDetailTaskId(null);
       }
     };

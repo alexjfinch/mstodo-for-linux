@@ -32,7 +32,7 @@ export type Recurrence = {
     interval: number;
     daysOfWeek?: string[];
   };
-  range: { type: "noEnd" | "endDate" | "numbered"; startDate: string };
+  range: { type: "noEnd" | "endDate" | "numbered"; startDate: string; endDate?: string; numberOfOccurrences?: number };
 };
 
 export type Task = {

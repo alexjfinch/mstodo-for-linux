@@ -292,6 +292,7 @@ export const TaskItem = ({
               e.stopPropagation();
               onToggleComplete();
             }}
+            aria-label={`Mark "${task.title}" as ${task.completed ? "incomplete" : "complete"}`}
           />
         </label>
       </div>

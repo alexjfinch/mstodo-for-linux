@@ -32,7 +32,7 @@ async function probeNetwork(): Promise<boolean> {
 
 let isOnline = true;
 let subscribers = new Set<() => void>();
-let started = false;
+let intervalId: ReturnType<typeof setInterval> | null = null;
 
 function notify() {
   for (const cb of subscribers) cb();
@@ -46,33 +46,39 @@ async function check() {
   }
 }
 
+const handleOnline = () => { check(); };
+const handleOffline = () => {
+  if (isOnline) {
+    isOnline = false;
+    notify();
+  }
+};
+
 function start() {
-  if (started) return;
-  started = true;
+  if (intervalId !== null) return;
 
   check();
-  const interval = setInterval(check, PING_INTERVAL);
-
-  const handleOnline = () => { check(); };
-  const handleOffline = () => {
-    if (isOnline) {
-      isOnline = false;
-      notify();
-    }
-  };
-
+  intervalId = setInterval(check, PING_INTERVAL);
   window.addEventListener("online", handleOnline);
   window.addEventListener("offline", handleOffline);
+}
 
-  // Cleanup is intentionally omitted — the monitor runs for the app's lifetime.
-  // If needed in the future, store the interval/listeners for teardown.
-  void interval;
+function stop() {
+  if (intervalId !== null) {
+    clearInterval(intervalId);
+    intervalId = null;
+  }
+  window.removeEventListener("online", handleOnline);
+  window.removeEventListener("offline", handleOffline);
 }
 
 function subscribe(cb: () => void) {
-  start();
   subscribers.add(cb);
-  return () => { subscribers.delete(cb); };
+  start(); // ensure polling is running while there are subscribers
+  return () => {
+    subscribers.delete(cb);
+    if (subscribers.size === 0) stop();
+  };
 }
 
 function getSnapshot() {

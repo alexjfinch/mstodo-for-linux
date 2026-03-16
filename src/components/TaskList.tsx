@@ -156,6 +156,13 @@ export const TaskList = ({
     });
   }, [tasks, sortField, sortDirection]);
 
+  // Auto-focus the context menu when it opens for keyboard navigation
+  useEffect(() => {
+    if (contextMenu.visible && menuRef.current) {
+      menuRef.current.focus();
+    }
+  }, [contextMenu.visible]);
+
   // Close context menu when clicking outside or scrolling
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -381,7 +388,7 @@ export const TaskList = ({
         onCancel={() => setDeleteConfirm(null)}
       />
     )}
-    <div className="tasks-container">
+    <div className="tasks-container" data-custom-context>
       {/* Column Headers */}
       {activeTasks.length > 0 && (
         <div className="task-list-header" onClick={(e) => e.stopPropagation()}>
@@ -450,13 +457,29 @@ export const TaskList = ({
           className="context-menu"
           role="menu"
           aria-label="Task actions"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
+            } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+              if (!items || items.length === 0) return;
+              const active = document.activeElement as HTMLElement;
+              const idx = Array.from(items).indexOf(active);
+              const next = e.key === "ArrowDown"
+                ? items[(idx + 1) % items.length]
+                : items[(idx - 1 + items.length) % items.length];
+              next?.focus();
+            }
+          }}
           style={{
             top: contextMenu.y,
             left: contextMenu.x,
             position: "fixed",
           }}
         >
-          <li className="context-menu-item" role="menuitem" onClick={handleCompleteTask}>
+          <li className="context-menu-item" role="menuitem" tabIndex={-1} onClick={handleCompleteTask}>
             {currentTask.completed ? "Mark as Incomplete" : "Mark as Complete"}
           </li>
 
@@ -465,6 +488,7 @@ export const TaskList = ({
           <li
             className="context-menu-item"
             role="menuitem"
+            tabIndex={-1}
             onClick={() => handleToggleAttribute("isInMyDay")}
           >
             {currentTask.isInMyDay ? "Remove from My Day" : "Add to My Day"}
@@ -473,6 +497,7 @@ export const TaskList = ({
           <li
             className="context-menu-item"
             role="menuitem"
+            tabIndex={-1}
             onClick={() => handleToggleAttribute("importance")}
           >
             {currentTask.importance === "high" ? "Mark as Normal" : "Mark as Important"}
@@ -542,7 +567,7 @@ export const TaskList = ({
 
           <li className="context-menu-divider" />
 
-          <li className="context-menu-item context-menu-item-danger" role="menuitem" onClick={handleDeleteTask}>
+          <li className="context-menu-item context-menu-item-danger" role="menuitem" tabIndex={-1} onClick={handleDeleteTask}>
             Delete Task
           </li>
         </ul>

@@ -165,6 +165,8 @@ export const Settings = ({
               <button
                 className={`settings-toggle${compactMode ? " active" : ""}`}
                 onClick={() => onCompactModeChange(!compactMode)}
+                role="switch"
+                aria-checked={compactMode}
                 aria-label="Toggle compact mode"
               >
                 <span className="settings-toggle-knob" />
@@ -227,6 +229,8 @@ export const Settings = ({
               <button
                 className={`settings-toggle${remindersEnabled ? " active" : ""}`}
                 onClick={() => onRemindersEnabledChange(!remindersEnabled)}
+                role="switch"
+                aria-checked={remindersEnabled}
                 aria-label="Toggle reminders"
               >
                 <span className="settings-toggle-knob" />
@@ -565,12 +569,31 @@ export const Settings = ({
 
       <div className="settings-body">
         <nav className="settings-nav">
-          <ul className="settings-nav-list">
-            {NAV_ITEMS.map((item) => (
+          <ul className="settings-nav-list" role="tablist" aria-label="Settings sections">
+            {NAV_ITEMS.map((item, i) => (
               <li
                 key={item.key}
+                role="tab"
+                tabIndex={activeSection === item.key ? 0 : -1}
+                aria-selected={activeSection === item.key}
                 className={`settings-nav-item${activeSection === item.key ? " active" : ""}`}
                 onClick={() => setActiveSection(item.key)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActiveSection(item.key);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const next = NAV_ITEMS[(i + 1) % NAV_ITEMS.length];
+                    setActiveSection(next.key);
+                    (e.currentTarget.parentElement?.children[(i + 1) % NAV_ITEMS.length] as HTMLElement)?.focus();
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const prev = NAV_ITEMS[(i - 1 + NAV_ITEMS.length) % NAV_ITEMS.length];
+                    setActiveSection(prev.key);
+                    (e.currentTarget.parentElement?.children[(i - 1 + NAV_ITEMS.length) % NAV_ITEMS.length] as HTMLElement)?.focus();
+                  }
+                }}
               >
                 <span className="settings-nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
