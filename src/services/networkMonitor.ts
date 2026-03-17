@@ -56,6 +56,12 @@ const handleOffline = () => {
   }
 };
 
+// Immediately re-probe when waking from sleep or regaining focus
+const handleVisibilityChange = () => {
+  if (document.visibilityState === "visible") check();
+};
+const handleFocus = () => { check(); };
+
 function start() {
   if (intervalId !== null) return;
 
@@ -63,6 +69,8 @@ function start() {
   intervalId = setInterval(check, PING_INTERVAL);
   window.addEventListener("online", handleOnline);
   window.addEventListener("offline", handleOffline);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("focus", handleFocus);
 }
 
 function stop() {
@@ -72,6 +80,8 @@ function stop() {
   }
   window.removeEventListener("online", handleOnline);
   window.removeEventListener("offline", handleOffline);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  window.removeEventListener("focus", handleFocus);
 }
 
 function subscribe(cb: () => void) {

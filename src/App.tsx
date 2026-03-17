@@ -59,6 +59,7 @@ export default function App() {
     handleThemeChange, handleFontSizeChange, handleCompactModeChange,
     handleSyncIntervalChange, handleRemindersEnabledChange,
     handleReminderTimingChange, handleReorderTasks: reorderTasks,
+    lastMyDayReset, handleMyDayReset, settingsLoaded,
   } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -67,6 +68,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
   const detailPanelRef = useRef<HTMLDivElement>(null);
@@ -129,6 +131,7 @@ export default function App() {
     deleteTask,
     moveTaskToList,
     syncWithGraph,
+    clearMyDay,
     isOnline,
     syncing,
     syncError,
@@ -329,11 +332,11 @@ export default function App() {
 
   // Sync when user signs in or comes back online
   useEffect(() => {
-    if (accessToken && dbReady) {
+    if (accessToken && dbReady && isOnline) {
       syncListsRef.current();
       syncWithGraphRef.current();
     }
-  }, [accessToken, dbReady]);
+  }, [accessToken, dbReady, isOnline]);
 
   // Auto-sync based on syncInterval setting (0 = manual only)
   useEffect(() => {
@@ -344,6 +347,31 @@ export default function App() {
     }, syncInterval * 1000);
     return () => clearInterval(interval);
   }, [accessToken, dbReady, syncInterval]);
+
+  // Detect day change when waking from sleep or regaining focus
+  useEffect(() => {
+    const checkDate = () => {
+      const today = new Date().toISOString().split("T")[0];
+      setCurrentDate((prev) => (prev !== today ? today : prev));
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") checkDate(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", checkDate);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", checkDate);
+    };
+  }, []);
+
+  // Reset My Day at the start of a new day — cleared tasks become suggestions
+  // Wait for settingsLoaded so lastMyDayReset has its persisted value before comparing
+  useEffect(() => {
+    if (!dbReady || tasksLoading || !settingsLoaded) return;
+    if (lastMyDayReset !== currentDate) {
+      clearMyDay();
+      handleMyDayReset(currentDate);
+    }
+  }, [dbReady, tasksLoading, settingsLoaded, currentDate, lastMyDayReset, clearMyDay, handleMyDayReset]);
 
   // Keep stable refs for event handlers to avoid re-subscribing Tauri listeners
   const handleManualSyncRef = useRef(handleManualSync);
@@ -527,7 +555,7 @@ export default function App() {
         <ComponentBoundary>
         <Sidebar
           activeList={activeList}
-          onSelectList={setActiveList}
+          onSelectList={(list) => { setActiveList(list); setIsSettingsOpen(false); }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           allLists={lists}
           customLists={lists.filter(l =>
@@ -658,7 +686,7 @@ export default function App() {
             />
           ) : (
             <div
-              className={activeList === "My Day" ? "myday-drop-zone" : undefined}
+              className={`task-list-wrapper${activeList === "My Day" ? " myday-drop-zone" : ""}`}
               onDragOver={activeList === "My Day" ? (e) => {
                 if (e.dataTransfer.types.includes("suggestion")) {
                   e.preventDefault();

@@ -403,6 +403,11 @@ export async function clearDeltaTokens(db: Database): Promise<void> {
   await db.execute("DELETE FROM deltaTokens");
 }
 
+/** Clear isInMyDay flag for all tasks (used for daily My Day reset). */
+export async function clearMyDayFlags(db: Database): Promise<void> {
+  await db.execute("UPDATE tasks SET isInMyDay = 0 WHERE isInMyDay = 1");
+}
+
 /**
  * Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching.
  * Deduplicated: if multiple hooks call this concurrently (useTasks + useLists),

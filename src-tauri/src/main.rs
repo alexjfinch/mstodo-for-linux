@@ -491,11 +491,13 @@ fn main() {
             // Register global shortcut: Super+Shift+A to open quick-add
             let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyA);
             let handle = app.handle().clone();
-            app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+            if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
                 if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     open_quick_add(&handle);
                 }
-            })?;
+            }) {
+                eprintln!("Warning: failed to register global shortcut: {e}");
+            }
 
             Ok(())
         })

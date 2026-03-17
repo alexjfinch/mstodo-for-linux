@@ -27,6 +27,7 @@ import {
   saveDeltaTokens,
   clearDeltaTokens,
   clearAllData,
+  clearMyDayFlags,
   updatePendingOpsTaskId,
   incrementPendingOpRetry,
   MAX_PENDING_OP_RETRIES,
@@ -634,6 +635,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     }
   }, []);
 
+  const clearMyDay = useCallback(async () => {
+    const database = dbRef.current;
+    if (database) await clearMyDayFlags(database);
+    setTasks((prev) => prev.map((t) => t.isInMyDay ? { ...t, isInMyDay: false } : t));
+  }, []);
+
   return {
     tasks,
     loading,
@@ -643,6 +650,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
     deleteTask,
     moveTaskToList,
     syncWithGraph,
+    clearMyDay,
     isOnline,
     syncing,
     syncError,

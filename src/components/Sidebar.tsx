@@ -300,6 +300,8 @@ export const Sidebar = ({
           </button>
         </div>
 
+        {/* Scrollable list area */}
+        <div className="sidebar-scroll">
         {/* Built-in lists */}
         <ul>
           {builtInLists.map((list) => (
@@ -641,6 +643,7 @@ export const Sidebar = ({
           </div>
         )}
 
+        </div>
         {/* Settings / sync footer */}
         <div className="sidebar-footer">
           <div

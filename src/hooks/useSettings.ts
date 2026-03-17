@@ -17,6 +17,8 @@ export const useSettings = () => {
   const [taskOrder, setTaskOrder] = useState<Record<string, string[]>>({});
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
+  const [lastMyDayReset, setLastMyDayReset] = useState<string | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Load all persisted settings on mount
   useEffect(() => {
@@ -38,6 +40,9 @@ export const useSettings = () => {
       if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
       const savedTaskOrder = await store.get<Record<string, string[]>>("taskOrder");
       if (savedTaskOrder) setTaskOrder(savedTaskOrder);
+      const savedLastMyDayReset = await store.get<string>("lastMyDayReset");
+      if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
+      setSettingsLoaded(true);
     })();
   }, []);
 
@@ -71,6 +76,11 @@ export const useSettings = () => {
     await persistSetting("syncInterval", interval);
   }, []);
 
+  const handleMyDayReset = useCallback(async (date: string) => {
+    setLastMyDayReset(date);
+    await persistSetting("lastMyDayReset", date);
+  }, []);
+
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
     const next = { ...taskOrder, [activeList]: reorderedIds };
     setTaskOrder(next);
@@ -93,5 +103,8 @@ export const useSettings = () => {
     handleRemindersEnabledChange,
     handleReminderTimingChange,
     handleReorderTasks,
+    lastMyDayReset,
+    handleMyDayReset,
+    settingsLoaded,
   };
 };
