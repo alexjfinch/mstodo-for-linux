@@ -102,6 +102,15 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
       try {
         const localTasks = await loadTasksFromDB(db);
+        // If DB has no tasks but delta tokens exist, clear them now so the
+        // first sync does a full fetch instead of a no-op delta.
+        if (localTasks.length === 0) {
+          const deltaTokens = await loadDeltaTokens(db);
+          if (Object.keys(deltaTokens).length > 0) {
+            logger.info("Init: DB empty but delta tokens exist — clearing for full sync");
+            await clearDeltaTokens(db);
+          }
+        }
         setTasks(localTasks);
         setLoading(false);
       } catch (err) {

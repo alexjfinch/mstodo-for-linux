@@ -1,5 +1,6 @@
 import "./Settings.css";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { StoredAccount } from "../hooks/useAuth";
 import { CustomSelect } from "./CustomSelect";
 import { ReminderTiming, TIMING_LABELS } from "../hooks/useReminders";
@@ -98,6 +99,13 @@ export const Settings = ({
   const [manualSyncing, setManualSyncing] = useState(false);
   const [importStatus, setImportStatus] = useState<{ message: string; isError: boolean } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      invoke<boolean>("get_autostart_enabled").then(setAutostartEnabled).catch(() => {});
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -169,6 +177,27 @@ export const Settings = ({
                 role="switch"
                 aria-checked={compactMode}
                 aria-label="Toggle compact mode"
+              >
+                <span className="settings-toggle-knob" />
+              </button>
+            </div>
+
+            <div className="settings-item">
+              <div className="settings-item-info">
+                <div className="settings-item-label">Start on Login</div>
+                <div className="settings-item-description">Automatically launch the app when you log in</div>
+              </div>
+              <button
+                className={`settings-toggle${autostartEnabled ? " active" : ""}`}
+                onClick={() => {
+                  const next = !autostartEnabled;
+                  invoke("set_autostart_enabled", { enabled: next })
+                    .then(() => setAutostartEnabled(next))
+                    .catch(() => {});
+                }}
+                role="switch"
+                aria-checked={autostartEnabled}
+                aria-label="Toggle start on login"
               >
                 <span className="settings-toggle-knob" />
               </button>

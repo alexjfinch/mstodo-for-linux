@@ -237,7 +237,7 @@ fn get_log_path() -> std::path::PathBuf {
     let base = dirs::data_local_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
         .unwrap_or_else(|| std::env::temp_dir());
-    let dir = base.join("com.mstodo-for-linux");
+    let dir = base.join("io.github.alexjfinch.mstodo-for-linux");
     let _ = std::fs::create_dir_all(&dir);
     dir.join("app.log")
 }
@@ -302,7 +302,7 @@ async fn get_log_path_cmd() -> String {
 
 // ── Keyring ──────────────────────────────────────────────────────────
 
-const KEYRING_SERVICE: &str = "com.mstodo-for-linux";
+const KEYRING_SERVICE: &str = "io.github.alexjfinch.mstodo-for-linux";
 
 #[tauri::command]
 async fn keyring_set(account: String, key: String, value: String) -> Result<(), String> {
@@ -347,6 +347,44 @@ async fn keyring_delete(account: String, key: String) -> Result<(), String> {
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// ── Autostart ─────────────────────────────────────────────────────────
+
+const AUTOSTART_DESKTOP_ENTRY: &str = "\
+[Desktop Entry]\n\
+Type=Application\n\
+Name=Microsoft To Do\n\
+Exec=mstodo-for-linux\n\
+Icon=mstodo-for-linux\n\
+Comment=An Unofficial Microsoft To Do Client for Linux\n\
+X-GNOME-Autostart-enabled=true\n\
+StartupNotify=false\n";
+
+fn autostart_path() -> Option<std::path::PathBuf> {
+    dirs::config_dir().map(|c| c.join("autostart").join("mstodo-for-linux.desktop"))
+}
+
+#[tauri::command]
+async fn get_autostart_enabled() -> Result<bool, String> {
+    Ok(autostart_path().map_or(false, |p| p.exists()))
+}
+
+#[tauri::command]
+async fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
+    let path = autostart_path().ok_or("Could not determine config directory")?;
+    if enabled {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create autostart directory: {e}"))?;
+        }
+        std::fs::write(&path, AUTOSTART_DESKTOP_ENTRY)
+            .map_err(|e| format!("Failed to write autostart file: {e}"))?;
+    } else if path.exists() {
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("Failed to remove autostart file: {e}"))?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -515,7 +553,7 @@ fn main() {
                 .build()
         )
         // Register commands
-        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd])
+        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
         // Run the app
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

@@ -556,7 +556,7 @@ export default function App() {
         <Sidebar
           activeList={activeList}
           onSelectList={(list) => { setActiveList(list); setIsSettingsOpen(false); }}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(prev => !prev)}
           allLists={lists}
           customLists={lists.filter(l =>
             l.wellknownListName !== "defaultList" &&

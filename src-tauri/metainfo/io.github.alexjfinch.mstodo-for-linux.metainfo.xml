@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.alexjfinch.mstodo-for-linux</id>
+
+  <name>Microsoft To Do</name>
+  <summary>An Unofficial Microsoft To Do Client for Linux</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      A native Linux desktop client for Microsoft To Do, built with Tauri.
+      Sync your tasks, manage lists, and stay productive with a clean
+      GTK-integrated interface.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Full task sync with Microsoft To Do via the Microsoft Graph API</li>
+      <li>My Day view with daily reset</li>
+      <li>Quick-add window for rapid task entry</li>
+      <li>System tray integration with sync status indicators</li>
+      <li>Light and dark theme support</li>
+      <li>Desktop notifications for reminders</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">mstodo-for-linux.desktop</launchable>
+
+  <url type="homepage">https://github.com/alexjfinch/mstodo-for-linux</url>
+  <url type="bugtracker">https://github.com/alexjfinch/mstodo-for-linux/issues</url>
+  <url type="vcs-browser">https://github.com/alexjfinch/mstodo-for-linux</url>
+
+  <developer id="io.github.alexjfinch">
+    <name>Alex Finch</name>
+  </developer>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>Dark theme - task management view</caption>
+      <image>https://raw.githubusercontent.com/alexjfinch/mstodo-for-linux/main/docs/screenshot-dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Light theme - task management view</caption>
+      <image>https://raw.githubusercontent.com/alexjfinch/mstodo-for-linux/main/docs/screenshot-light.png</image>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#e8f0fe</color>
+    <color type="primary" scheme_preference="dark">#1a1a2e</color>
+  </branding>
+
+  <content_rating type="oars-1.1" />
+
+  <categories>
+    <category>Utility</category>
+    <category>Office</category>
+    <category>ProjectManagement</category>
+  </categories>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <releases>
+    <release version="0.1.5" date="2026-03-18">
+      <description>
+        <p>Added AppStream metadata for improved software centre integration.</p>
+      </description>
+    </release>
+  </releases>
+</component>

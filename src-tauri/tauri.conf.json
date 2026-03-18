@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "mstodo-for-linux",
-  "version": "0.1.0",
-  "identifier": "com.alex.mstodo-for-linux",
+  "version": "0.1.5",
+  "identifier": "io.github.alexjfinch.mstodo-for-linux",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -83,11 +83,19 @@
   "bundle": {
     "active": true,
     "targets": ["deb", "rpm", "appimage"],
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "category": "Productivity",
+    "shortDescription": "An Unofficial Microsoft To Do Client for Linux",
+    "longDescription": "A native Linux desktop client for Microsoft To Do, built with Tauri. Sync your tasks, manage lists, and stay productive with a clean GTK-integrated interface.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.png"
+    ],
+    "resources": [
+      "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
     ],
     "linux": {
       "deb": {
@@ -96,14 +104,20 @@
           "libayatana-appindicator3-1",
           "libgtk-3-0"
         ],
-        "section": "utils"
+        "section": "utils",
+        "files": {
+          "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
+        }
       },
       "rpm": {
         "depends": [
           "webkit2gtk4.1",
           "libayatana-appindicator-gtk3",
           "gtk3"
-        ]
+        ],
+        "files": {
+          "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
+        }
       }
     }
   }
