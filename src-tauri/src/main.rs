@@ -504,7 +504,7 @@ fn open_quick_add(app: &tauri::AppHandle) {
     let url = WebviewUrl::App("quickadd.html".into());
     let _ = WebviewWindowBuilder::new(app, "quickadd", url)
         .title("Quick Add Task")
-        .inner_size(480.0, 180.0)
+        .inner_size(480.0, 148.0)
         .resizable(false)
         .decorations(false)
         .transparent(true)

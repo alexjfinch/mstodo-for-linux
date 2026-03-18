@@ -124,31 +124,29 @@ export const QuickAdd = () => {
 
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
-        <div style={styles.header}>Quick Add Task</div>
-        <input
-          ref={inputRef}
-          style={styles.input}
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder='e.g. "Buy milk tomorrow" or "Meeting on Friday"'
-        />
-        {preview && <div style={styles.preview}>{preview}</div>}
-        <div style={styles.footer}>
-          <span style={styles.hint}>Enter to add &middot; Esc to cancel</span>
-          <button
-            style={{
-              ...styles.button,
-              opacity: value.trim() ? 1 : 0.5,
-            }}
-            onClick={handleSubmit}
-            disabled={!value.trim()}
-          >
-            Add Task
-          </button>
-        </div>
+      <div style={styles.header}>Quick Add Task</div>
+      <input
+        ref={inputRef}
+        style={styles.input}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder='e.g. "Buy milk tomorrow" or "Meeting on Friday"'
+      />
+      {preview && <div style={styles.preview}>{preview}</div>}
+      <div style={styles.footer}>
+        <span style={styles.hint}>Enter to add &middot; Esc to cancel</span>
+        <button
+          style={{
+            ...styles.button,
+            opacity: value.trim() ? 1 : 0.5,
+          }}
+          onClick={handleSubmit}
+          disabled={!value.trim()}
+        >
+          Add Task
+        </button>
       </div>
     </div>
   );
@@ -159,20 +157,15 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     height: "100%",
     display: "flex",
-    alignItems: "center",
+    flexDirection: "column",
     justifyContent: "center",
-    background: "transparent",
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  },
-  card: {
-    width: "100%",
+    padding: "16px",
     background: "var(--qa-bg)",
     borderRadius: "12px",
-    border: "1px solid var(--qa-border)",
-    padding: "16px",
     boxShadow: "0 8px 32px var(--qa-shadow)",
     color: "var(--qa-text)",
+    fontFamily:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
   header: {
     fontSize: "13px",
