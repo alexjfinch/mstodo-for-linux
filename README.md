@@ -119,6 +119,12 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 
 ---
 
+## Limitations
+
+Unfortunately the group functionality of Microsoft ToDo isn't exposed via the official Graph API and therefore any groups created on the webapp are not synced and vice versa, no groups created locally are synced to the webapp.
+
+---
+
 ## Roadmap
 
 Planned features, roughly in priority order:
