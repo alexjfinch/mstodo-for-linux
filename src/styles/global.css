@@ -294,14 +294,24 @@ body {
 }
 
 /* ── Compact Mode ───────────────────────────────────────────────── */
+[data-compact="true"] .task-item {
+  padding: 5px 16px;
+  margin-bottom: 2px;
+}
+
 [data-compact="true"] .task-cell {
   min-height: 36px;
   padding-top: 5px;
   padding-bottom: 5px;
 }
 
-[data-compact="true"] .task-input-row {
-  padding: 6px 12px;
+[data-compact="true"] .new-task {
+  margin-top: 8px;
+}
+
+[data-compact="true"] .new-task input,
+[data-compact="true"] .new-task button {
+  padding: 7px 12px;
 }
 
 [data-compact="true"] .task-section-header {

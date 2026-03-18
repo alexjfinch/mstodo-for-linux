@@ -415,6 +415,84 @@ async fn sign_in() -> Result<TokenPayload, String> {
     })
 }
 
+/// Returns the path of the FIFO created.
+/// Spawns a background thread that blocks on the FIFO and calls open_quick_add
+/// whenever any data arrives (used as an IPC channel from DE-registered shortcuts).
+fn setup_quickadd_fifo(app_handle: tauri::AppHandle) -> String {
+    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
+    let fifo_path = format!("{}/mstodo-quickadd", runtime_dir);
+
+    // Create the FIFO (ignore error if it already exists)
+    let _ = std::process::Command::new("mkfifo").arg(&fifo_path).status();
+
+    let path = fifo_path.clone();
+    std::thread::spawn(move || {
+        use std::io::Read;
+        loop {
+            // open() blocks until a writer opens the other end
+            match std::fs::File::open(&path) {
+                Ok(mut file) => {
+                    let mut buf = Vec::new();
+                    let _ = file.read_to_end(&mut buf);
+                    if !buf.is_empty() {
+                        open_quick_add(&app_handle);
+                    }
+                }
+                Err(_) => {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            }
+        }
+    });
+
+    fifo_path
+}
+
+/// Registers a GNOME custom keybinding (Super+Shift+T) that writes to the IPC FIFO.
+/// Detects GNOME via XDG_CURRENT_DESKTOP. Safe to call on non-GNOME DEs (no-op).
+fn register_gnome_shortcut(fifo_path: &str) {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_lowercase();
+    if !desktop.contains("gnome") && !desktop.contains("unity") && !desktop.contains("budgie") {
+        return;
+    }
+
+    let binding_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mstodo/";
+    let command = format!("bash -c 'echo q > {}'", fifo_path);
+
+    // Fetch current custom-keybindings list and append our path if absent
+    let current = std::process::Command::new("gsettings")
+        .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+
+    if !current.contains(binding_path) {
+        let new_list = if current.trim() == "@as []" || current.trim() == "[]" {
+            format!("['{}']", binding_path)
+        } else if let Some(pos) = current.rfind(']') {
+            let prefix = current[..pos].trim_end_matches(',').trim();
+            if prefix.trim_end() == "[" {
+                format!("['{}']", binding_path)
+            } else {
+                format!("{}, '{}']", prefix, binding_path)
+            }
+        } else {
+            format!("['{}']", binding_path)
+        };
+        let _ = std::process::Command::new("gsettings")
+            .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
+            .status();
+    }
+
+    let base = format!(
+        "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{}",
+        binding_path
+    );
+    let _ = std::process::Command::new("gsettings").args(["set", &base, "name", "MS Todo Quick Add"]).status();
+    let _ = std::process::Command::new("gsettings").args(["set", &base, "binding", "<Super><Shift>t"]).status();
+    let _ = std::process::Command::new("gsettings").args(["set", &base, "command", &command]).status();
+}
+
 fn open_quick_add(app: &tauri::AppHandle) {
     // If already open, just focus it
     if let Some(win) = app.get_webview_window("quickadd") {
@@ -448,7 +526,7 @@ fn main() {
 
             // Build system tray context menu
             // Use MenuItemBuilder to work around GNOME AppIndicator text rendering issues
-            let show_hide = MenuItemBuilder::with_id("show_hide", "Show/Hide Window").enabled(true).build(app)?;
+            let show_hide = MenuItemBuilder::with_id("show_hide", "Open Window").enabled(true).build(app)?;
             let add_task = MenuItemBuilder::with_id("add_task", "Quick Add Task").enabled(true).build(app)?;
             let sync_now = MenuItemBuilder::with_id("sync_now", "Sync Now").enabled(true).build(app)?;
             let separator = PredefinedMenuItem::separator(app)?;
@@ -484,13 +562,9 @@ fn main() {
                     match event.id().as_ref() {
                         "show_hide" => {
                             if let Some(win) = app.get_webview_window("main") {
-                                if win.is_visible().unwrap_or(false) {
-                                    let _ = win.hide();
-                                } else {
-                                    let _ = win.show();
-                                    let _ = win.unminimize();
-                                    let _ = win.set_focus();
-                                }
+                                let _ = win.show();
+                                let _ = win.unminimize();
+                                let _ = win.set_focus();
                             }
                         }
                         "add_task" => {
@@ -526,16 +600,22 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Register global shortcut: Super+Shift+A to open quick-add
-            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyA);
+            // Set up IPC FIFO for DE-registered shortcut fallback (Wayland / GNOME etc.)
+            let fifo_path = setup_quickadd_fifo(app.handle().clone());
+
+            // Register global shortcut: Super+Shift+T to open quick-add (works on X11)
+            let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyT);
             let handle = app.handle().clone();
             if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
                 if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                     open_quick_add(&handle);
                 }
             }) {
-                eprintln!("Warning: failed to register global shortcut: {e}");
+                eprintln!("Warning: failed to register global shortcut (likely Wayland): {e}");
             }
+
+            // Also register via GNOME gsettings so it works on Wayland / GNOME Shell
+            register_gnome_shortcut(&fifo_path);
 
             Ok(())
         })
