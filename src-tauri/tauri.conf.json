@@ -106,7 +106,7 @@
         ],
         "section": "utils",
         "files": {
-          "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
+          "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
         }
       },
       "rpm": {
@@ -116,7 +116,7 @@
           "gtk3"
         ],
         "files": {
-          "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
+          "/usr/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml": "metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml"
         }
       }
     }
