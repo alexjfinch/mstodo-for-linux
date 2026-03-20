@@ -147,10 +147,6 @@ export default function App() {
   // Compute uncompleted task counts for sidebar badges
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const defaultListId = (
-      lists.find(l => l.wellknownListName === "defaultList") ||
-      lists.find(l => l.displayName === "Tasks")
-    )?.id;
     const flaggedListId = lists.find(l => l.wellknownListName === "flaggedEmails")?.id;
 
     for (const task of tasks) {

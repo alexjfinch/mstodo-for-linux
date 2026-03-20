@@ -7,10 +7,6 @@ export const useFilteredTasks = (
   lists: TaskList[]
 ) => {
   return useMemo(() => {
-    const defaultListId = (
-      lists.find(l => l.wellknownListName === "defaultList") ||
-      lists.find(l => l.displayName === "Tasks")
-    )?.id;
     const flaggedListId = lists.find(l => l.wellknownListName === "flaggedEmails")?.id;
 
     return tasks.filter((task) => {

@@ -315,14 +315,16 @@ body {
 
 /* ── Compact Mode ───────────────────────────────────────────────── */
 [data-compact="true"] .task-item {
-  padding: 5px 16px;
+  padding: 4px 16px;
   margin-bottom: 2px;
 }
 
-[data-compact="true"] .task-cell {
-  min-height: 36px;
-  padding-top: 5px;
-  padding-bottom: 5px;
+[data-compact="true"] .task-cell-date {
+  min-height: 24px;
+}
+
+[data-compact="true"] .task-importance-btn {
+  padding: 2px 8px;
 }
 
 [data-compact="true"] .new-task {
@@ -335,5 +337,5 @@ body {
 }
 
 [data-compact="true"] .task-section-header {
-  padding: 6px 12px;
+  padding: 4px 0;
 }
