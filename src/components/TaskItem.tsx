@@ -17,6 +17,7 @@ type Props = {
   onDragLeave?: () => void;
   onDrop?: (e: React.DragEvent) => void;
   onDragEnd?: (e: React.DragEvent) => void;
+  listName?: string;
 };
 
 export const TaskItem = ({
@@ -34,6 +35,7 @@ export const TaskItem = ({
   onDragLeave,
   onDrop,
   onDragEnd,
+  listName,
 }: Props) => {
   const [isEditingDate, setIsEditingDate] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -304,6 +306,7 @@ export const TaskItem = ({
         <div className="task-title-row">
           <span className="task-title">{task.title}</span>
           {task.isInMyDay && <span className="badge-myday">My Day</span>}
+          {listName && <span className="badge-list">{listName}</span>}
           {task.hasAttachments && (
             <span className="badge-attachment" title="Has attachments">
               <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

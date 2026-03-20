@@ -80,6 +80,8 @@ type Props = {
   onClearSelection: () => void;
   onOpenDetail: (id: string) => void;
   onReorderTasks?: (reorderedIds: string[]) => void;
+  showListBadge?: boolean;
+  defaultListId?: string;
 };
 
 export const TaskList = ({
@@ -94,6 +96,8 @@ export const TaskList = ({
   onClearSelection,
   onOpenDetail,
   onReorderTasks,
+  showListBadge,
+  defaultListId,
 }: Props) => {
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -134,6 +138,19 @@ export const TaskList = ({
   };
 
   const completedTasks = useMemo(() => tasks.filter((t) => t.completed), [tasks]);
+
+  // Map taskId → custom list display name (only when showListBadge is active)
+  const taskListNames = useMemo(() => {
+    if (!showListBadge || !allLists || !defaultListId) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const task of tasks) {
+      if (task.listId && task.listId !== defaultListId) {
+        const list = allLists.find(l => l.id === task.listId);
+        if (list) map.set(task.id, list.displayName);
+      }
+    }
+    return map;
+  }, [showListBadge, allLists, defaultListId, tasks]);
 
   const activeTasks = useMemo(() => {
     const raw = tasks.filter((t) => !t.completed);
@@ -380,6 +397,7 @@ export const TaskList = ({
       onDragLeave={draggable ? handleDragLeave : undefined}
       onDrop={draggable ? (e) => handleDrop(e, task.id) : undefined}
       onDragEnd={draggable ? handleDragEnd : undefined}
+      listName={taskListNames.get(task.id)}
     />
   );
 

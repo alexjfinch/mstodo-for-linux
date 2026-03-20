@@ -160,8 +160,8 @@ export default function App() {
       if (task.importance === "high") counts["Important"] = (counts["Important"] || 0) + 1;
       if (task.dueDateTime) counts["Planned"] = (counts["Planned"] || 0) + 1;
       if (task.listId === "__assigned__") counts["Assigned to Me"] = (counts["Assigned to Me"] || 0) + 1;
-      // Real list counts
-      if (task.listId === defaultListId) counts["Tasks"] = (counts["Tasks"] || 0) + 1;
+      // "Tasks" shows all tasks not in special lists
+      if (task.listId !== "__assigned__" && task.listId !== flaggedListId) counts["Tasks"] = (counts["Tasks"] || 0) + 1;
       if (task.listId === flaggedListId) counts["Flagged Emails"] = (counts["Flagged Emails"] || 0) + 1;
       if (task.listId) counts[task.listId] = (counts[task.listId] || 0) + 1;
     }
@@ -725,6 +725,8 @@ export default function App() {
                   onClearSelection={handleClearSelection}
                   onOpenDetail={handleOpenDetail}
                   onReorderTasks={handleReorderTasks}
+                  showListBadge={false}
+                  defaultListId={currentListId || undefined}
                 />
               </div>
               <MyDaySuggestions
@@ -746,6 +748,8 @@ export default function App() {
                 onClearSelection={handleClearSelection}
                 onOpenDetail={handleOpenDetail}
                 onReorderTasks={handleReorderTasks}
+                showListBadge={activeList === "Tasks"}
+                defaultListId={currentListId || undefined}
               />
             </div>
           )}
