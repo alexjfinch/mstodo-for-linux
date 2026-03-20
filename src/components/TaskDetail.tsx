@@ -104,6 +104,7 @@ export const TaskDetail = ({
     setUploadError(null);
     setDownloadError(null);
     setNewStepName("");
+    setNotesEditing(false);
   }, [task.id]);
 
   // Update notes from external changes (e.g. sync) when not actively editing

@@ -457,7 +457,7 @@ fn register_gnome_shortcut(fifo_path: &str) {
     }
 
     let binding_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mstodo/";
-    let command = format!("bash -c 'echo q > {}'", fifo_path);
+    let command = format!("bash -c 'echo q > \"{}\"'", fifo_path);
 
     // Fetch current custom-keybindings list and append our path if absent
     let current = std::process::Command::new("gsettings")

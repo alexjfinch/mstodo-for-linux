@@ -27,7 +27,7 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   {
     let mut in_progress = AUTH_IN_PROGRESS
       .lock()
-      .map_err(|_| "Auth lock poisoned".to_string())?;
+      .unwrap_or_else(|e| e.into_inner());
     if *in_progress {
       return Err("Another sign-in is already in progress".to_string());
     }
@@ -41,7 +41,7 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     *PKCE_VERIFIER
       .lock()
-      .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
+      .unwrap_or_else(|e| e.into_inner()) = Some(pkce_verifier);
 
   // CSRF token intentionally unused: PKCE already prevents authorization code
   // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).

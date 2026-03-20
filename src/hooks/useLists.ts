@@ -126,8 +126,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       if (syncGenerationRef.current !== generation) return;
 
       // Merge remote data with local state to preserve isGroup/parentGroupId
+      const localById = new Map(listsRef.current.map((l) => [l.id, l]));
       const mergedLists = remoteLists.map((remote: TaskList) => {
-        const existing = listsRef.current.find((l) => l.id === remote.id);
+        const existing = localById.get(remote.id);
         return {
           ...remote,
           // Beta may provide parentGroupId via linkedGroupId; otherwise keep local value

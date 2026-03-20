@@ -23,15 +23,23 @@ const REASON_LABELS: Record<SuggestionReason, string> = {
 };
 
 export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem("myday-suggestions-collapsed") === "true"
-  );
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("myday-suggestions-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const handleToggleCollapsed = () => {
     const next = !collapsed;
     setCollapsed(next);
-    localStorage.setItem("myday-suggestions-collapsed", String(next));
+    try {
+      localStorage.setItem("myday-suggestions-collapsed", String(next));
+    } catch {
+      // Ignore storage errors (e.g. QuotaExceededError)
+    }
   };
 
   const suggestions = useMemo(() => {
