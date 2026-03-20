@@ -680,34 +680,60 @@ export default function App() {
               tasks={filteredTasks}
               onToggleTask={toggleTask}
               onUpdateAttributes={updateAttributes}
+              onDeleteTask={deleteTask}
+              onMoveTaskToList={moveTaskToList}
+              allLists={lists}
               selectedTasks={selectedTasks}
               onToggleSelection={handleToggleSelection}
+              onClearSelection={handleClearSelection}
               onOpenDetail={handleOpenDetail}
             />
-          ) : (
+          ) : activeList === "My Day" ? (
             <div
-              className={`task-list-wrapper${activeList === "My Day" ? " myday-drop-zone" : ""}`}
-              onDragOver={activeList === "My Day" ? (e) => {
+              className="myday-layout myday-drop-zone"
+              onDragOver={(e) => {
                 if (e.dataTransfer.types.includes("suggestion")) {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "copy";
                   e.currentTarget.classList.add("myday-drop-active");
                 }
-              } : undefined}
-              onDragLeave={activeList === "My Day" ? (e) => {
+              }}
+              onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                   e.currentTarget.classList.remove("myday-drop-active");
                 }
-              } : undefined}
-              onDrop={activeList === "My Day" ? (e) => {
+              }}
+              onDrop={(e) => {
                 e.currentTarget.classList.remove("myday-drop-active");
                 if (e.dataTransfer.types.includes("suggestion")) {
                   e.preventDefault();
                   const taskId = e.dataTransfer.getData("text/plain");
                   if (taskId) updateAttributes(taskId, { isInMyDay: true });
                 }
-              } : undefined}
+              }}
             >
+              <div className="task-list-wrapper">
+                <TaskList
+                  tasks={filteredTasks}
+                  onToggleTask={toggleTask}
+                  onUpdateAttributes={updateAttributes}
+                  onDeleteTask={deleteTask}
+                  onMoveTaskToList={moveTaskToList}
+                  allLists={lists}
+                  selectedTasks={selectedTasks}
+                  onToggleSelection={handleToggleSelection}
+                  onClearSelection={handleClearSelection}
+                  onOpenDetail={handleOpenDetail}
+                  onReorderTasks={handleReorderTasks}
+                />
+              </div>
+              <MyDaySuggestions
+                allTasks={tasks}
+                onAddToMyDay={(id) => updateAttributes(id, { isInMyDay: true })}
+              />
+            </div>
+          ) : (
+            <div className="task-list-wrapper">
               <TaskList
                 tasks={filteredTasks}
                 onToggleTask={toggleTask}
@@ -722,13 +748,6 @@ export default function App() {
                 onReorderTasks={handleReorderTasks}
               />
             </div>
-          )}
-
-          {activeList === "My Day" && (
-            <MyDaySuggestions
-              allTasks={tasks}
-              onAddToMyDay={(id) => updateAttributes(id, { isInMyDay: true })}
-            />
           )}
 
           {activeList !== "Assigned to Me" && (

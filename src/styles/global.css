@@ -135,6 +135,26 @@ body {
   background-color: var(--bg-hover);
 }
 
+/* My Day layout — contains task list + suggestions, pinned above new-task input */
+.myday-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.myday-layout .task-list-wrapper {
+  flex: 1;
+  min-height: 0;
+}
+
+.myday-layout .myday-suggestions {
+  max-height: 33%;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
 /* Wrapper for TaskList — flex child of .main that constrains scroll height */
 .task-list-wrapper {
   flex: 1;

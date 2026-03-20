@@ -23,8 +23,16 @@ const REASON_LABELS: Record<SuggestionReason, string> = {
 };
 
 export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("myday-suggestions-collapsed") === "true"
+  );
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const handleToggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("myday-suggestions-collapsed", String(next));
+  };
 
   const suggestions = useMemo(() => {
     const now = new Date();
@@ -91,7 +99,7 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
     <div className="myday-suggestions">
       <div
         className="myday-suggestions-header"
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={handleToggleCollapsed}
       >
         <span className={`collapse-icon ${collapsed ? "collapsed" : ""}`}>▼</span>
         <span>Suggestions</span>

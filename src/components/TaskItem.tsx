@@ -275,6 +275,7 @@ export const TaskItem = ({
         isSelected ? "selected" : ""
       }${isDragOver ? " drag-over" : ""}${isOverdue ? " overdue" : ""}`}
       onContextMenu={onRightClick}
+      onClick={onToggleSelection}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -283,7 +284,7 @@ export const TaskItem = ({
       onDragEnd={onDragEnd}
     >
       {/* Checkbox */}
-      <div className="task-cell task-cell-checkbox">
+      <div className="task-cell task-cell-checkbox" onClick={(e) => e.stopPropagation()}>
         <label className="task-checkbox-wrapper">
           <input
             type="checkbox"
@@ -299,10 +300,7 @@ export const TaskItem = ({
       </div>
 
       {/* Title */}
-      <div
-        className="task-cell task-cell-title"
-        onClick={onToggleSelection}
-      >
+      <div className="task-cell task-cell-title">
         <div className="task-title-row">
           <span className="task-title">{task.title}</span>
           {task.isInMyDay && <span className="badge-myday">My Day</span>}
