@@ -1,6 +1,7 @@
 import "./Settings.css";
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { StoredAccount } from "../hooks/useAuth";
 import { CustomSelect } from "./CustomSelect";
 import { ReminderTiming, TIMING_LABELS } from "../hooks/useReminders";
@@ -100,10 +101,12 @@ export const Settings = ({
   const [importStatus, setImportStatus] = useState<{ message: string; isError: boolean } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       invoke<boolean>("get_autostart_enabled").then(setAutostartEnabled).catch(() => {});
+      getVersion().then(setAppVersion).catch(() => {});
     }
   }, [isOpen]);
 
@@ -539,7 +542,7 @@ export const Settings = ({
             <div className="settings-item">
               <div className="settings-item-info">
                 <div className="settings-item-label">Version</div>
-                <div className="settings-item-description">0.1.6</div>
+                <div className="settings-item-description">{appVersion}</div>
               </div>
             </div>
 

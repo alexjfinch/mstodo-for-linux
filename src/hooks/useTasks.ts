@@ -453,10 +453,13 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
     try {
       if (isOnlineRef.current && token) {
-        const [graphResult] = await Promise.allSettled([
+        const [graphResult, dbResult] = await Promise.allSettled([
           createTaskGraph(title.trim(), targetListId, token),
           insertTaskToDB(database, tempId, targetListId, title.trim(), timestamp),
         ]);
+        if (dbResult.status === "rejected") {
+          logger.warn("Failed to insert new task to local DB", dbResult.reason);
+        }
 
         if (graphResult.status === "fulfilled") {
           let created = graphResult.value;
