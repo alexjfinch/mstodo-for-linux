@@ -377,8 +377,6 @@ export async function getPendingOpsByType(db: Database, opType: string): Promise
   );
 }
 
-// ── Delta token persistence ─────────────────────────────────────────
-
 export async function loadDeltaTokens(db: Database): Promise<Record<string, string>> {
   const rows = await db.select<{ listId: string; deltaLink: string }[]>(
     "SELECT * FROM deltaTokens"

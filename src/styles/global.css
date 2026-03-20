@@ -304,7 +304,7 @@ body {
   color: var(--text-disabled);
 }
 
-/* ── Font Size ─────────────────────────────────────────────────── */
+/* Font Size */
 [data-fontsize="small"] {
   font-size: 0.8125rem;
 }
@@ -313,7 +313,7 @@ body {
   font-size: 1.0625rem;
 }
 
-/* ── Compact Mode ───────────────────────────────────────────────── */
+/* Compact Mode */
 [data-compact="true"] .task-item {
   padding: 4px 16px;
   margin-bottom: 2px;

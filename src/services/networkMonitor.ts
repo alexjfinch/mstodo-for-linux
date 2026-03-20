@@ -26,7 +26,6 @@ async function probeNetwork(): Promise<boolean> {
   }
 }
 
-// ── Shared singleton ────────────────────────────────────────────────
 // A single polling loop is shared across all consumers (useTasks, useLists, etc.)
 // to avoid duplicate HEAD requests.
 

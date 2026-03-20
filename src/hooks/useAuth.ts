@@ -17,8 +17,6 @@ export type StoredAccount = AccountMeta & {
   refreshToken: string;
 };
 
-// ── keyring helpers ──────────────────────────────────────────────────
-
 async function keyringSet(account: string, key: string, value: string) {
   await invoke("keyring_set", { account, key, value });
 }
@@ -55,8 +53,6 @@ async function deleteTokens(id: string) {
     keyringDelete(id, "refresh_token"),
   ]);
 }
-
-// ── hook ─────────────────────────────────────────────────────────────
 
 export const useAuth = () => {
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);

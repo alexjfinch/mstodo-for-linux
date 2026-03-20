@@ -67,7 +67,6 @@ export const useReminders = (
       const now = Date.now();
       const offset = TIMING_OFFSETS[timing];
 
-      // ── Explicit reminders (reminderDateTime) ──
       const reminderTasks = tasks.filter((task) => {
         if (task.completed || !task.reminderDateTime) return false;
         const key = `reminder-${task.id}-${task.reminderDateTime.dateTime}`;
@@ -77,7 +76,6 @@ export const useReminders = (
         return now >= reminderTime && now <= reminderTime + 24 * 60 * 60_000;
       });
 
-      // ── Due-date reminders ──
       const dueTasks = tasks.filter((task) => {
         if (task.completed || !task.dueDateTime) return false;
 

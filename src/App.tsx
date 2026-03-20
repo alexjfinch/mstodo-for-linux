@@ -144,14 +144,12 @@ export default function App() {
     });
   });
 
-  // Compute uncompleted task counts for sidebar badges
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     const flaggedListId = lists.find(l => l.wellknownListName === "flaggedEmails")?.id;
 
     for (const task of tasks) {
       if (task.completed) continue;
-      // Built-in virtual views
       if (task.isInMyDay) counts["My Day"] = (counts["My Day"] || 0) + 1;
       if (task.importance === "high") counts["Important"] = (counts["Important"] || 0) + 1;
       if (task.dueDateTime) counts["Planned"] = (counts["Planned"] || 0) + 1;
@@ -169,7 +167,6 @@ export default function App() {
   // Debounce search query to avoid filtering thousands of tasks on every keystroke
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
-  // Search across all tasks when query is active
   const searchResults = useMemo(() => {
     if (!deferredSearchQuery.trim()) return null;
     const q = deferredSearchQuery.toLowerCase();
@@ -180,7 +177,6 @@ export default function App() {
     );
   }, [tasks, deferredSearchQuery]);
 
-  // Apply local task ordering
   const filteredTasks = useMemo(() => {
     const source = searchResults ?? rawFilteredTasks;
     if (searchResults) return source; // no reordering for search results
@@ -197,7 +193,6 @@ export default function App() {
     });
   }, [rawFilteredTasks, searchResults, taskOrder, activeList]);
 
-  // Due-date reminder notifications
   const { toasts, dismissToast, pushToast } = useReminders(tasks, remindersEnabled, reminderTiming);
   pushToastRef.current = pushToast;
 
@@ -229,7 +224,6 @@ export default function App() {
     return lists.find(l => l.id === activeList)?.displayName ?? "Unknown List";
   }, [activeList, lists]);
 
-  // Apply theme
   useEffect(() => {
     const root = document.documentElement;
 
@@ -264,12 +258,10 @@ export default function App() {
     };
   }, [theme]);
 
-  // Apply font size
   useEffect(() => {
     document.documentElement.setAttribute("data-fontsize", fontSize);
   }, [fontSize]);
 
-  // Apply compact mode
   useEffect(() => {
     document.documentElement.setAttribute("data-compact", String(compactMode));
   }, [compactMode]);
@@ -394,7 +386,6 @@ export default function App() {
     return () => unlisteners.forEach((fn) => fn());
   }, []);
 
-  // Update tray tooltip with overdue/due-today task count
   useEffect(() => {
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
@@ -409,7 +400,6 @@ export default function App() {
     invoke("update_tray_tooltip", { tooltip }).catch(() => {});
   }, [tasks]);
 
-  // Update tray icon based on sync status
   useEffect(() => {
     const status = !isOnline ? "offline" : syncing ? "syncing" : "synced";
     invoke("update_tray_status", { status }).catch(() => {});

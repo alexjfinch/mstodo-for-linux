@@ -8,8 +8,6 @@ const GRAPH_PLANNER_TASKS = "https://graph.microsoft.com/v1.0/me/planner/tasks";
 const REQUEST_TIMEOUT = 15000;
 const MAX_PAGINATION_PAGES = 50;
 
-// ── Graph API response types ─────────────────────────────────────────
-
 type GraphCollection<T> = {
   value: T[];
   "@odata.nextLink"?: string;
@@ -93,8 +91,6 @@ type GraphTaskPatchBody = {
   categories?: string[];
 };
 
-// ── Auth & request helpers ───────────────────────────────────────────
-
 // Set by useAuth; called automatically on 401 responses to refresh the token
 let tokenRefreshCallback: (() => Promise<string>) | null = null;
 // Deduplicates concurrent refresh attempts so only one is in-flight at a time
@@ -163,8 +159,6 @@ export function resetGraphCaches() {
   unfetchableLists.clear();
 }
 
-// ── User profile ─────────────────────────────────────────────────────
-
 export type UserProfile = {
   displayName: string;
   mail: string | null;
@@ -179,8 +173,6 @@ export async function fetchUserProfile(accessToken: string): Promise<UserProfile
     userPrincipalName: data.userPrincipalName || "",
   };
 }
-
-// ── Task lists ───────────────────────────────────────────────────────
 
 export async function fetchTaskLists(accessToken: string): Promise<TaskList[]> {
   const data = await graphRequest<GraphCollection<GraphTaskList>>("get", GRAPH_BASE, accessToken);
@@ -219,8 +211,6 @@ export async function deleteTaskList(listId: string, accessToken: string): Promi
   await graphRequest("delete", `${GRAPH_BASE}/${listId}`, accessToken);
 }
 
-// ── Task mapping ─────────────────────────────────────────────────────
-
 // Microsoft Graph API does not expose My Day status in v1.0 or beta.
 // We store it as a #MyDay tag in the task body as a workaround — this is the
 // same approach used by several other third-party MS To Do clients.
@@ -246,8 +236,6 @@ function mapGraphTask(t: GraphTask, listId: string): Task {
     lastModified: t.lastModifiedDateTime ? new Date(t.lastModifiedDateTime).getTime() : Date.now(),
   };
 }
-
-// ── Fetch tasks ──────────────────────────────────────────────────────
 
 export async function fetchTasksFromList(listId: string, accessToken: string): Promise<Task[]> {
   validateListId(listId);
@@ -284,8 +272,6 @@ export async function fetchAllTasks(accessToken: string): Promise<Task[]> {
 const deltaUnsupportedLists = new Set<string>();
 // Track lists where even the regular tasks endpoint fails (Exchange-backed, etc.)
 const unfetchableLists = new Set<string>();
-
-// ── Delta sync ───────────────────────────────────────────────────────
 
 export type DeltaChange = {
   task: Task;
@@ -422,8 +408,6 @@ export async function fetchAllTasksDelta(
   return { changes: allChanges, newDeltaTokens: newTokens };
 }
 
-// ── Task CRUD ────────────────────────────────────────────────────────
-
 /** Validates that a listId looks reasonable before using it in an API URL. */
 function validateListId(listId: string): void {
   if (!listId || listId.startsWith("local-") || listId === "__assigned__") {
@@ -524,8 +508,6 @@ export async function deleteTask(taskId: string, listId: string, accessToken: st
   await graphRequest("delete", `${GRAPH_BASE}/${listId}/tasks/${taskId}`, accessToken);
 }
 
-// ── Planner (Assigned to Me) ─────────────────────────────────────────
-
 function mapPlannerTask(t: GraphPlannerTask): Task {
   const completed = t.percentComplete === 100;
   return {
@@ -562,8 +544,6 @@ export async function fetchAssignedTasks(accessToken: string): Promise<Task[]> {
 
   return allTasks;
 }
-
-// ── Attachments ──────────────────────────────────────────────────────
 
 export async function fetchAttachments(
   listId: string,
@@ -627,8 +607,6 @@ export async function deleteAttachment(
     accessToken
   );
 }
-
-// ── Checklist items ──────────────────────────────────────────────────
 
 export async function fetchChecklistItems(
   listId: string,
