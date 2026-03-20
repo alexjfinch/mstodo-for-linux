@@ -1,10 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Task } from "../types";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 
 export type ReminderTiming = "at_due" | "5min" | "15min" | "30min" | "1hour" | "1day";
 
@@ -42,7 +38,6 @@ export const useReminders = (
   timing: ReminderTiming
 ) => {
   const notifiedRef = useRef<Set<string>>(new Set());
-  const permissionCachedRef = useRef<boolean | null>(null);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const dismissToast = useCallback((id: string) => {
@@ -92,17 +87,6 @@ export const useReminders = (
 
       if (dueTasks.length === 0 && reminderTasks.length === 0) return;
 
-      // Request notification permission if needed (cache result to avoid repeated IPC calls)
-      if (permissionCachedRef.current === null) {
-        let permitted = await isPermissionGranted();
-        if (!permitted) {
-          const result = await requestPermission();
-          permitted = result === "granted";
-        }
-        permissionCachedRef.current = permitted;
-      }
-      const permitted = permissionCachedRef.current;
-
       // Fire explicit reminder notifications
       for (const task of reminderTasks) {
         const key = `reminder-${task.id}-${task.reminderDateTime!.dateTime}`;
@@ -119,9 +103,8 @@ export const useReminders = (
           hour12: false,
         })}`;
 
-        if (permitted) {
-          sendNotification({ title: task.title, body });
-        }
+        invoke("plugin:notification|notify", { options: { title: task.title, body, icon: "mstodo-for-linux" } })
+          .catch((err) => console.warn("Reminder notification failed", err));
 
         setToasts((prev) => [
           ...prev,
@@ -153,12 +136,8 @@ export const useReminders = (
           : `Due ${dueDateStr}`;
 
         // Desktop notification
-        if (permitted) {
-          sendNotification({
-            title: task.title,
-            body,
-          });
-        }
+        invoke("plugin:notification|notify", { options: { title: task.title, body, icon: "mstodo-for-linux" } })
+          .catch((err) => console.warn("Due-date notification failed", err));
 
         // In-app toast
         setToasts((prev) => [
