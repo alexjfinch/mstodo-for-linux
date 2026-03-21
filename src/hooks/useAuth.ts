@@ -13,8 +13,8 @@ type AccountMeta = {
 
 /** Runtime account with tokens loaded from the system keyring. */
 export type StoredAccount = AccountMeta & {
-  accessToken: string;
-  refreshToken: string;
+  accessToken: string | null;
+  refreshToken: string | null;
 };
 
 async function keyringSet(account: string, key: string, value: string) {
@@ -34,7 +34,7 @@ async function storeTokens(id: string, accessToken: string, refreshToken: string
   await keyringSet(id, "refresh_token", refreshToken);
 }
 
-async function loadTokens(id: string): Promise<{ accessToken: string; refreshToken: string }> {
+async function loadTokens(id: string): Promise<{ accessToken: string | null; refreshToken: string | null }> {
   const [accessToken, refreshToken] = await Promise.all([
     keyringGet(id, "access_token"),
     keyringGet(id, "refresh_token"),
@@ -44,7 +44,7 @@ async function loadTokens(id: string): Promise<{ accessToken: string; refreshTok
   } else if (!accessToken || !refreshToken) {
     logger.warn(`Partial tokens found in keyring for account [redacted] — ${!accessToken ? "access" : "refresh"} token missing`);
   }
-  return { accessToken: accessToken ?? "", refreshToken: refreshToken ?? "" };
+  return { accessToken: accessToken ?? null, refreshToken: refreshToken ?? null };
 }
 
 async function deleteTokens(id: string) {
@@ -253,7 +253,7 @@ export const useAuth = () => {
     if (profile.newId && profile.newId !== accountId) {
       const tokens = await loadTokens(accountId);
       if (tokens.accessToken || tokens.refreshToken) {
-        await storeTokens(profile.newId, tokens.accessToken, tokens.refreshToken);
+        await storeTokens(profile.newId, tokens.accessToken ?? "", tokens.refreshToken ?? "");
         await deleteTokens(accountId);
       }
     }
