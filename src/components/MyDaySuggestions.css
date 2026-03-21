@@ -43,9 +43,9 @@
 }
 
 .myday-drop-active {
-  outline: 2px dashed var(--accent-primary, #0078d4);
+  outline: 2px dashed var(--accent-primary);
   outline-offset: -2px;
-  background: rgba(0, 120, 212, 0.05);
+  background: color-mix(in srgb, var(--accent-primary) 5%, transparent);
 }
 
 .myday-suggestion-item:hover {
