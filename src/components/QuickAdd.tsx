@@ -118,7 +118,7 @@ export const QuickAdd = () => {
     if (e.key === "Enter") {
       handleSubmit();
     } else if (e.key === "Escape") {
-      getCurrentWindow().close();
+      getCurrentWindow().close().catch(console.error);
     }
   };
 

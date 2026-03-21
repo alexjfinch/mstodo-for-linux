@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { logger } from "../services/logger";
 
 type ReminderOption = {
   label: string;
@@ -408,7 +409,7 @@ export const TaskList = ({
         message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
         confirmLabel="Delete"
         danger
-        onConfirm={async () => { await Promise.all(deleteConfirm.taskIds.map((id) => onDeleteTask(id))); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
+        onConfirm={async () => { const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id))); const failures = results.filter((r) => r.status === "rejected"); if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
         onCancel={() => setDeleteConfirm(null)}
       />
     )}
@@ -450,9 +451,13 @@ export const TaskList = ({
         <div className="task-section">
           <div
             className="task-section-header"
+            role="button"
+            tabIndex={0}
+            aria-expanded={!completedCollapsed}
             onClick={(e) => { e.stopPropagation(); setCompletedCollapsed(!completedCollapsed); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCompletedCollapsed(!completedCollapsed); } }}
           >
-            <span className={`collapse-icon ${completedCollapsed ? "collapsed" : ""}`} aria-label={completedCollapsed ? "Expand completed tasks" : "Collapse completed tasks"}>
+            <span className={`collapse-icon ${completedCollapsed ? "collapsed" : ""}`} aria-hidden>
               ▼
             </span>
             <span>Completed</span>

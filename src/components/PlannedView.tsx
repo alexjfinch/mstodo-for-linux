@@ -344,12 +344,17 @@ export const PlannedView = ({
           <div key={section.key} className="task-section">
             <div
               className="task-section-header"
+              role="button"
+              tabIndex={0}
+              aria-expanded={!collapsedSections.has(section.key)}
               onClick={(e) => { e.stopPropagation(); toggleSection(section.key); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection(section.key); } }}
             >
               <span
                 className={`collapse-icon ${
                   collapsedSections.has(section.key) ? "collapsed" : ""
                 }`}
+                aria-hidden
               >
                 ▼
               </span>

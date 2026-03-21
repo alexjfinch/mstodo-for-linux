@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Task, TaskList } from "../types";
+import { logger } from "../services/logger";
 
 export interface ExportData {
   version: string;
@@ -47,7 +48,7 @@ function csvEscape(value: string): string {
   return value;
 }
 
-export async function downloadTextFile(filename: string, content: string, _mimeType = "text/plain"): Promise<void> {
+export async function downloadTextFile(filename: string, content: string, mimeType = "text/plain"): Promise<void> {
   try {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeTextFile } = await import("@tauri-apps/plugin-fs");
@@ -57,7 +58,7 @@ export async function downloadTextFile(filename: string, content: string, _mimeT
     }
   } catch {
     // Fallback to browser download if Tauri APIs are unavailable
-    const blob = new Blob([content], { type: _mimeType });
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -274,7 +275,16 @@ export function importFromGenericCsv(content: string): ImportResult {
     }
     if (priorityIdx >= 0 && row[priorityIdx]?.trim()) {
       const p = row[priorityIdx].trim().toLowerCase();
-      task.importance = p === "high" || p === "1" ? "high" : p === "low" || p === "3" ? "low" : "normal";
+      if (p === "high" || p === "1") {
+        task.importance = "high";
+      } else if (p === "low" || p === "3") {
+        task.importance = "low";
+      } else {
+        if (p !== "normal" && p !== "2") {
+          logger.warn(`CSV import: unrecognised importance value "${row[priorityIdx].trim()}", defaulting to "normal"`);
+        }
+        task.importance = "normal";
+      }
     }
     if (completedIdx >= 0 && row[completedIdx]?.trim()) {
       const c = row[completedIdx].trim().toLowerCase();

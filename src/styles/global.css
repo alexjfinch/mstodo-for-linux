@@ -117,12 +117,12 @@ body {
 }
 
 .bulk-delete-btn {
-  background-color: var(--danger-color, #d32f2f);
+  background-color: var(--danger-color);
   color: white;
 }
 
 .bulk-delete-btn:hover {
-  background-color: color-mix(in srgb, var(--danger-color, #d32f2f) 85%, black);
+  background-color: color-mix(in srgb, var(--danger-color) 85%, black);
 }
 
 .clear-selection-btn {

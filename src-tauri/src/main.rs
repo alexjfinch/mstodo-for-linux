@@ -256,17 +256,29 @@ async fn write_log(level: String, message: String) -> Result<(), String> {
         .as_secs();
     let prev_epoch = LOG_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
     if now_secs != prev_epoch {
-        // New second — flush any dropped-message summary from the previous second
-        let dropped = LOG_DROPPED.swap(0, std::sync::atomic::Ordering::SeqCst);
-        LOG_EPOCH.store(now_secs, std::sync::atomic::Ordering::SeqCst);
-        LOG_COUNT.store(1, std::sync::atomic::Ordering::SeqCst);
-        if dropped > 0 {
-            // Write the summary synchronously before proceeding
-            let path = get_log_path();
-            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).map(|mut f| {
-                use std::io::Write;
-                let _ = write!(f, "[WARN] {} log message(s) were dropped due to rate limiting\n", dropped);
-            });
+        // New second — attempt to flip the epoch with a CAS so only one thread handles the reset.
+        if LOG_EPOCH.compare_exchange(
+            prev_epoch, now_secs,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        ).is_ok() {
+            // This thread won the flip — flush the dropped-message summary and reset the counter.
+            let dropped = LOG_DROPPED.swap(0, std::sync::atomic::Ordering::SeqCst);
+            LOG_COUNT.store(1, std::sync::atomic::Ordering::SeqCst);
+            if dropped > 0 {
+                let path = get_log_path();
+                let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).map(|mut f| {
+                    use std::io::Write;
+                    let _ = write!(f, "[WARN] {} log message(s) were dropped due to rate limiting\n", dropped);
+                });
+            }
+        } else {
+            // Another thread already flipped the epoch; fall through to the normal count path.
+            let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if count >= 100 {
+                LOG_DROPPED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                return Ok(());
+            }
         }
     } else {
         let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -432,7 +444,12 @@ async fn sign_in() -> Result<TokenPayload, String> {
 /// whenever any data arrives (used as an IPC channel from DE-registered shortcuts).
 /// The thread exits when `shutdown` is set to true.
 fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>) -> String {
-    let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
+    // Prefer XDG_RUNTIME_DIR (mode 700, user-only) so the FIFO is not world-readable.
+    // Fall back to XDG data-local dir, then /tmp only as last resort.
+    let runtime_dir = dirs::runtime_dir()
+        .or_else(|| dirs::data_local_dir())
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "/tmp".to_string());
     let fifo_path = format!("{}/mstodo-quickadd", runtime_dir);
 
     // Create the FIFO (ignore error if it already exists)
@@ -552,6 +569,10 @@ fn main() {
     // Shared shutdown flag for background threads (e.g. FIFO listener).
     let fifo_shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let fifo_shutdown_setup = fifo_shutdown.clone();
+    // Shared FIFO path so the on_window_event handler can unblock the reader thread on shutdown.
+    let fifo_path_cell: std::sync::Arc<std::sync::OnceLock<String>> =
+        std::sync::Arc::new(std::sync::OnceLock::new());
+    let fifo_path_store = fifo_path_cell.clone();
 
     // Build Tauri application
     Builder::default()
@@ -640,6 +661,8 @@ fn main() {
 
             // Set up IPC FIFO for DE-registered shortcut fallback (Wayland / GNOME etc.)
             let fifo_path = setup_quickadd_fifo(app.handle().clone(), fifo_shutdown_setup.clone());
+            // Store path so the on_window_event handler can unblock the reader on shutdown.
+            let _ = fifo_path_store.set(fifo_path.clone());
 
             // Register global shortcut: Super+Shift+T to open quick-add (works on X11)
             let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyT);
@@ -657,10 +680,19 @@ fn main() {
 
             Ok(())
         })
-        // Signal FIFO thread to stop when the main window is destroyed
+        // Signal FIFO thread to stop when the main window is destroyed.
+        // Also write a zero byte to the FIFO to unblock the reader thread, which may be
+        // blocked inside File::open() waiting for a writer — it won't see the shutdown flag
+        // until it returns from the kernel call.
         .on_window_event(move |_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 fifo_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+                if let Some(path) = fifo_path_cell.get() {
+                    let _ = std::fs::OpenOptions::new()
+                        .write(true)
+                        .open(path)
+                        .and_then(|mut f| { use std::io::Write; f.write_all(b"\0") });
+                }
             }
         })
         // Global shortcut plugin

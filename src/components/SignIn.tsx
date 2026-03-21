@@ -18,6 +18,7 @@ export const SignIn = ({ signIn }: Props) => {
     } catch (err) {
       logger.error("Sign in failed", err);
       setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
