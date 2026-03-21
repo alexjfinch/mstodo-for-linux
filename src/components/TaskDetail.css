@@ -610,7 +610,7 @@
   width: 48px;
   padding: 4px 6px;
   font-size: 13px;
-  background: var(--input-bg);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -627,7 +627,7 @@
   height: 30px;
   border-radius: 50%;
   border: 1px solid var(--border-color);
-  background: var(--input-bg);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
   font-size: 11px;
   cursor: pointer;
@@ -635,13 +635,18 @@
 }
 
 .recurrence-day-btn.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
 }
 
 .recurrence-day-btn:hover:not(.active) {
-  background: var(--hover-bg);
+  background: var(--bg-hover);
+}
+
+.recurrence-day-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .recurrence-end-row {

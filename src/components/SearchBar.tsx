@@ -49,6 +49,7 @@ export const SearchBar = ({ query, onQueryChange }: Props) => {
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search all tasks..."
+          aria-label="Search all tasks"
         />
       )}
     </div>

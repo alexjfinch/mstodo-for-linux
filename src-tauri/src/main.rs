@@ -182,7 +182,7 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
 
 #[tauri::command]
 async fn refresh_token(refresh_token: String) -> Result<TokenPayload, String> {
-    let client = auth::build_oauth_client(MS_CLIENT_ID.to_string());
+    let client = auth::build_oauth_client(MS_CLIENT_ID.to_string(), None);
 
     let token = client
         .exchange_refresh_token(&oauth2::RefreshToken::new(refresh_token))
@@ -408,14 +408,14 @@ async fn sign_in() -> Result<TokenPayload, String> {
     // start_auth_flow blocks on server.recv() waiting for the OAuth callback,
     // so run it on a blocking thread to avoid stalling the async runtime.
     // The verifier is returned directly alongside the code — no global state needed.
-    let (code, verifier) = tokio::task::spawn_blocking(|| {
+    let (code, verifier, redirect_port) = tokio::task::spawn_blocking(|| {
         auth::start_auth_flow(MS_CLIENT_ID.to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
     .map_err(|e| format!("Failed to start auth flow: {e}"))?;
 
-    let client = auth::build_oauth_client(MS_CLIENT_ID.to_string());
+    let client = auth::build_oauth_client(MS_CLIENT_ID.to_string(), Some(redirect_port));
 
     let token = client
         .exchange_code(code)
@@ -430,26 +430,59 @@ async fn sign_in() -> Result<TokenPayload, String> {
     })
 }
 
-/// Returns the path of the FIFO created.
+/// Returns the path of the FIFO created, or an empty string if setup failed.
 /// Spawns a background thread that blocks on the FIFO and calls open_quick_add
 /// whenever any data arrives (used as an IPC channel from DE-registered shortcuts).
 /// The thread exits when `shutdown` is set to true.
 fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>) -> String {
     // Prefer XDG_RUNTIME_DIR (mode 700, user-only) so the FIFO is not world-readable.
     // Fall back to XDG data-local dir, then /tmp only as last resort.
-    // When falling back to /tmp (world-readable), include the process ID to avoid
-    // symlink attacks or FIFO hijacking by other users sharing the machine.
+    // When falling back to /tmp (world-readable), include the process ID to reduce
+    // the chance of a name collision with another process.
     let fifo_path = dirs::runtime_dir()
         .or_else(|| dirs::data_local_dir())
         .map(|p| p.join("mstodo-quickadd").to_string_lossy().into_owned())
         .unwrap_or_else(|| format!("/tmp/mstodo-quickadd-{}", std::process::id()));
 
-    // Create the FIFO (ignore error if it already exists)
-    let _ = std::process::Command::new("mkfifo").arg(&fifo_path).status();
+    // Attempt to create the FIFO. If mkfifo fails the file already exists.
+    let mkfifo_ok = std::process::Command::new("mkfifo")
+        .arg(&fifo_path)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+
+    if !mkfifo_ok {
+        // File already exists — verify it is owned by the current user before using it.
+        // This guards against a local attacker pre-creating the path to hijack IPC.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let file_uid = std::fs::metadata(&fifo_path)
+                .map(|m| m.uid())
+                .unwrap_or(u32::MAX);
+            // Use the home directory as a proxy for the current user's uid —
+            // it is always owned by the user and requires no extra crates.
+            let home_uid = dirs::home_dir()
+                .and_then(|h| std::fs::metadata(h).ok())
+                .map(|m| m.uid())
+                .unwrap_or(u32::MAX - 1);
+            if file_uid != home_uid {
+                eprintln!(
+                    "Warning: FIFO at {} is not owned by the current user (uid {}, expected {}); \
+                     quickadd IPC disabled",
+                    fifo_path, file_uid, home_uid
+                );
+                return String::new();
+            }
+        }
+    }
 
     let path = fifo_path.clone();
     std::thread::spawn(move || {
         use std::io::Read;
+        if path.is_empty() {
+            return;
+        }
         loop {
             if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
                 break;
@@ -668,8 +701,11 @@ fn main() {
                 eprintln!("Warning: failed to register global shortcut (likely Wayland): {e}");
             }
 
-            // Also register via GNOME gsettings so it works on Wayland / GNOME Shell
-            register_gnome_shortcut(&fifo_path);
+            // Also register via GNOME gsettings so it works on Wayland / GNOME Shell.
+            // Only register if FIFO setup succeeded (non-empty path).
+            if !fifo_path.is_empty() {
+                register_gnome_shortcut(&fifo_path);
+            }
 
             Ok(())
         })

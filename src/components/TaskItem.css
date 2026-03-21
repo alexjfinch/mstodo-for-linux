@@ -149,6 +149,11 @@
   border-color: var(--accent-primary);
 }
 
+.task-checkbox:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+
 .task-checkbox:checked {
   background-color: var(--checkbox-checked);
   border-color: var(--checkbox-checked);

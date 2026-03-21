@@ -69,6 +69,11 @@
   </supports>
 
   <releases>
+    <release version="0.1.6" date="2026-03-21">
+      <description>
+        <p>Security hardening: dynamic OAuth redirect port, CSRF verification, FIFO ownership check.</p>
+      </description>
+    </release>
     <release version="0.1.5" date="2026-03-18">
       <description>
         <p>Added AppStream metadata for improved software centre integration.</p>

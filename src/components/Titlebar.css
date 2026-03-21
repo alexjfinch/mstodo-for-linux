@@ -47,6 +47,11 @@
   background-color: var(--bg-hover);
 }
 
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .titlebar-btn.titlebar-close:hover {
   background-color: var(--danger-color);
   color: white;

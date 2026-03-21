@@ -348,7 +348,11 @@ function parseCsvLines(content: string): string[][] {
     }
   }
 
-  // Handle trailing data (e.g. unterminated quote)
+  if (inQuotes) {
+    throw new Error("Invalid CSV: file ends with an unclosed quoted field.");
+  }
+
+  // Handle trailing data after the last newline (no final newline in file)
   if (current || row.length > 0) {
     row.push(current);
     rows.push(row);

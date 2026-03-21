@@ -143,8 +143,13 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       }
       try {
         if (op.opType === "create") {
-          const created = await createTaskGraph(data.title as string, data.listId as string, token);
-          await updateTaskId(database, data.id as string, created.id, Date.now());
+          if (typeof data.title !== "string" || typeof data.listId !== "string" || typeof data.id !== "string") {
+            logger.warn(`Dropping create op (id=${op.id}) — data missing required fields: title, listId, or id`);
+            await deletePendingOp(database, op.id!);
+            continue;
+          }
+          const created = await createTaskGraph(data.title, data.listId, token);
+          await updateTaskId(database, data.id, created.id, Date.now());
           // Remap any other pending ops that reference the old local ID
           await updatePendingOpsTaskId(database, data.id as string, created.id);
           // Also remap in-memory ops so subsequent iterations use the new ID
@@ -168,8 +173,13 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             if (task) await updateTaskAttributesGraph(task, data, token);
           }
         } else if (op.opType === "move" && op.taskId) {
+          if (typeof data.title !== "string" || typeof data.targetListId !== "string" || typeof data.oldListId !== "string") {
+            logger.warn(`Dropping move op (id=${op.id}) — data missing required fields: title, targetListId, or oldListId`);
+            await deletePendingOp(database, op.id!);
+            continue;
+          }
           // Replay the move: create on target, copy attributes, delete from source
-          const created = await createTaskGraph(data.title as string, data.targetListId as string, token);
+          const created = await createTaskGraph(data.title, data.targetListId, token);
           const taskData = data.task as unknown as Task | undefined;
           if (taskData && (taskData.importance !== "normal" || taskData.dueDateTime || taskData.body || taskData.recurrence || taskData.categories?.length)) {
             await updateTaskAttributesGraph(created, {
@@ -181,7 +191,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               isInMyDay: taskData.isInMyDay,
             }, token);
           }
-          await deleteTaskGraph(op.taskId, data.oldListId as string, token);
+          await deleteTaskGraph(op.taskId, data.oldListId, token);
           await updateTaskId(database, op.taskId, created.id, Date.now());
           await updatePendingOpsTaskId(database, op.taskId, created.id);
           for (const pending of ops) {
@@ -191,7 +201,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             prev.map((t) => (t.id === op.taskId ? { ...t, id: created.id, listId: data.targetListId as string } : t))
           );
         } else if (op.opType === "delete" && op.taskId) {
-          await deleteTaskGraph(op.taskId, data.listId as string, token);
+          if (typeof data.listId !== "string") {
+            logger.warn(`Dropping delete op (id=${op.id}) — data missing required field: listId`);
+            await deletePendingOp(database, op.id!);
+            continue;
+          }
+          await deleteTaskGraph(op.taskId, data.listId, token);
         }
         await deletePendingOp(database, op.id!);
       } catch (err) {

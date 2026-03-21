@@ -11,20 +11,31 @@ use url::Url;
 /// Prevents concurrent auth flows from racing each other.
 static AUTH_IN_PROGRESS: Mutex<bool> = Mutex::new(false);
 
-pub fn build_oauth_client(client_id: String) -> BasicClient {
-  BasicClient::new(
+/// Build the OAuth client. `redirect_port` should be `Some(port)` for the initial
+/// authorization flow (so the redirect URI matches the callback server) and `None`
+/// for refresh token exchanges (redirect URI is not sent or checked in that grant type).
+pub fn build_oauth_client(client_id: String, redirect_port: Option<u16>) -> BasicClient {
+  let client = BasicClient::new(
     ClientId::new(client_id),
     None,
-    AuthUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize".into()).unwrap(),
-    Some(TokenUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/token".into()).unwrap()),
-  )
-  .set_redirect_uri(RedirectUrl::new("http://localhost:53682/callback".into()).unwrap())
+    AuthUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize".into())
+      .expect("auth URL is a known-good static string"),
+    Some(TokenUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/token".into())
+      .expect("token URL is a known-good static string")),
+  );
+  match redirect_port {
+    Some(port) => client.set_redirect_uri(
+      RedirectUrl::new(format!("http://localhost:{}/callback", port))
+        .expect("redirect URL with valid port must parse"),
+    ),
+    None => client,
+  }
 }
 
 /// Runs the full OAuth 2.0 PKCE browser flow. Blocks until the user completes sign-in
-/// or the 5-minute timeout elapses. Returns both the authorization code and the PKCE
-/// verifier together so no global state is needed between the two PKCE steps.
-pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCodeVerifier), String> {
+/// or the 5-minute timeout elapses. Returns the authorization code, the PKCE verifier,
+/// and the redirect port so the caller can build a matching client for token exchange.
+pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCodeVerifier, u16), String> {
   // Prevent concurrent auth flows — a second call would overwrite the PKCE verifier
   {
     let mut in_progress = AUTH_IN_PROGRESS
@@ -38,41 +49,68 @@ pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCode
 
   // Wrap the rest in a closure so we can always release the lock on exit
   let result = (|| {
-    let client = build_oauth_client(client_id);
+    // Bind to an OS-assigned ephemeral port (port 0) rather than a fixed port.
+    // A fixed port can be pre-squatted by a local attacker to intercept the OAuth code.
+    let server = Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let port = server
+      .server_addr()
+      .to_ip()
+      .map(|a| a.port())
+      .filter(|&p| p != 0)
+      .ok_or_else(|| "Failed to determine local redirect server port".to_string())?;
 
+    let client = build_oauth_client(client_id, Some(port));
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-  // CSRF token intentionally unused: PKCE already prevents authorization code
-  // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).
-  let (auth_url, _csrf) = client
-    .authorize_url(CsrfToken::new_random)
-    .add_scope(Scope::new("Tasks.ReadWrite".into()))
-    .add_scope(Scope::new("Tasks.Read".into()))
-    .add_scope(Scope::new("User.Read".into()))
-    .add_scope(Scope::new("offline_access".into()))
-    .add_extra_param("prompt", "select_account")
-    .set_pkce_challenge(pkce_challenge)
-    .url();
+    let (auth_url, csrf_token) = client
+      .authorize_url(CsrfToken::new_random)
+      .add_scope(Scope::new("Tasks.ReadWrite".into()))
+      .add_scope(Scope::new("Tasks.Read".into()))
+      .add_scope(Scope::new("User.Read".into()))
+      .add_scope(Scope::new("offline_access".into()))
+      .add_extra_param("prompt", "select_account")
+      .set_pkce_challenge(pkce_challenge)
+      .url();
 
-  open::that(auth_url.to_string()).map_err(|e| e.to_string())?;
+    // Validate that the OAuth URL uses HTTPS before opening it in the browser.
+    // The URL is generated from our known-good AuthUrl, but this is a defense-in-depth check.
+    if auth_url.scheme() != "https" {
+      return Err("Refusing to open non-HTTPS OAuth URL".to_string());
+    }
 
-  let server = Server::http("127.0.0.1:53682").map_err(|e| e.to_string())?;
-  // Wait up to 5 minutes for the user to complete sign-in
-  let request = server
-    .recv_timeout(std::time::Duration::from_secs(300))
-    .map_err(|e| format!("Auth callback error: {e}"))?
-    .ok_or("Sign-in timed out — no response received within 5 minutes")?;
+    open::that(auth_url.to_string())
+      .map_err(|e| format!("Failed to open sign-in page in browser: {e}"))?;
 
-  let url = Url::parse(&format!("http://localhost{}", request.url()))
-    .map_err(|e| e.to_string())?;
+    // Wait up to 5 minutes for the user to complete sign-in
+    let request = server
+      .recv_timeout(std::time::Duration::from_secs(300))
+      .map_err(|e| format!("Auth callback error: {e}"))?
+      .ok_or("Sign-in timed out — no response received within 5 minutes")?;
 
-  let code = url
-    .query_pairs()
-    .find(|(k, _)| k == "code")
-    .map(|(_, v)| v.to_string())
-    .ok_or("No code returned")?;
+    let url = Url::parse(&format!("http://localhost{}", request.url()))
+      .map_err(|e| e.to_string())?;
 
-  let html = r#"<!DOCTYPE html>
+    // Verify CSRF state parameter to guard against cross-site request forgery.
+    let state = url
+      .query_pairs()
+      .find(|(k, _)| k == "state")
+      .map(|(_, v)| v.to_string())
+      .unwrap_or_default();
+    if state != csrf_token.secret().as_str() {
+      let _ = request.respond(
+        tiny_http::Response::from_string("Sign-in failed: state mismatch. Please try again.")
+          .with_status_code(400),
+      );
+      return Err("CSRF state mismatch — sign-in aborted for security".to_string());
+    }
+
+    let code = url
+      .query_pairs()
+      .find(|(k, _)| k == "code")
+      .map(|(_, v)| v.to_string())
+      .ok_or("No authorization code returned")?;
+
+    let html = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -187,12 +225,12 @@ pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCode
 </body>
 </html>"#;
 
-  let response = tiny_http::Response::from_string(html)
-    .with_header("Content-Type: text/html; charset=utf-8".parse::<tiny_http::Header>()
-      .expect("static header string must parse"));
-  request.respond(response).ok();
+    let response = tiny_http::Response::from_string(html)
+      .with_header("Content-Type: text/html; charset=utf-8".parse::<tiny_http::Header>()
+        .expect("static header string must parse"));
+    request.respond(response).ok();
 
-  Ok((AuthorizationCode::new(code), pkce_verifier))
+    Ok((AuthorizationCode::new(code), pkce_verifier, port))
   })(); // end of inner closure
 
   // Always release the auth-in-progress lock.
@@ -202,4 +240,3 @@ pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCode
 
   result
 }
-

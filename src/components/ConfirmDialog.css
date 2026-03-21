@@ -46,6 +46,11 @@
   background: var(--bg-hover);
 }
 
+.confirm-cancel-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .confirm-ok-btn {
   padding: 7px 16px;
   border-radius: 6px;
@@ -59,6 +64,11 @@
 
 .confirm-ok-btn:hover {
   opacity: 0.88;
+}
+
+.confirm-ok-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .confirm-ok-btn.danger {
