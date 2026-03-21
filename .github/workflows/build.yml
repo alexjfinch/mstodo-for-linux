@@ -15,7 +15,28 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
   build-linux:
+    needs: validate
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -84,7 +105,7 @@ jobs:
           path: src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
 
   release:
-    needs: build-linux
+    needs: [validate, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
