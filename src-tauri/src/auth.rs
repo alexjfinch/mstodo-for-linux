@@ -8,8 +8,7 @@ use std::sync::Mutex;
 use tiny_http::Server;
 use url::Url;
 
-static PKCE_VERIFIER: Mutex<Option<PkceCodeVerifier>> = Mutex::new(None);
-/// Prevents concurrent auth flows from overwriting each other's PKCE verifier.
+/// Prevents concurrent auth flows from racing each other.
 static AUTH_IN_PROGRESS: Mutex<bool> = Mutex::new(false);
 
 pub fn build_oauth_client(client_id: String) -> BasicClient {
@@ -22,7 +21,10 @@ pub fn build_oauth_client(client_id: String) -> BasicClient {
   .set_redirect_uri(RedirectUrl::new("http://localhost:53682/callback".into()).unwrap())
 }
 
-pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
+/// Runs the full OAuth 2.0 PKCE browser flow. Blocks until the user completes sign-in
+/// or the 5-minute timeout elapses. Returns both the authorization code and the PKCE
+/// verifier together so no global state is needed between the two PKCE steps.
+pub fn start_auth_flow(client_id: String) -> Result<(AuthorizationCode, PkceCodeVerifier), String> {
   // Prevent concurrent auth flows — a second call would overwrite the PKCE verifier
   {
     let mut in_progress = AUTH_IN_PROGRESS
@@ -39,9 +41,6 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
     let client = build_oauth_client(client_id);
 
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-    *PKCE_VERIFIER
-      .lock()
-      .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
 
   // CSRF token intentionally unused: PKCE already prevents authorization code
   // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).
@@ -193,7 +192,7 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
       .expect("static header string must parse"));
   request.respond(response).ok();
 
-  Ok(AuthorizationCode::new(code))
+  Ok((AuthorizationCode::new(code), pkce_verifier))
   })(); // end of inner closure
 
   // Always release the auth-in-progress lock.
@@ -204,10 +203,3 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   result
 }
 
-pub fn take_pkce_verifier() -> Result<PkceCodeVerifier, String> {
-  PKCE_VERIFIER
-    .lock()
-    .map_err(|_| "PKCE verifier mutex poisoned".to_string())?
-    .take()
-    .ok_or_else(|| "Auth flow not started — PKCE verifier is missing".to_string())
-}

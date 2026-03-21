@@ -106,20 +106,9 @@ async fn get_system_theme() -> String {
     "light".to_string()
 }
 
-/// Minimal base64 encoder — avoids pulling in the `base64` crate.
 fn base64_encode(data: &[u8]) -> String {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
-    for chunk in data.chunks(3) {
-        let b0 = chunk[0] as usize;
-        let b1 = if chunk.len() > 1 { chunk[1] as usize } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as usize } else { 0 };
-        out.push(CHARS[b0 >> 2] as char);
-        out.push(CHARS[((b0 & 3) << 4) | (b1 >> 4)] as char);
-        out.push(if chunk.len() > 1 { CHARS[((b1 & 15) << 2) | (b2 >> 6)] as char } else { '=' });
-        out.push(if chunk.len() > 2 { CHARS[b2 & 63] as char } else { '=' });
-    }
-    out
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(data)
 }
 
 #[derive(serde::Serialize)]
@@ -418,15 +407,14 @@ async fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
 async fn sign_in() -> Result<TokenPayload, String> {
     // start_auth_flow blocks on server.recv() waiting for the OAuth callback,
     // so run it on a blocking thread to avoid stalling the async runtime.
-    let code = tokio::task::spawn_blocking(|| {
+    // The verifier is returned directly alongside the code — no global state needed.
+    let (code, verifier) = tokio::task::spawn_blocking(|| {
         auth::start_auth_flow(MS_CLIENT_ID.to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
     .map_err(|e| format!("Failed to start auth flow: {e}"))?;
 
-    let verifier = auth::take_pkce_verifier()
-        .map_err(|e| format!("Failed to retrieve PKCE verifier: {e}"))?;
     let client = auth::build_oauth_client(MS_CLIENT_ID.to_string());
 
     let token = client
@@ -449,11 +437,12 @@ async fn sign_in() -> Result<TokenPayload, String> {
 fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>) -> String {
     // Prefer XDG_RUNTIME_DIR (mode 700, user-only) so the FIFO is not world-readable.
     // Fall back to XDG data-local dir, then /tmp only as last resort.
-    let runtime_dir = dirs::runtime_dir()
+    // When falling back to /tmp (world-readable), include the process ID to avoid
+    // symlink attacks or FIFO hijacking by other users sharing the machine.
+    let fifo_path = dirs::runtime_dir()
         .or_else(|| dirs::data_local_dir())
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "/tmp".to_string());
-    let fifo_path = format!("{}/mstodo-quickadd", runtime_dir);
+        .map(|p| p.join("mstodo-quickadd").to_string_lossy().into_owned())
+        .unwrap_or_else(|| format!("/tmp/mstodo-quickadd-{}", std::process::id()));
 
     // Create the FIFO (ignore error if it already exists)
     let _ = std::process::Command::new("mkfifo").arg(&fifo_path).status();

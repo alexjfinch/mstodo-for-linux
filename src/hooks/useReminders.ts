@@ -109,7 +109,7 @@ export const useReminders = (
         setToasts((prev) => [
           ...prev,
           {
-            id: `${key}-${now}`,
+            id: crypto.randomUUID(),
             title: task.title,
             body,
             timestamp: now,
@@ -143,7 +143,7 @@ export const useReminders = (
         setToasts((prev) => [
           ...prev,
           {
-            id: `${key}-${now}`,
+            id: crypto.randomUUID(),
             title: task.title,
             body,
             timestamp: now,

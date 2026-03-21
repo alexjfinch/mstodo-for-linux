@@ -15,6 +15,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CustomSelect } from "./CustomSelect";
+import { localDateToGraphDate } from "../utils/dateParser";
 
 type Props = {
   task: Task;
@@ -454,7 +455,7 @@ export const TaskDetail = ({
                         className={`calendar-day${isToday ? " calendar-day-today" : ""}${isSel ? " calendar-day-selected" : ""}`}
                         onClick={() => {
                           onUpdateAttributes(task.id, {
-                            dueDateTime: { dateTime: `${dayDate.toISOString().substring(0, 10)}T00:00:00.0000000`, timeZone: "UTC" },
+                            dueDateTime: { dateTime: localDateToGraphDate(dayDate), timeZone: "UTC" },
                           });
                           setShowDueDateCalendar(false);
                         }}

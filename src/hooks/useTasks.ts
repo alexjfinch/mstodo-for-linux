@@ -228,6 +228,12 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       return;
     }
 
+    // Create a new AbortController for this sync so in-flight requests can be
+    // cancelled immediately when the user switches accounts.
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    const { signal } = controller;
+
     setSyncing(true);
     setSyncError(null);
     try {
@@ -252,8 +258,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       let deltaResult;
       try {
         const [delta, assignedTasks] = await Promise.all([
-          fetchAllTasksDelta(token, deltaTokens),
-          fetchAssignedTasks(token).catch((err) => {
+          fetchAllTasksDelta(token, deltaTokens, signal),
+          fetchAssignedTasks(token, signal).catch((err) => {
+            if (signal.aborted) throw err; // propagate cancellation
             if (!plannerWarningLoggedRef.current) {
               logger.warn("Failed to fetch assigned tasks (Planner may not be available for this account)", err);
               plannerWarningLoggedRef.current = true;
@@ -264,14 +271,17 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         ]);
         deltaResult = { delta, assignedTasks };
       } catch (err: unknown) {
+        // Propagate cancellation so the outer catch's generation check can handle it cleanly
+        if (signal.aborted) throw err;
         // Delta token expired or invalid — clear tokens and do a full sync
         const errWithResponse = err as { response?: { status: number } };
         if (errWithResponse?.response?.status === 410) {
           logger.warn("Delta token expired, performing full sync");
           await clearDeltaTokens(database);
           const [delta, assignedTasks] = await Promise.all([
-            fetchAllTasksDelta(token, {}),
-            fetchAssignedTasks(token).catch((err) => {
+            fetchAllTasksDelta(token, {}, signal),
+            fetchAssignedTasks(token, signal).catch((err) => {
+              if (signal.aborted) throw err;
               if (!plannerWarningLoggedRef.current) {
                 logger.warn("Failed to fetch assigned tasks (Planner may not be available for this account)", err);
                 plannerWarningLoggedRef.current = true;

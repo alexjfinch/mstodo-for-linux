@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
-import { setTokenRefreshCallback } from "../api/graph";
+import { setTokenRefreshCallback, resetGraphCaches } from "../api/graph";
 import { logger } from "../services/logger";
 
 /** Metadata stored in settings.json (no secrets). */
@@ -116,6 +116,7 @@ export const useAuth = () => {
       await store.save();
     } catch (err) {
       logger.error("Failed to persist accounts", err);
+      throw err; // Propagate so callers know the save failed (e.g. signOut may not have persisted)
     }
   }, []);
 
@@ -193,7 +194,11 @@ export const useAuth = () => {
 
       const { fetchUserProfile } = await import("../api/graph");
       const profile = await fetchUserProfile(tokenResp.access_token);
-      const accountId = profile.userPrincipalName || profile.mail || profile.displayName;
+      // Require a stable, unique identifier — displayName is not unique and could collide
+      const accountId = profile.userPrincipalName || profile.mail;
+      if (!accountId) {
+        throw new Error("Sign-in failed: your Microsoft account profile does not include a userPrincipalName or email address. Please contact your administrator.");
+      }
 
       // Store tokens in system keyring
       await storeTokens(accountId, tokenResp.access_token, tokenResp.refresh_token ?? "");
@@ -222,6 +227,8 @@ export const useAuth = () => {
   const switchAccount = useCallback(async (accountId: string) => {
     const account = accounts.find((a) => a.id === accountId);
     if (!account) return;
+    // Reset graph-level caches eagerly so the new account gets a clean slate
+    resetGraphCaches();
     setActiveAccountId(accountId);
     await persistAccounts(accounts, accountId);
   }, [accounts, persistAccounts]);

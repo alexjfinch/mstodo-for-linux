@@ -106,11 +106,11 @@ export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
     displayName: r.displayName,
     isOwner: !!r.isOwner,
     isShared: !!r.isShared,
-    wellknownListName: r.wellknownListName || undefined,
+    wellknownListName: r.wellknownListName ?? undefined,
     isGroup: r.isGroup === 1 ? true : undefined,
-    parentGroupId: r.parentGroupId || undefined,
-    emoji: r.emoji || undefined,
-    themeColor: r.themeColor || undefined,
+    parentGroupId: r.parentGroupId ?? undefined,
+    emoji: r.emoji ?? undefined,
+    themeColor: r.themeColor ?? undefined,
   }));
 }
 
@@ -124,17 +124,31 @@ export async function saveListToDB(db: Database, list: TaskList): Promise<void> 
       list.displayName,
       list.isOwner ? 1 : 0,
       list.isShared ? 1 : 0,
-      list.wellknownListName || null,
+      list.wellknownListName ?? null,
       list.isGroup ? 1 : 0,
-      list.parentGroupId || null,
-      list.emoji || null,
-      list.themeColor || null,
+      list.parentGroupId ?? null,
+      list.emoji ?? null,
+      list.themeColor ?? null,
     ]
   );
 }
 
 export async function deleteListFromDB(db: Database, listId: string): Promise<void> {
   await db.execute("DELETE FROM lists WHERE id = ?", [listId]);
+}
+
+// Allowlists guard the dynamic UPDATE builders against accidental use of user-controlled column names.
+const ALLOWED_LIST_META_COLS = new Set(["isGroup", "parentGroupId", "emoji", "themeColor"]);
+const ALLOWED_TASK_ATTR_COLS = new Set(["isInMyDay", "importance", "dueDateTime", "title", "body", "recurrence", "categories", "reminderDateTime", "hasAttachments", "updatedAt"]);
+
+function assertAllowedColumns(updates: string[], allowedCols: Set<string>): void {
+  for (const fragment of updates) {
+    // Each fragment is "col = ?"; extract the column name
+    const col = fragment.replace(/ = \?$/, "");
+    if (!allowedCols.has(col)) {
+      throw new Error(`Disallowed column in dynamic UPDATE: "${col}"`);
+    }
+  }
 }
 
 export async function updateListMeta(
@@ -151,18 +165,19 @@ export async function updateListMeta(
   }
   if ("parentGroupId" in meta) {
     updates.push("parentGroupId = ?");
-    values.push(meta.parentGroupId || null);
+    values.push(meta.parentGroupId ?? null);
   }
   if ("emoji" in meta) {
     updates.push("emoji = ?");
-    values.push(meta.emoji || null);
+    values.push(meta.emoji ?? null);
   }
   if ("themeColor" in meta) {
     updates.push("themeColor = ?");
-    values.push(meta.themeColor || null);
+    values.push(meta.themeColor ?? null);
   }
 
   if (updates.length === 0) return;
+  assertAllowedColumns(updates, ALLOWED_LIST_META_COLS);
   values.push(listId);
 
   await db.execute(
@@ -199,6 +214,10 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
   }));
 }
 
+/**
+ * Upsert a full task record (INSERT OR REPLACE). Use this for synced tasks where
+ * the server is the source of truth — it overwrites any existing row with the same id.
+ */
 export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   await db.execute(
     `INSERT OR REPLACE INTO tasks
@@ -223,6 +242,11 @@ export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   );
 }
 
+/**
+ * Insert a minimal placeholder row (plain INSERT, fails if id already exists).
+ * Use this for newly created local tasks before they have a server id.
+ * Distinct from saveTaskToDB which does INSERT OR REPLACE (full upsert).
+ */
 export async function insertTaskToDB(
   db: Database,
   id: string,
@@ -281,6 +305,7 @@ export async function updateTaskAttributesDB(
 
   updates.push("updatedAt = ?");
   values.push(timestamp);
+  assertAllowedColumns(updates, ALLOWED_TASK_ATTR_COLS);
   values.push(id);
 
   await db.execute(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`, values);

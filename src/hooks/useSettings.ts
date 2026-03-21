@@ -83,13 +83,15 @@ export const useSettings = () => {
   }, []);
 
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
-    const next = { ...taskOrder, [activeList]: reorderedIds };
-    setTaskOrder(next);
-    // Best-effort persistence (fire-and-forget, outside of setState)
-    persistSetting("taskOrder", next).catch((err: unknown) => {
-      logger.error("Failed to persist taskOrder setting", String(err));
+    setTaskOrder((prev) => {
+      const next = { ...prev, [activeList]: reorderedIds };
+      // Best-effort persistence (fire-and-forget, outside of setState)
+      persistSetting("taskOrder", next).catch((err: unknown) => {
+        logger.error("Failed to persist taskOrder setting", String(err));
+      });
+      return next;
     });
-  }, [taskOrder]);
+  }, []);
 
   return {
     theme,

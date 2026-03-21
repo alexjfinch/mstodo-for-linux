@@ -110,6 +110,9 @@ export const TaskList = ({
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
   const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
+  // Increments every minute while the context menu is open, keeping time-relative
+  // reminder options fresh if the menu stays open past an hour boundary.
+  const [minuteTick, setMinuteTick] = useState(0);
   const [moveSubmenuOpen, setMoveSubmenuOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
@@ -174,6 +177,13 @@ export const TaskList = ({
       return sortDirection === "desc" ? -cmp : cmp;
     });
   }, [tasks, sortField, sortDirection]);
+
+  // Tick every minute while the context menu is open to refresh time-relative labels
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, [contextMenu.visible]);
 
   // Auto-focus the context menu when it opens for keyboard navigation
   useEffect(() => {
@@ -260,8 +270,8 @@ export const TaskList = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  const reminderOptions = useMemo(() => getReminderOptions(), // eslint-disable-next-line react-hooks/exhaustive-deps
-  [contextMenu.visible]); // Recompute time-relative options each time the menu opens
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
 
   const handleSetReminder = useCallback((dateTime: string) => {
     if (!contextMenu.taskId) return;
@@ -490,13 +500,14 @@ export const TaskList = ({
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-            } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            } else if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab") {
               e.preventDefault();
               const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
               if (!items || items.length === 0) return;
               const active = document.activeElement as HTMLElement;
               const idx = Array.from(items).indexOf(active);
-              const next = e.key === "ArrowDown"
+              const forward = e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey);
+              const next = forward
                 ? items[(idx + 1) % items.length]
                 : items[(idx - 1 + items.length) % items.length];
               next?.focus();

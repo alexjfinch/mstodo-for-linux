@@ -94,9 +94,12 @@ export const Sidebar = ({
 
   const flaggedEmailsList = allLists.find(l => l.wellknownListName === "flaggedEmails");
 
-  const builtInLists: ListName[] = ["My Day", "Important", "Planned", "Assigned to Me"];
-  if (flaggedEmailsList) builtInLists.push("Flagged Emails");
-  builtInLists.push("Tasks");
+  const builtInLists = useMemo<ListName[]>(() => {
+    const lists: ListName[] = ["My Day", "Important", "Planned", "Assigned to Me"];
+    if (flaggedEmailsList) lists.push("Flagged Emails");
+    lists.push("Tasks");
+    return lists;
+  }, [flaggedEmailsList]);
 
   const getListIcon = (list: ListName) => {
     switch (list) {

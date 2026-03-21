@@ -84,6 +84,9 @@ export const PlannedView = ({
   const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
   const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
   const [moveSubmenuOpen, setMoveSubmenuOpen] = useState(false);
+  // Increments every minute while the context menu is open, keeping time-relative
+  // reminder options fresh if the menu stays open past an hour boundary.
+  const [minuteTick, setMinuteTick] = useState(0);
 
   const menuRef = useRef<HTMLUListElement>(null);
 
@@ -98,6 +101,13 @@ export const PlannedView = ({
       return newSet;
     });
   };
+
+  // Tick every minute while the context menu is open to refresh time-relative labels
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, [contextMenu.visible]);
 
   // Auto-focus the context menu when it opens for keyboard navigation
   useEffect(() => {
@@ -182,10 +192,10 @@ export const PlannedView = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  // Re-compute relative time labels each time the context menu opens so
-  // "in 1 hour" etc. are fresh. getReminderOptions() has no external deps.
+  // Re-compute relative time labels each time the context menu opens and every minute
+  // while it stays open, so options remain correct if the menu spans an hour boundary.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible]);
+  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
 
   const handleSetReminder = useCallback((dateTime: string) => {
     if (!contextMenu.taskId) return;
@@ -383,13 +393,14 @@ export const PlannedView = ({
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-              } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              } else if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab") {
                 e.preventDefault();
                 const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
                 if (!items || items.length === 0) return;
                 const active = document.activeElement as HTMLElement;
                 const idx = Array.from(items).indexOf(active);
-                const next = e.key === "ArrowDown"
+                const forward = e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey);
+                const next = forward
                   ? items[(idx + 1) % items.length]
                   : items[(idx - 1 + items.length) % items.length];
                 next?.focus();

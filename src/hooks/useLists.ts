@@ -94,6 +94,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       // Process pending list-create ops (lists created while offline)
       const pendingListOps = await getPendingOpsByType(database, "list-create");
       for (const op of pendingListOps) {
+        // Bail immediately if account switched while processing
+        if (syncGenerationRef.current !== generation) return;
+
         let data: Record<string, unknown>;
         try {
           data = JSON.parse(op.data);

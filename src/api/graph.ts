@@ -7,6 +7,7 @@ const GRAPH_ME = "https://graph.microsoft.com/v1.0/me";
 const GRAPH_PLANNER_TASKS = "https://graph.microsoft.com/v1.0/me/planner/tasks";
 const REQUEST_TIMEOUT = 15000;
 const MAX_PAGINATION_PAGES = 50;
+const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024; // 3 MB, matching the upload limit
 
 type GraphCollection<T> = {
   value: T[];
@@ -100,14 +101,26 @@ export function setTokenRefreshCallback(cb: (() => Promise<string>) | null) {
   tokenRefreshCallback = cb;
 }
 
+/** Strip the Authorization header from an Axios error config before it reaches logs. */
+function sanitizeAxiosError(err: unknown): unknown {
+  if (err && typeof err === "object" && "config" in err) {
+    const axiosErr = err as { config?: { headers?: Record<string, unknown> } };
+    if (axiosErr.config?.headers) {
+      delete axiosErr.config.headers["Authorization"];
+    }
+  }
+  return err;
+}
+
 async function graphRequest<T>(
   method: "get" | "post" | "patch" | "delete",
   url: string,
   accessToken: string,
-  body?: Record<string, unknown> | GraphTaskPatchBody
+  body?: Record<string, unknown> | GraphTaskPatchBody,
+  signal?: AbortSignal
 ): Promise<T> {
   const call = async (token: string): Promise<T> => {
-    const config = { headers: { Authorization: `Bearer ${token}` }, timeout: REQUEST_TIMEOUT };
+    const config = { headers: { Authorization: `Bearer ${token}` }, timeout: REQUEST_TIMEOUT, signal };
     let resp;
     if (method === "get") resp = await axios.get<T>(url, config);
     else if (method === "delete") resp = await axios.delete<T>(url, config);
@@ -119,6 +132,9 @@ async function graphRequest<T>(
   try {
     return await call(accessToken);
   } catch (err: unknown) {
+    // Propagate abort signals immediately — no retry for intentional cancellation.
+    if (axios.isCancel(err)) throw err;
+
     const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
     if (axiosErr?.response?.status === 401 && tokenRefreshCallback) {
       // Deduplicate concurrent refresh attempts — only the first caller
@@ -155,7 +171,8 @@ async function graphRequest<T>(
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return await call(accessToken);
     }
-    throw err;
+    // Strip the Authorization header before re-throwing so it never reaches log files.
+    throw sanitizeAxiosError(err);
   }
 }
 
@@ -180,8 +197,8 @@ export async function fetchUserProfile(accessToken: string): Promise<UserProfile
   };
 }
 
-export async function fetchTaskLists(accessToken: string): Promise<TaskList[]> {
-  const data = await graphRequest<GraphCollection<GraphTaskList>>("get", GRAPH_BASE, accessToken);
+export async function fetchTaskLists(accessToken: string, signal?: AbortSignal): Promise<TaskList[]> {
+  const data = await graphRequest<GraphCollection<GraphTaskList>>("get", GRAPH_BASE, accessToken, undefined, signal);
   return data.value.map((list) => ({
     id: list.id,
     displayName: list.displayName,
@@ -243,14 +260,14 @@ function mapGraphTask(t: GraphTask, listId: string): Task {
   };
 }
 
-export async function fetchTasksFromList(listId: string, accessToken: string): Promise<Task[]> {
+export async function fetchTasksFromList(listId: string, accessToken: string, signal?: AbortSignal): Promise<Task[]> {
   validateListId(listId);
   const allTasks: Task[] = [];
   let url: string | null = `${GRAPH_BASE}/${listId}/tasks?$top=100`;
   let pages = 0;
 
   while (url && pages < MAX_PAGINATION_PAGES) {
-    const resp: GraphCollection<GraphTask> = await graphRequest("get", url, accessToken);
+    const resp: GraphCollection<GraphTask> = await graphRequest("get", url, accessToken, undefined, signal);
     allTasks.push(...resp.value.map((t) => mapGraphTask(t, listId)));
     url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
@@ -297,7 +314,8 @@ export type DeltaResult = {
 export async function fetchTasksDelta(
   listId: string,
   accessToken: string,
-  deltaLink: string | null
+  deltaLink: string | null,
+  signal?: AbortSignal
 ): Promise<DeltaResult> {
   const changes: DeltaChange[] = [];
   let url: string | null = deltaLink || `${GRAPH_BASE}/${listId}/tasks/delta`;
@@ -305,7 +323,7 @@ export async function fetchTasksDelta(
   let pages = 0;
 
   while (url && pages < MAX_PAGINATION_PAGES) {
-    const resp: GraphDeltaCollection<GraphTask> = await graphRequest("get", url, accessToken);
+    const resp: GraphDeltaCollection<GraphTask> = await graphRequest("get", url, accessToken, undefined, signal);
 
     for (const item of resp.value) {
       if (item["@removed"]) {
@@ -339,9 +357,10 @@ export async function fetchTasksDelta(
  */
 export async function fetchAllTasksDelta(
   accessToken: string,
-  deltaTokens: Record<string, string>
+  deltaTokens: Record<string, string>,
+  signal?: AbortSignal
 ): Promise<{ changes: DeltaChange[]; newDeltaTokens: Record<string, string> }> {
-  const lists = await fetchTaskLists(accessToken);
+  const lists = await fetchTaskLists(accessToken, signal);
 
   const allChanges: DeltaChange[] = [];
   const newTokens: Record<string, string> = {};
@@ -358,12 +377,13 @@ export async function fetchAllTasksDelta(
 
     if (deltaUnsupportedLists.has(list.id)) {
       try {
-        const tasks = await fetchTasksFromList(list.id, accessToken);
+        const tasks = await fetchTasksFromList(list.id, accessToken, signal);
         result = {
           changes: tasks.map((task) => ({ task, removed: false })),
           deltaLink: "",
         };
       } catch (err: unknown) {
+        if (axios.isCancel(err)) throw err;
         const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
         if (axiosErr?.response?.status === 400) {
           unfetchableLists.add(list.id);
@@ -375,19 +395,21 @@ export async function fetchAllTasksDelta(
     } else {
       const existing = deltaTokens[list.id] || null;
       try {
-        result = await fetchTasksDelta(list.id, accessToken, existing);
+        result = await fetchTasksDelta(list.id, accessToken, existing, signal);
       } catch (err: unknown) {
+        if (axios.isCancel(err)) throw err;
         const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
         if (axiosErr?.response?.status === 400) {
           deltaUnsupportedLists.add(list.id);
           logger.warn(`Delta not supported for list ${list.id}, falling back to full fetch`);
           try {
-            const tasks = await fetchTasksFromList(list.id, accessToken);
+            const tasks = await fetchTasksFromList(list.id, accessToken, signal);
             result = {
               changes: tasks.map((task) => ({ task, removed: false })),
               deltaLink: "",
             };
           } catch (fallbackErr: unknown) {
+            if (axios.isCancel(fallbackErr)) throw fallbackErr;
             const fallbackAxios = fallbackErr instanceof Error && "response" in fallbackErr ? (fallbackErr as AxiosError) : null;
             if (fallbackAxios?.response?.status === 400) {
               unfetchableLists.add(list.id);
@@ -399,7 +421,7 @@ export async function fetchAllTasksDelta(
         } else if (axiosErr?.response?.status === 410) {
           // Delta token expired for this list — fall back to full fetch and get a fresh delta token
           logger.warn(`Delta token expired for list ${list.id}, performing full fetch with fresh delta`);
-          result = await fetchTasksDelta(list.id, accessToken, null);
+          result = await fetchTasksDelta(list.id, accessToken, null, signal);
         } else {
           throw err;
         }
@@ -543,13 +565,13 @@ function mapPlannerTask(t: GraphPlannerTask): Task {
   };
 }
 
-export async function fetchAssignedTasks(accessToken: string): Promise<Task[]> {
+export async function fetchAssignedTasks(accessToken: string, signal?: AbortSignal): Promise<Task[]> {
   const allTasks: Task[] = [];
   let url: string | null = `${GRAPH_PLANNER_TASKS}?$top=100`;
   let pages = 0;
 
   while (url && pages < MAX_PAGINATION_PAGES) {
-    const resp: GraphCollection<GraphPlannerTask> = await graphRequest("get", url, accessToken);
+    const resp: GraphCollection<GraphPlannerTask> = await graphRequest("get", url, accessToken, undefined, signal);
     allTasks.push(...resp.value.map((t) => mapPlannerTask(t)));
     url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
@@ -617,6 +639,9 @@ export async function fetchAttachmentContent(
     `${GRAPH_BASE}/${listId}/tasks/${taskId}/attachments/${attachmentId}`,
     accessToken
   );
+  if (data.size > MAX_ATTACHMENT_BYTES) {
+    throw new Error(`Attachment too large (${(data.size / 1024 / 1024).toFixed(1)} MB). Maximum download size is 3 MB.`);
+  }
   return { name: data.name, contentType: data.contentType, contentBytes: data.contentBytes ?? "" };
 }
 

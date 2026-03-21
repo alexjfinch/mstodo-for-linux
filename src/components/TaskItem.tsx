@@ -1,6 +1,7 @@
 import "./TaskItem.css";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Task } from "../types";
+import { localDateToGraphDate } from "../utils/dateParser";
 
 type Props = {
   task: Task;
@@ -150,7 +151,7 @@ export const TaskItem = ({
     }
     
     if (parsed && !isNaN(parsed.getTime())) {
-      onUpdateDueDate(parsed.toISOString());
+      onUpdateDueDate(localDateToGraphDate(parsed));
     }
     
     setIsEditingDate(false);
@@ -172,7 +173,7 @@ export const TaskItem = ({
   };
 
   const handleDateSelect = (date: Date) => {
-    onUpdateDueDate(date.toISOString());
+    onUpdateDueDate(localDateToGraphDate(date));
     setShowCalendar(false);
   };
 
@@ -361,6 +362,7 @@ export const TaskItem = ({
                       className="calendar-icon-btn"
                       onClick={handleCalendarIconClick}
                       title="Open calendar"
+                      aria-label="Open calendar"
                     >
                       📅
                     </button>

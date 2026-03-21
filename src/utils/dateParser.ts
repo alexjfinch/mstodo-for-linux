@@ -1,5 +1,17 @@
 import * as chrono from "chrono-node";
 
+/**
+ * Format a Date as a Microsoft Graph due-date string using local calendar date,
+ * avoiding UTC conversion artifacts that cause off-by-one date errors in
+ * non-UTC timezones.  Always produces "YYYY-MM-DDT00:00:00.0000000".
+ */
+export function localDateToGraphDate(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T00:00:00.0000000`;
+}
+
 type ParsedTask = {
   title: string;
   dueDateTime?: { dateTime: string; timeZone: string };
