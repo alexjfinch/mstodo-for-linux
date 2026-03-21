@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src https://graph.microsoft.com https://login.microsoftonline.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src https://graph.microsoft.com https://login.microsoftonline.com; style-src 'self'; img-src 'self' data: blob:;",
       "capabilities": [
         {
           "identifier": "main-capability",

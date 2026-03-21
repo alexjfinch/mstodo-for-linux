@@ -1,3 +1,4 @@
+import "./quickadd-base.css";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QuickAdd } from "./components/QuickAdd";
