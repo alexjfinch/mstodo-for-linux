@@ -105,7 +105,7 @@ export function importFromJson(content: string): ImportResult {
   }
   const validStatuses = ["notStarted", "inProgress", "completed"] as const;
   const tasks: Omit<Task, "id">[] = data.tasks
-    .filter((t): t is Task => t != null && typeof t === "object" && typeof t.title === "string")
+    .filter((t): t is Task => t != null && typeof t === "object" && typeof t.title === "string" && typeof t.id === "string" && typeof t.listId === "string")
     .map((t) => ({
       title: t.title || "Untitled",
       completed: !!t.completed,
