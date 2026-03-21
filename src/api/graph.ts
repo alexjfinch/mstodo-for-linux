@@ -274,7 +274,7 @@ export async function fetchTasksFromList(listId: string, accessToken: string, si
   }
 
   if (url) {
-    logger.warn(`Pagination limit reached for list ${listId} after ${pages} pages (${allTasks.length} tasks). Some tasks may be missing.`);
+    throw new Error(`Sync incomplete: list ${listId} has more than ${pages * 100} tasks and could not be fully loaded. Please contact support or reduce the number of tasks in this list.`);
   }
 
   return allTasks;
@@ -346,7 +346,7 @@ export async function fetchTasksDelta(
   }
 
   if (url) {
-    logger.warn(`Delta pagination limit reached for list ${listId} after ${pages} pages. Some changes may be missing.`);
+    throw new Error(`Sync incomplete: delta for list ${listId} exceeded ${pages} pages and could not be fully processed. Some changes may be missing.`);
   }
 
   return { changes, deltaLink: resultDeltaLink };
