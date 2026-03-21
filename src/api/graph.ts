@@ -252,7 +252,7 @@ export async function fetchTasksFromList(listId: string, accessToken: string): P
   while (url && pages < MAX_PAGINATION_PAGES) {
     const resp: GraphCollection<GraphTask> = await graphRequest("get", url, accessToken);
     allTasks.push(...resp.value.map((t) => mapGraphTask(t, listId)));
-    url = resp["@odata.nextLink"] || null;
+    url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
   }
 
@@ -318,11 +318,11 @@ export async function fetchTasksDelta(
       }
     }
 
-    if (resp["@odata.deltaLink"]) {
+    if (isValidGraphNextLink(resp["@odata.deltaLink"])) {
       resultDeltaLink = resp["@odata.deltaLink"];
       url = null;
     } else {
-      url = resp["@odata.nextLink"] || null;
+      url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     }
     pages++;
   }
@@ -412,6 +412,17 @@ export async function fetchAllTasksDelta(
   }
 
   return { changes: allChanges, newDeltaTokens: newTokens };
+}
+
+/** Validates that a Graph pagination link originates from graph.microsoft.com over HTTPS. */
+function isValidGraphNextLink(url: string | undefined): url is string {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname === "graph.microsoft.com";
+  } catch {
+    return false;
+  }
 }
 
 /** Validates that a listId looks reasonable before using it in an API URL. */
@@ -540,7 +551,7 @@ export async function fetchAssignedTasks(accessToken: string): Promise<Task[]> {
   while (url && pages < MAX_PAGINATION_PAGES) {
     const resp: GraphCollection<GraphPlannerTask> = await graphRequest("get", url, accessToken);
     allTasks.push(...resp.value.map((t) => mapPlannerTask(t)));
-    url = resp["@odata.nextLink"] || null;
+    url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
   }
 
@@ -569,7 +580,7 @@ export async function fetchAttachments(
       size: a.size,
       lastModifiedDateTime: a.lastModifiedDateTime,
     })));
-    url = resp["@odata.nextLink"] || null;
+    url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
   }
 
@@ -638,7 +649,7 @@ export async function fetchChecklistItems(
       displayName: item.displayName,
       isChecked: item.isChecked || false,
     })));
-    url = resp["@odata.nextLink"] || null;
+    url = isValidGraphNextLink(resp["@odata.nextLink"]) ? resp["@odata.nextLink"] : null;
     pages++;
   }
 

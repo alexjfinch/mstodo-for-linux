@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { logger } from "../services/logger";
 
 type ReminderOption = {
   label: string;
@@ -271,7 +272,8 @@ export const PlannedView = ({
   const handleTaskClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation();
     if (e.shiftKey) {
-      onToggleSelection(taskId, true);
+      const task = tasks.find((t) => t.id === taskId);
+      if (task && !task.completed) onToggleSelection(taskId, true);
     } else {
       onOpenDetail(taskId);
     }
@@ -323,7 +325,9 @@ export const PlannedView = ({
           confirmLabel="Delete"
           danger
           onConfirm={async () => {
-            await Promise.all(deleteConfirm.taskIds.map((id) => onDeleteTask(id)));
+            const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id)));
+            const failures = results.filter((r) => r.status === "rejected");
+            if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures);
             if (deleteConfirm.taskIds.length > 1) onClearSelection();
             setDeleteConfirm(null);
           }}

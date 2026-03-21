@@ -404,9 +404,12 @@ async fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
         }
         std::fs::write(&path, AUTOSTART_DESKTOP_ENTRY)
             .map_err(|e| format!("Failed to write autostart file: {e}"))?;
-    } else if path.exists() {
-        std::fs::remove_file(&path)
-            .map_err(|e| format!("Failed to remove autostart file: {e}"))?;
+    } else {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("Failed to remove autostart file: {e}")),
+        }
     }
     Ok(())
 }
@@ -521,13 +524,14 @@ fn register_gnome_shortcut(fifo_path: &str) {
         } else {
             format!("['{}']", binding_path)
         };
-        if let Ok(status) = std::process::Command::new("gsettings")
+        let list_ok = std::process::Command::new("gsettings")
             .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
             .status()
-        {
-            if !status.success() {
-                eprintln!("Warning: gsettings set custom-keybindings failed (exit {})", status);
-            }
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if !list_ok {
+            eprintln!("Warning: gsettings set custom-keybindings failed; skipping shortcut registration");
+            return;
         }
     }
 

@@ -78,7 +78,12 @@ interface PickedFile {
 export async function pickImportFile(): Promise<{ name: string; content: string } | null> {
   const result = await invoke<PickedFile | null>("pick_and_read_file");
   if (!result) return null;
-  const bytes = Uint8Array.from(atob(result.content_bytes), (c) => c.charCodeAt(0));
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(atob(result.content_bytes), (c) => c.charCodeAt(0));
+  } catch {
+    throw new Error("Failed to decode file content (invalid base64 from backend).");
+  }
   const content = new TextDecoder("utf-8").decode(bytes);
   return { name: result.name, content };
 }
@@ -98,13 +103,14 @@ export function importFromJson(content: string): ImportResult {
   if (!data.tasks || !Array.isArray(data.tasks)) {
     throw new Error("Invalid backup format: missing 'tasks' array.");
   }
+  const validStatuses = ["notStarted", "inProgress", "completed"] as const;
   const tasks: Omit<Task, "id">[] = data.tasks
     .filter((t): t is Task => t != null && typeof t === "object" && typeof t.title === "string")
     .map((t) => ({
       title: t.title || "Untitled",
       completed: !!t.completed,
       listId: typeof t.listId === "string" ? t.listId : undefined,
-      status: t.completed ? "completed" : "notStarted",
+      status: validStatuses.includes(t.status as never) ? t.status : (t.completed ? "completed" : "notStarted"),
       isInMyDay: typeof t.isInMyDay === "boolean" ? t.isInMyDay : undefined,
       importance: (t.importance === "high" || t.importance === "low" || t.importance === "normal") ? t.importance : undefined,
       dueDateTime: t.dueDateTime && typeof t.dueDateTime === "object" && "dateTime" in t.dueDateTime ? t.dueDateTime : undefined,

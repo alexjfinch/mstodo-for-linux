@@ -108,9 +108,9 @@ export const QuickAdd = () => {
       });
       setValue("");
       await getCurrentWindow().close();
-    } catch {
-      // If emit or close fails, at least clear the input
-      setValue("");
+    } catch (err) {
+      // Emit or close failed — keep input so the user can retry
+      console.error("Quick-add task failed", String(err));
     }
   };
 
