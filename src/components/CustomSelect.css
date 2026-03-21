@@ -25,7 +25,6 @@
 }
 
 .custom-select-trigger:focus {
-  outline: none;
   border-color: var(--accent-primary);
 }
 

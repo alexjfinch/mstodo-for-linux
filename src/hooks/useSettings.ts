@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { ReminderTiming } from "./useReminders";
+import { logger } from "../services/logger";
 
 /** Persist a single setting to the Tauri store. */
 async function persistSetting(key: string, value: unknown): Promise<void> {
@@ -85,7 +86,9 @@ export const useSettings = () => {
     const next = { ...taskOrder, [activeList]: reorderedIds };
     setTaskOrder(next);
     // Best-effort persistence (fire-and-forget, outside of setState)
-    persistSetting("taskOrder", next).catch(() => {});
+    persistSetting("taskOrder", next).catch((err: unknown) => {
+      logger.error("Failed to persist taskOrder setting", String(err));
+    });
   }, [taskOrder]);
 
   return {

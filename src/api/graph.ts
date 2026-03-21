@@ -129,8 +129,7 @@ async function graphRequest<T>(
       const newToken = await inflightRefresh;
       return await call(newToken);
     }
-    // Respect 429 rate-limit: wait for Retry-After with exponential backoff,
-    // refresh token (it may have expired during the wait), then retry once.
+    // Respect 429 rate-limit: wait for Retry-After, refresh token, then retry once.
     if (axiosErr?.response?.status === 429) {
       const retryAfter = parseInt(axiosErr.response.headers?.["retry-after"] as string, 10);
       const waitMs = (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 30) * 1000;
@@ -143,11 +142,18 @@ async function graphRequest<T>(
             inflightRefresh = tokenRefreshCallback().finally(() => { inflightRefresh = null; });
           }
           retryToken = await inflightRefresh;
-        } catch {
-          // Refresh failed — retry with original token as best-effort
+        } catch (refreshErr: unknown) {
+          logger.warn("Token refresh failed during 429 retry, proceeding with original token", String(refreshErr));
         }
       }
       return await call(retryToken);
+    }
+    // Retry transient server errors (5xx) once with a short delay.
+    const status = axiosErr?.response?.status ?? 0;
+    if (status >= 500 && status < 600) {
+      logger.warn(`Transient server error (${status}), retrying in 2s`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      return await call(accessToken);
     }
     throw err;
   }
@@ -550,16 +556,24 @@ export async function fetchAttachments(
   taskId: string,
   accessToken: string
 ): Promise<TaskAttachment[]> {
-  const data = await graphRequest<GraphCollection<GraphAttachment>>(
-    "get", `${GRAPH_BASE}/${listId}/tasks/${taskId}/attachments`, accessToken
-  );
-  return data.value.map((a) => ({
-    id: a.id,
-    name: a.name,
-    contentType: a.contentType,
-    size: a.size,
-    lastModifiedDateTime: a.lastModifiedDateTime,
-  }));
+  const allAttachments: TaskAttachment[] = [];
+  let url: string | null = `${GRAPH_BASE}/${listId}/tasks/${taskId}/attachments`;
+  let pages = 0;
+
+  while (url && pages < MAX_PAGINATION_PAGES) {
+    const resp: GraphCollection<GraphAttachment> = await graphRequest<GraphCollection<GraphAttachment>>("get", url, accessToken);
+    allAttachments.push(...resp.value.map((a: GraphAttachment) => ({
+      id: a.id,
+      name: a.name,
+      contentType: a.contentType,
+      size: a.size,
+      lastModifiedDateTime: a.lastModifiedDateTime,
+    })));
+    url = resp["@odata.nextLink"] || null;
+    pages++;
+  }
+
+  return allAttachments;
 }
 
 export async function uploadAttachment(
@@ -613,16 +627,22 @@ export async function fetchChecklistItems(
   taskId: string,
   accessToken: string
 ): Promise<ChecklistItem[]> {
-  const data = await graphRequest<GraphCollection<GraphChecklistItem>>(
-    "get",
-    `${GRAPH_BASE}/${listId}/tasks/${taskId}/checklistItems`,
-    accessToken
-  );
-  return data.value.map((item) => ({
-    id: item.id,
-    displayName: item.displayName,
-    isChecked: item.isChecked || false,
-  }));
+  const allItems: ChecklistItem[] = [];
+  let url: string | null = `${GRAPH_BASE}/${listId}/tasks/${taskId}/checklistItems`;
+  let pages = 0;
+
+  while (url && pages < MAX_PAGINATION_PAGES) {
+    const resp: GraphCollection<GraphChecklistItem> = await graphRequest<GraphCollection<GraphChecklistItem>>("get", url, accessToken);
+    allItems.push(...resp.value.map((item: GraphChecklistItem) => ({
+      id: item.id,
+      displayName: item.displayName,
+      isChecked: item.isChecked || false,
+    })));
+    url = resp["@odata.nextLink"] || null;
+    pages++;
+  }
+
+  return allItems;
 }
 
 export async function createChecklistItem(

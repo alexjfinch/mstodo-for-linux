@@ -245,6 +245,7 @@ fn get_log_path() -> std::path::PathBuf {
 /// Simple rate limiter: allow at most 100 log writes per second to prevent frontend flooding.
 static LOG_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static LOG_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static LOG_DROPPED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 #[tauri::command]
 async fn write_log(level: String, message: String) -> Result<(), String> {
@@ -255,12 +256,23 @@ async fn write_log(level: String, message: String) -> Result<(), String> {
         .as_secs();
     let prev_epoch = LOG_EPOCH.load(std::sync::atomic::Ordering::SeqCst);
     if now_secs != prev_epoch {
+        // New second — flush any dropped-message summary from the previous second
+        let dropped = LOG_DROPPED.swap(0, std::sync::atomic::Ordering::SeqCst);
         LOG_EPOCH.store(now_secs, std::sync::atomic::Ordering::SeqCst);
         LOG_COUNT.store(1, std::sync::atomic::Ordering::SeqCst);
+        if dropped > 0 {
+            // Write the summary synchronously before proceeding
+            let path = get_log_path();
+            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).map(|mut f| {
+                use std::io::Write;
+                let _ = write!(f, "[WARN] {} log message(s) were dropped due to rate limiting\n", dropped);
+            });
+        }
     } else {
         let count = LOG_COUNT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         if count >= 100 {
-            return Ok(()); // silently drop excess log messages
+            LOG_DROPPED.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            return Ok(());
         }
     }
 
@@ -418,7 +430,8 @@ async fn sign_in() -> Result<TokenPayload, String> {
 /// Returns the path of the FIFO created.
 /// Spawns a background thread that blocks on the FIFO and calls open_quick_add
 /// whenever any data arrives (used as an IPC channel from DE-registered shortcuts).
-fn setup_quickadd_fifo(app_handle: tauri::AppHandle) -> String {
+/// The thread exits when `shutdown` is set to true.
+fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>) -> String {
     let runtime_dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
     let fifo_path = format!("{}/mstodo-quickadd", runtime_dir);
 
@@ -429,12 +442,17 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle) -> String {
     std::thread::spawn(move || {
         use std::io::Read;
         loop {
+            if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
             // open() blocks until a writer opens the other end
             match std::fs::File::open(&path) {
                 Ok(mut file) => {
-                    let mut buf = Vec::new();
-                    let _ = file.read_to_end(&mut buf);
-                    if !buf.is_empty() {
+                    // Cap read at 4 KB — the FIFO is only used as a trigger signal.
+                    // Reading more would waste memory if a misbehaving writer sends large data.
+                    let mut buf = [0u8; 4096];
+                    let n = file.read(&mut buf).unwrap_or(0);
+                    if n > 0 {
                         open_quick_add(&app_handle);
                     }
                 }
@@ -448,6 +466,12 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle) -> String {
     fifo_path
 }
 
+/// Wraps `s` in POSIX single-quotes, escaping any embedded single quotes.
+/// Output is safe to embed verbatim in a shell command string.
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', r"'\''"))
+}
+
 /// Registers a GNOME custom keybinding (Super+Shift+T) that writes to the IPC FIFO.
 /// Detects GNOME via XDG_CURRENT_DESKTOP. Safe to call on non-GNOME DEs (no-op).
 fn register_gnome_shortcut(fifo_path: &str) {
@@ -457,7 +481,8 @@ fn register_gnome_shortcut(fifo_path: &str) {
     }
 
     let binding_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mstodo/";
-    let command = format!("bash -c 'echo q > \"{}\"'", fifo_path);
+    // Single-quote the FIFO path to guard against metacharacters in XDG_RUNTIME_DIR.
+    let command = format!("echo q > {}", shell_single_quote(fifo_path));
 
     // Fetch current custom-keybindings list and append our path if absent
     let current = std::process::Command::new("gsettings")
@@ -479,18 +504,27 @@ fn register_gnome_shortcut(fifo_path: &str) {
         } else {
             format!("['{}']", binding_path)
         };
-        let _ = std::process::Command::new("gsettings")
+        if let Ok(status) = std::process::Command::new("gsettings")
             .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
-            .status();
+            .status()
+        {
+            if !status.success() {
+                eprintln!("Warning: gsettings set custom-keybindings failed (exit {})", status);
+            }
+        }
     }
 
     let base = format!(
         "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{}",
         binding_path
     );
-    let _ = std::process::Command::new("gsettings").args(["set", &base, "name", "MS Todo Quick Add"]).status();
-    let _ = std::process::Command::new("gsettings").args(["set", &base, "binding", "<Super><Shift>t"]).status();
-    let _ = std::process::Command::new("gsettings").args(["set", &base, "command", &command]).status();
+    for (field, val) in [("name", "MS Todo Quick Add"), ("binding", "<Super><Shift>t"), ("command", &command)] {
+        if let Ok(status) = std::process::Command::new("gsettings").args(["set", &base, field, val]).status() {
+            if !status.success() {
+                eprintln!("Warning: gsettings set {} {} failed (exit {})", base, field, status);
+            }
+        }
+    }
 }
 
 fn open_quick_add(app: &tauri::AppHandle) {
@@ -515,9 +549,13 @@ fn open_quick_add(app: &tauri::AppHandle) {
 }
 
 fn main() {
+    // Shared shutdown flag for background threads (e.g. FIFO listener).
+    let fifo_shutdown = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let fifo_shutdown_setup = fifo_shutdown.clone();
+
     // Build Tauri application
     Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
             #[cfg(target_os = "linux")]
             {
                 let handle = app.handle().clone();
@@ -601,7 +639,7 @@ fn main() {
                 .build(app)?;
 
             // Set up IPC FIFO for DE-registered shortcut fallback (Wayland / GNOME etc.)
-            let fifo_path = setup_quickadd_fifo(app.handle().clone());
+            let fifo_path = setup_quickadd_fifo(app.handle().clone(), fifo_shutdown_setup.clone());
 
             // Register global shortcut: Super+Shift+T to open quick-add (works on X11)
             let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyT);
@@ -618,6 +656,12 @@ fn main() {
             register_gnome_shortcut(&fifo_path);
 
             Ok(())
+        })
+        // Signal FIFO thread to stop when the main window is destroyed
+        .on_window_event(move |_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                fifo_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
         })
         // Global shortcut plugin
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())

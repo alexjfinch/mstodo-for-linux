@@ -373,7 +373,7 @@
 }
 
 .task-importance-btn.important .importance-star {
-  color: #ffd700;
+  color: var(--color-warning);
 }
 
 .importance-label {

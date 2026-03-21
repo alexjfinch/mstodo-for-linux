@@ -90,21 +90,21 @@
 }
 
 .toast-notification--success {
-  border-left-color: #4caf7d;
+  border-left-color: var(--color-success);
 }
 
 .toast-notification--success .toast-icon {
-  background: color-mix(in srgb, #4caf7d 12%, transparent);
-  color: #4caf7d;
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success);
 }
 
 .toast-notification--error {
-  border-left-color: #e74c3c;
+  border-left-color: var(--color-error);
 }
 
 .toast-notification--error .toast-icon {
-  background: color-mix(in srgb, #e74c3c 12%, transparent);
-  color: #e74c3c;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
 }
 
 .toast-dismiss:hover {

@@ -27,7 +27,7 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   {
     let mut in_progress = AUTH_IN_PROGRESS
       .lock()
-      .unwrap_or_else(|e| e.into_inner());
+      .map_err(|_| "Auth state mutex poisoned — please restart the application".to_string())?;
     if *in_progress {
       return Err("Another sign-in is already in progress".to_string());
     }
@@ -41,7 +41,7 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     *PKCE_VERIFIER
       .lock()
-      .unwrap_or_else(|e| e.into_inner()) = Some(pkce_verifier);
+      .map_err(|_| "PKCE verifier mutex poisoned".to_string())? = Some(pkce_verifier);
 
   // CSRF token intentionally unused: PKCE already prevents authorization code
   // interception, and the redirect is bound to 127.0.0.1 (no cross-site risk).
@@ -196,10 +196,10 @@ pub fn start_auth_flow(client_id: String) -> Result<AuthorizationCode, String> {
   Ok(AuthorizationCode::new(code))
   })(); // end of inner closure
 
-  // Always release the auth-in-progress lock
-  if let Ok(mut in_progress) = AUTH_IN_PROGRESS.lock() {
-    *in_progress = false;
-  }
+  // Always release the auth-in-progress lock.
+  // On a poisoned mutex (a panic occurred while holding it), recover the guard
+  // so we can clear the flag and unblock future auth attempts.
+  *AUTH_IN_PROGRESS.lock().unwrap_or_else(|e| e.into_inner()) = false;
 
   result
 }

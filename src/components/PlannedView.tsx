@@ -181,8 +181,10 @@ export const PlannedView = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  const reminderOptions = useMemo(() => getReminderOptions(), // eslint-disable-next-line react-hooks/exhaustive-deps
-  [contextMenu.visible]);
+  // Re-compute relative time labels each time the context menu opens so
+  // "in 1 hour" etc. are fresh. getReminderOptions() has no external deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible]);
 
   const handleSetReminder = useCallback((dateTime: string) => {
     if (!contextMenu.taskId) return;

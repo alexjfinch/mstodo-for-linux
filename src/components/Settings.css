@@ -147,7 +147,7 @@
 }
 
 .settings-item-description--error {
-  color: #e05252;
+  color: var(--color-error);
   font-family: monospace;
   font-size: 0.75rem;
   word-break: break-word;
@@ -259,13 +259,13 @@
 }
 
 .settings-badge--error {
-  background-color: color-mix(in srgb, #e05252 15%, transparent);
-  color: #e05252;
+  background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
+  color: var(--color-error);
 }
 
 .settings-badge--success {
-  background-color: color-mix(in srgb, #4caf7d 15%, transparent);
-  color: #4caf7d;
+  background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
 }
 
 .settings-sign-out-btn {

@@ -405,8 +405,9 @@ export const Settings = ({
           try {
             await fn(); // success shown via toast
             setImportStatus(null);
-          } catch (err: any) {
-            setImportStatus({ message: err?.message || "Import failed.", isError: true });
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Import failed.";
+            setImportStatus({ message, isError: true });
           } finally {
             setImportBusy(false);
           }

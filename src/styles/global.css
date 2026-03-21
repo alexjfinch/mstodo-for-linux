@@ -339,3 +339,12 @@ body {
 [data-compact="true"] .task-section-header {
   padding: 4px 0;
 }
+
+/* Respect the OS-level "Reduce Motion" accessibility preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

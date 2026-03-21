@@ -72,7 +72,15 @@ export async function initializeTables(db: Database): Promise<void> {
 
   // Indexes for common query patterns
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_listId ON tasks(listId);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_isInMyDay ON tasks(isInMyDay);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_updatedAt ON tasks(updatedAt);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_pendingOps_taskId_opType ON pendingOps(taskId, opType);`);
+
+  // Re-enable FK enforcement now that initial setup is complete.
+  // It was disabled at the top to allow offline-created tasks to reference
+  // local-xxx list IDs that may not yet exist in the lists table.
+  await db.execute(`PRAGMA foreign_keys = ON;`);
 }
 
 /** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
