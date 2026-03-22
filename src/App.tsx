@@ -59,7 +59,7 @@ export default function App() {
     handleThemeChange, handleFontSizeChange, handleCompactModeChange,
     handleSyncIntervalChange, handleRemindersEnabledChange,
     handleReminderTimingChange, handleReorderTasks: reorderTasks,
-    lastMyDayReset, handleMyDayReset, settingsLoaded,
+    lastMyDayReset, handleMyDayReset, settingsLoaded, settingsError,
   } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -195,6 +195,13 @@ export default function App() {
 
   const { toasts, dismissToast, pushToast } = useReminders(tasks, remindersEnabled, reminderTiming);
   pushToastRef.current = pushToast;
+
+  useEffect(() => {
+    if (settingsError) {
+      pushToast({ title: "Settings", body: settingsError, type: "error" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsError]);
 
   const handleReorderTasks = useCallback((reorderedIds: string[]) => {
     reorderTasks(activeList, reorderedIds);

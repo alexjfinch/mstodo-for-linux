@@ -256,6 +256,8 @@ export const TaskItem = ({
                   isSelected ? "calendar-day-selected" : ""
                 }`}
                 onClick={() => handleDateSelect(dayDate)}
+                aria-label={`${day} ${calendarDate.toLocaleString("default", { month: "long" })} ${year}`}
+                aria-pressed={!!isSelected}
               >
                 {day}
               </button>
@@ -385,6 +387,7 @@ export const TaskItem = ({
                     className="calendar-icon-btn"
                     onClick={handleCalendarIconClick}
                     title="Open calendar"
+                    aria-label="Open calendar"
                   >
                     📅
                   </button>

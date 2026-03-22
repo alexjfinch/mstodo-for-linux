@@ -20,6 +20,7 @@ export const useSettings = () => {
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const [lastMyDayReset, setLastMyDayReset] = useState<string | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
 
   // Load all persisted settings on mount
   useEffect(() => {
@@ -49,37 +50,44 @@ export const useSettings = () => {
 
   const handleRemindersEnabledChange = useCallback(async (enabled: boolean) => {
     setRemindersEnabled(enabled);
-    await persistSetting("remindersEnabled", enabled);
+    try { await persistSetting("remindersEnabled", enabled); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleReminderTimingChange = useCallback(async (timing: ReminderTiming) => {
     setReminderTiming(timing);
-    await persistSetting("reminderTiming", timing);
+    try { await persistSetting("reminderTiming", timing); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleThemeChange = useCallback(async (t: "light" | "dark" | "system") => {
     setTheme(t);
-    await persistSetting("theme", t);
+    try { await persistSetting("theme", t); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleFontSizeChange = useCallback(async (s: "small" | "normal" | "large") => {
     setFontSize(s);
-    await persistSetting("fontSize", s);
+    try { await persistSetting("fontSize", s); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleCompactModeChange = useCallback(async (c: boolean) => {
     setCompactMode(c);
-    await persistSetting("compactMode", c);
+    try { await persistSetting("compactMode", c); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleSyncIntervalChange = useCallback(async (interval: number) => {
     setSyncInterval(interval);
-    await persistSetting("syncInterval", interval);
+    try { await persistSetting("syncInterval", interval); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleMyDayReset = useCallback(async (date: string) => {
     setLastMyDayReset(date);
-    await persistSetting("lastMyDayReset", date);
+    try { await persistSetting("lastMyDayReset", date); }
+    catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
@@ -111,5 +119,6 @@ export const useSettings = () => {
     lastMyDayReset,
     handleMyDayReset,
     settingsLoaded,
+    settingsError,
   };
 };

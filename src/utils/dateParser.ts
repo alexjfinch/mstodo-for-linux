@@ -44,6 +44,9 @@ export function parseTaskInput(input: string): ParsedTask {
   // If nothing left, keep original
   if (!title) title = input;
 
+  // Microsoft Graph API enforces a 255-character limit on task titles
+  if (title.length > 255) title = title.slice(0, 255);
+
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");

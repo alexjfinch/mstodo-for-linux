@@ -63,6 +63,7 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
       // Overdue tasks
       if (task.dueDateTime) {
         const due = new Date(task.dueDateTime.dateTime);
+        if (isNaN(due.getTime())) continue;
         const dueDate = new Date(due.getFullYear(), due.getMonth(), due.getDate());
         if (dueDate < today) {
           add(task, "overdue");
@@ -77,6 +78,7 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
       // Reminder set for today
       if (task.reminderDateTime) {
         const reminder = new Date(task.reminderDateTime.dateTime);
+        if (isNaN(reminder.getTime())) continue;
         const reminderDate = new Date(reminder.getFullYear(), reminder.getMonth(), reminder.getDate());
         if (reminderDate.getTime() === today.getTime()) {
           add(task, "reminder_today");
