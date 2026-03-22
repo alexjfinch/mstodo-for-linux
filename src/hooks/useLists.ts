@@ -16,6 +16,8 @@ import {
   queuePendingOp,
   getPendingOpsByType,
   deletePendingOp,
+  incrementPendingOpRetry,
+  MAX_PENDING_OP_RETRIES,
 } from "../api/taskStorage";
 import { useNetworkStatus } from "../services/networkMonitor";
 import { logger } from "../services/logger";
@@ -125,6 +127,11 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           await deletePendingOp(database, op.id!);
         } catch (err) {
           logger.error(`Failed to sync pending list creation: ${data.displayName}`, err);
+          const retries = await incrementPendingOpRetry(database, op.id!);
+          if (retries >= MAX_PENDING_OP_RETRIES) {
+            logger.warn(`Dropping pending list-create op (id=${op.id}) after ${retries} retries`);
+            await deletePendingOp(database, op.id!);
+          }
         }
       }
 

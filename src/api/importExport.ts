@@ -174,6 +174,8 @@ export function importFromTodoistCsv(content: string): ImportResult {
       const due = new Date(dueStr);
       if (!isNaN(due.getTime())) {
         task.dueDateTime = { dateTime: due.toISOString(), timeZone: "UTC" };
+      } else {
+        logger.warn(`Todoist CSV import: unparseable date "${dueStr}" on row ${i}, skipping due date`);
       }
     }
     if (description) {
