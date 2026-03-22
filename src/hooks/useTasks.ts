@@ -134,6 +134,11 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       // Bail if account switched while processing
       if (syncGenerationRef.current !== generation) return;
 
+      if (op.id === undefined) {
+        logger.warn(`Skipping pending op without id (opType=${op.opType})`);
+        continue;
+      }
+
       let data: Record<string, unknown>;
       try {
         data = JSON.parse(op.data);

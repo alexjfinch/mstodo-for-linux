@@ -660,6 +660,8 @@ export const Sidebar = ({
         <div className="sidebar-footer">
           <div
             className="sidebar-sync-status"
+            aria-live="polite"
+            aria-atomic="true"
             title={
               syncing ? "Syncing…" :
               syncError ? "Last sync failed" :

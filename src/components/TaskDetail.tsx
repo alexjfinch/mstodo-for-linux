@@ -453,6 +453,8 @@ export const TaskDetail = ({
                       <button
                         key={d}
                         className={`calendar-day${isToday ? " calendar-day-today" : ""}${isSel ? " calendar-day-selected" : ""}`}
+                        aria-label={`${d} ${dueDateCalendarMonth.toLocaleString("default", { month: "long" })} ${year}`}
+                        aria-pressed={!!isSel}
                         onClick={() => {
                           onUpdateAttributes(task.id, {
                             dueDateTime: { dateTime: localDateToGraphDate(dayDate), timeZone: "UTC" },

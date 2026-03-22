@@ -379,7 +379,8 @@ export default function App() {
     const unlisteners: (() => void)[] = [];
     listen("tray-sync", () => {
       handleManualSyncRef.current();
-    }).then((fn) => unlisteners.push(fn));
+    }).then((fn) => unlisteners.push(fn))
+      .catch((err) => logger.warn("Failed to register tray-sync listener", String(err)));
     listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string }; categories?: string[] }>(
       "quick-add-task",
       (event) => {
@@ -389,7 +390,8 @@ export default function App() {
         if (categories) attrs.categories = categories;
         addTaskRef.current(title, undefined, Object.keys(attrs).length > 0 ? attrs : undefined);
       }
-    ).then((fn) => unlisteners.push(fn));
+    ).then((fn) => unlisteners.push(fn))
+      .catch((err) => logger.warn("Failed to register quick-add-task listener", String(err)));
     return () => unlisteners.forEach((fn) => fn());
   }, []);
 

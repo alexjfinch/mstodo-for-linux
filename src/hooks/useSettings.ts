@@ -45,7 +45,8 @@ export const useSettings = () => {
         if (savedTaskOrder) setTaskOrder(savedTaskOrder);
         const savedLastMyDayReset = await store.get<string>("lastMyDayReset");
         if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
-      } catch {
+      } catch (err: unknown) {
+        logger.error("Failed to load settings from store", err);
         setSettingsError("Failed to load settings");
       }
       setSettingsLoaded(true);

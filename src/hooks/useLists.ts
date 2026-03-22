@@ -97,6 +97,11 @@ export const useLists = (accessToken: string | null, db: Database | null, active
         // Bail immediately if account switched while processing
         if (syncGenerationRef.current !== generation) return;
 
+        if (op.id === undefined) {
+          logger.warn(`Skipping pending list op without id (opType=${op.opType})`);
+          continue;
+        }
+
         let data: Record<string, unknown>;
         try {
           data = JSON.parse(op.data);
@@ -111,11 +116,11 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           const parentGroupId = data.parentGroupId as string | undefined;
           const created = await createTaskListGraph(displayName, token);
           const withGroup = parentGroupId ? { ...created, parentGroupId } : created;
-          // Update the list ID in DB
+          // Update tasks first so they're never left pointing at a deleted list
+          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, localId]);
+          // Now safe to swap the list record
           await deleteListFromDB(database, localId);
           await saveListToDB(database, withGroup);
-          // Update any tasks that reference the old local list ID
-          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, localId]);
           setLists((prev) => prev.map((l) => (l.id === localId ? withGroup : l)));
           await deletePendingOp(database, op.id!);
         } catch (err) {
