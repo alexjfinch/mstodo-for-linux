@@ -200,15 +200,18 @@ export const useAuth = () => {
         throw new Error("Sign-in failed: your Microsoft account profile does not include a userPrincipalName or email address. Please contact your administrator.");
       }
 
-      // Store tokens in system keyring
-      await storeTokens(accountId, tokenResp.access_token, tokenResp.refresh_token ?? "");
+      // Store tokens in system keyring. Omit refresh token if the response
+      // didn't include one (non-standard OAuth servers) rather than storing "".
+      const refreshToken = tokenResp.refresh_token ?? null;
+      await keyringSet(accountId, "access_token", tokenResp.access_token);
+      if (refreshToken) await keyringSet(accountId, "refresh_token", refreshToken);
 
       const newAccount: StoredAccount = {
         id: accountId,
         displayName: profile.displayName,
         email: profile.mail || profile.userPrincipalName,
         accessToken: tokenResp.access_token,
-        refreshToken: tokenResp.refresh_token ?? "",
+        refreshToken,
       };
 
       const existing = accountsRef.current.filter((a) => a.id !== accountId);

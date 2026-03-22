@@ -180,7 +180,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           }
           // Replay the move: create on target, copy attributes, delete from source
           const created = await createTaskGraph(data.title, data.targetListId, token);
-          const taskData = data.task as unknown as Task | undefined;
+          const taskData = data.task !== null && typeof data.task === "object"
+            ? data.task as Partial<Task>
+            : undefined;
           if (taskData && (taskData.importance !== "normal" || taskData.dueDateTime || taskData.body || taskData.recurrence || taskData.categories?.length)) {
             await updateTaskAttributesGraph(created, {
               importance: taskData.importance,
@@ -502,11 +504,11 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             )
           );
         } else {
-          await queuePendingOp(database, tempId, "create", newTask as unknown as Record<string, unknown>);
+          await queuePendingOp(database, tempId, "create", newTask);
         }
       } else {
         await insertTaskToDB(database, tempId, targetListId, title.trim(), timestamp);
-        await queuePendingOp(database, tempId, "create", newTask as unknown as Record<string, unknown>);
+        await queuePendingOp(database, tempId, "create", newTask);
       }
     } catch (err) {
       logger.error("Failed to add task", err);

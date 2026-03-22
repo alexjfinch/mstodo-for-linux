@@ -270,7 +270,6 @@ export const TaskList = ({
     setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
 
   const handleSetReminder = useCallback((dateTime: string) => {

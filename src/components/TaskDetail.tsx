@@ -579,7 +579,31 @@ export const TaskDetail = ({
               className="task-detail-notes-preview"
               onClick={() => setNotesEditing(true)}
             >
-              {notes ? <Markdown>{notes}</Markdown> : null}
+              {notes ? (
+              <Markdown
+                components={{
+                  // Sanitize links: only allow http/https/mailto hrefs.
+                  // react-markdown does not render raw HTML by default, but
+                  // javascript: and data: hrefs in markdown links still execute.
+                  a: ({ href, children }) => {
+                    const safe =
+                      typeof href === "string" &&
+                      (href.startsWith("https://") ||
+                        href.startsWith("http://") ||
+                        href.startsWith("mailto:"));
+                    return safe ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {children}
+                      </a>
+                    ) : (
+                      <span>{children}</span>
+                    );
+                  },
+                }}
+              >
+                {notes}
+              </Markdown>
+            ) : null}
             </div>
           )}
         </div>

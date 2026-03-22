@@ -194,7 +194,6 @@ export const PlannedView = ({
 
   // Re-compute relative time labels each time the context menu opens and every minute
   // while it stays open, so options remain correct if the menu spans an hour boundary.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
 
   const handleSetReminder = useCallback((dateTime: string) => {

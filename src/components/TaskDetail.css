@@ -226,7 +226,7 @@
 
 .task-detail-notes-toggle button.active {
   background: var(--accent-primary);
-  color: #fff;
+  color: white;
   border-color: var(--accent-primary);
 }
 

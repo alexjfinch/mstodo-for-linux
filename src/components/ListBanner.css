@@ -27,29 +27,45 @@
   background: linear-gradient(135deg, #2e7d32 0%, #388e3c 45%, #66bb6a 100%);
 }
 
-[data-theme="dark"] .list-banner[data-view="my-day"],
-:root:not([data-theme="light"]) .list-banner[data-view="my-day"] {
+[data-theme="dark"] .list-banner[data-view="my-day"] {
   background: linear-gradient(135deg, #bf6900 0%, #c43e00 45%, #a33000 100%);
 }
-[data-theme="dark"] .list-banner[data-view="planned"],
-:root:not([data-theme="light"]) .list-banner[data-view="planned"] {
+[data-theme="dark"] .list-banner[data-view="planned"] {
   background: linear-gradient(135deg, #0d3c7a 0%, #0d47a1 45%, #0277bd 100%);
 }
-[data-theme="dark"] .list-banner[data-view="important"],
-:root:not([data-theme="light"]) .list-banner[data-view="important"] {
+[data-theme="dark"] .list-banner[data-view="important"] {
   background: linear-gradient(135deg, #7f0000 0%, #b71c1c 45%, #bf360c 100%);
 }
-[data-theme="dark"] .list-banner[data-view="assigned-to-me"],
-:root:not([data-theme="light"]) .list-banner[data-view="assigned-to-me"] {
+[data-theme="dark"] .list-banner[data-view="assigned-to-me"] {
   background: linear-gradient(135deg, #1a0050 0%, #4a0072 45%, #6a1080 100%);
 }
-[data-theme="dark"] .list-banner[data-view="flagged-emails"],
-:root:not([data-theme="light"]) .list-banner[data-view="flagged-emails"] {
+[data-theme="dark"] .list-banner[data-view="flagged-emails"] {
   background: linear-gradient(135deg, #003d35 0%, #00574b 45%, #00838f 100%);
 }
-[data-theme="dark"] .list-banner[data-view="tasks"],
-:root:not([data-theme="light"]) .list-banner[data-view="tasks"] {
+[data-theme="dark"] .list-banner[data-view="tasks"] {
   background: linear-gradient(135deg, #1b4d1e 0%, #1e5c22 45%, #2e7d32 100%);
+}
+
+/* Fallback for the brief window before JS sets data-theme (mirrors theme.css pattern). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .list-banner[data-view="my-day"] {
+    background: linear-gradient(135deg, #bf6900 0%, #c43e00 45%, #a33000 100%);
+  }
+  :root:not([data-theme="light"]) .list-banner[data-view="planned"] {
+    background: linear-gradient(135deg, #0d3c7a 0%, #0d47a1 45%, #0277bd 100%);
+  }
+  :root:not([data-theme="light"]) .list-banner[data-view="important"] {
+    background: linear-gradient(135deg, #7f0000 0%, #b71c1c 45%, #bf360c 100%);
+  }
+  :root:not([data-theme="light"]) .list-banner[data-view="assigned-to-me"] {
+    background: linear-gradient(135deg, #1a0050 0%, #4a0072 45%, #6a1080 100%);
+  }
+  :root:not([data-theme="light"]) .list-banner[data-view="flagged-emails"] {
+    background: linear-gradient(135deg, #003d35 0%, #00574b 45%, #00838f 100%);
+  }
+  :root:not([data-theme="light"]) .list-banner[data-view="tasks"] {
+    background: linear-gradient(135deg, #1b4d1e 0%, #1e5c22 45%, #2e7d32 100%);
+  }
 }
 
 .list-banner-content {

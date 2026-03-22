@@ -13,11 +13,10 @@ export interface PendingOperation {
 export const MAX_PENDING_OP_RETRIES = 5;
 
 export async function initializeTables(db: Database): Promise<void> {
-  // Disable FK enforcement — offline task creation may reference local-xxx list IDs
-  // that don't yet exist in the lists table. The app manages referential integrity
-  // at the application level (via sync and pending ops).
-  await db.execute(`PRAGMA foreign_keys = OFF;`);
-
+  // Note: FK enforcement is already enabled by openDatabase(). CREATE TABLE and
+  // CREATE INDEX do not trigger FK checks, so no need to disable it here.
+  // Application-level pending ops handle local-xxx list IDs that may not yet
+  // exist in the lists table.
   await db.execute(`
     CREATE TABLE IF NOT EXISTS lists (
       id TEXT PRIMARY KEY,
@@ -77,10 +76,6 @@ export async function initializeTables(db: Database): Promise<void> {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_tasks_updatedAt ON tasks(updatedAt);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_pendingOps_taskId_opType ON pendingOps(taskId, opType);`);
 
-  // Re-enable FK enforcement now that initial setup is complete.
-  // It was disabled at the top to allow offline-created tasks to reference
-  // local-xxx list IDs that may not yet exist in the lists table.
-  await db.execute(`PRAGMA foreign_keys = ON;`);
 }
 
 /** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
@@ -354,7 +349,7 @@ export async function queuePendingOp(
   db: Database,
   taskId: string | null,
   opType: PendingOperation["opType"],
-  data: Record<string, unknown>
+  data: object
 ): Promise<void> {
   if (taskId && (opType === "update" || opType === "toggle" || opType === "move")) {
     await db.execute(

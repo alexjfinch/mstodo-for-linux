@@ -224,6 +224,11 @@
   background-color: var(--bg-hover);
 }
 
+.calendar-icon-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .date-clear-btn {
   background: none;
   border: none;
@@ -241,6 +246,12 @@
 .date-clear-btn:hover {
   opacity: 1;
   color: var(--danger-color);
+}
+
+.date-clear-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  opacity: 1;
 }
 
 .mini-calendar {
@@ -282,6 +293,11 @@
 
 .calendar-header button:hover {
   background-color: var(--bg-hover);
+}
+
+.calendar-header button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .calendar-header span {
@@ -329,6 +345,11 @@
   background-color: var(--bg-hover);
 }
 
+.calendar-day:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
 .calendar-day-empty {
   cursor: default;
 }
@@ -365,6 +386,11 @@
 
 .task-importance-btn:hover {
   background-color: var(--bg-hover);
+}
+
+.task-importance-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .task-importance-btn.important {
@@ -423,4 +449,9 @@
 .calendar-remove-btn:hover {
   border-color: var(--danger-color);
   color: var(--danger-color);
+}
+
+.calendar-remove-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
