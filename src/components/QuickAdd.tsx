@@ -205,7 +205,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 20px",
     fontSize: "13px",
     fontWeight: 600,
-    background: "#2196F3",
+    background: "var(--accent-primary, #2196F3)",
     color: "#fff",
     border: "none",
     borderRadius: "6px",

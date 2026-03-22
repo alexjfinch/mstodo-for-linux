@@ -370,7 +370,10 @@ export const Sidebar = ({
                 ) : (
                   <span
                     className="sidebar-group-name"
+                    role="button"
+                    tabIndex={0}
                     onDoubleClick={(e) => { e.stopPropagation(); startRenaming(group.id, group.displayName); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === "F2") { e.stopPropagation(); startRenaming(group.id, group.displayName); } }}
                   >
                     {group.displayName}
                   </span>
@@ -434,7 +437,10 @@ export const Sidebar = ({
                         ) : (
                           <span
                             className="sidebar-list-name"
+                            role="button"
+                            tabIndex={0}
                             onDoubleClick={(e) => { e.stopPropagation(); startRenaming(sub.id, sub.displayName); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === "F2") { e.stopPropagation(); startRenaming(sub.id, sub.displayName); } }}
                           >
                             {sub.displayName}
                           </span>
@@ -540,7 +546,10 @@ export const Sidebar = ({
                 ) : (
                   <span
                     className="sidebar-list-name"
+                    role="button"
+                    tabIndex={0}
                     onDoubleClick={(e) => { e.stopPropagation(); startRenaming(list.id, list.displayName); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === "F2") { e.stopPropagation(); startRenaming(list.id, list.displayName); } }}
                   >
                     {list.displayName}
                   </span>

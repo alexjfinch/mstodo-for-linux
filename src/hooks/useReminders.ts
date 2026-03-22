@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Task } from "../types";
+import { logger } from "../services/logger";
 
 export type ReminderTiming = "at_due" | "5min" | "15min" | "30min" | "1hour" | "1day";
 
@@ -106,7 +107,7 @@ export const useReminders = (
         })}`;
 
         invoke("plugin:notification|notify", { options: { title: task.title, body, icon: "mstodo-for-linux" } })
-          .catch((err) => console.warn("Reminder notification failed", err));
+          .catch((err) => logger.warn("Reminder notification failed", String(err)));
 
         setToasts((prev) => [
           ...prev,
@@ -141,7 +142,7 @@ export const useReminders = (
 
         // Desktop notification
         invoke("plugin:notification|notify", { options: { title: task.title, body, icon: "mstodo-for-linux" } })
-          .catch((err) => console.warn("Due-date notification failed", err));
+          .catch((err) => logger.warn("Due-date notification failed", String(err)));
 
         // In-app toast
         setToasts((prev) => [

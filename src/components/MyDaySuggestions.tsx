@@ -158,6 +158,7 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
                 <button
                   className="myday-suggestion-add"
                   onClick={() => onAddToMyDay(task.id)}
+                  aria-label={`Add "${task.title}" to My Day`}
                   title="Add to My Day"
                 >
                   +
@@ -165,6 +166,7 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
                 <button
                   className="myday-suggestion-dismiss"
                   onClick={() => setDismissed((prev) => new Set(prev).add(task.id))}
+                  aria-label={`Dismiss suggestion for "${task.title}"`}
                   title="Dismiss"
                 >
                   ×

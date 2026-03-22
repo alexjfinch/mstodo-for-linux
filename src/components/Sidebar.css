@@ -329,9 +329,9 @@
   flex-shrink: 0;
 }
 
-.sync-dot.online  { background: #22c55e; }
-.sync-dot.offline { background: #ef4444; }
-.sync-dot.error   { background: #f59e0b; }
+.sync-dot.online  { background: var(--status-online,  #22c55e); }
+.sync-dot.offline { background: var(--status-offline, #ef4444); }
+.sync-dot.error   { background: var(--status-error,   #f59e0b); }
 
 .sync-icon {
   font-size: 1rem;

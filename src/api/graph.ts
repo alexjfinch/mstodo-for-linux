@@ -491,7 +491,7 @@ export async function updateTaskAttributes(
 
   const body: GraphTaskPatchBody = {};
 
-  if ("title" in updates && updates.title) body.title = updates.title;
+  if ("title" in updates && updates.title && updates.title.trim().length > 0) body.title = updates.title;
 
   // My Day: managed via #MyDay tag in body (see comment on mapGraphTask)
   if (updates.isInMyDay !== undefined) {

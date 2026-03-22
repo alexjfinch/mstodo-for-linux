@@ -25,67 +25,78 @@ export const useSettings = () => {
   // Load all persisted settings on mount
   useEffect(() => {
     (async () => {
-      const { Store } = await import("@tauri-apps/plugin-store");
-      const store = await Store.load("settings.json");
-      const enabled = await store.get<boolean>("remindersEnabled");
-      const timing = await store.get<ReminderTiming>("reminderTiming");
-      if (enabled !== null && enabled !== undefined) setRemindersEnabled(enabled);
-      if (timing) setReminderTiming(timing);
+      try {
+        const { Store } = await import("@tauri-apps/plugin-store");
+        const store = await Store.load("settings.json");
+        const enabled = await store.get<boolean>("remindersEnabled");
+        const timing = await store.get<ReminderTiming>("reminderTiming");
+        if (enabled !== null && enabled !== undefined) setRemindersEnabled(enabled);
+        if (timing) setReminderTiming(timing);
 
-      const savedTheme = await store.get<"light" | "dark" | "system">("theme");
-      if (savedTheme) setTheme(savedTheme);
-      const savedFontSize = await store.get<"small" | "normal" | "large">("fontSize");
-      if (savedFontSize) setFontSize(savedFontSize);
-      const savedCompact = await store.get<boolean>("compactMode");
-      if (savedCompact !== null && savedCompact !== undefined) setCompactMode(savedCompact);
-      const savedSyncInterval = await store.get<number>("syncInterval");
-      if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
-      const savedTaskOrder = await store.get<Record<string, string[]>>("taskOrder");
-      if (savedTaskOrder) setTaskOrder(savedTaskOrder);
-      const savedLastMyDayReset = await store.get<string>("lastMyDayReset");
-      if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
+        const savedTheme = await store.get<"light" | "dark" | "system">("theme");
+        if (savedTheme) setTheme(savedTheme);
+        const savedFontSize = await store.get<"small" | "normal" | "large">("fontSize");
+        if (savedFontSize) setFontSize(savedFontSize);
+        const savedCompact = await store.get<boolean>("compactMode");
+        if (savedCompact !== null && savedCompact !== undefined) setCompactMode(savedCompact);
+        const savedSyncInterval = await store.get<number>("syncInterval");
+        if (savedSyncInterval !== null && savedSyncInterval !== undefined) setSyncInterval(savedSyncInterval);
+        const savedTaskOrder = await store.get<Record<string, string[]>>("taskOrder");
+        if (savedTaskOrder) setTaskOrder(savedTaskOrder);
+        const savedLastMyDayReset = await store.get<string>("lastMyDayReset");
+        if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
+      } catch {
+        setSettingsError("Failed to load settings");
+      }
       setSettingsLoaded(true);
     })();
   }, []);
 
   const handleRemindersEnabledChange = useCallback(async (enabled: boolean) => {
     setRemindersEnabled(enabled);
+    setSettingsError(null);
     try { await persistSetting("remindersEnabled", enabled); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleReminderTimingChange = useCallback(async (timing: ReminderTiming) => {
     setReminderTiming(timing);
+    setSettingsError(null);
     try { await persistSetting("reminderTiming", timing); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleThemeChange = useCallback(async (t: "light" | "dark" | "system") => {
     setTheme(t);
+    setSettingsError(null);
     try { await persistSetting("theme", t); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleFontSizeChange = useCallback(async (s: "small" | "normal" | "large") => {
     setFontSize(s);
+    setSettingsError(null);
     try { await persistSetting("fontSize", s); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleCompactModeChange = useCallback(async (c: boolean) => {
     setCompactMode(c);
+    setSettingsError(null);
     try { await persistSetting("compactMode", c); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleSyncIntervalChange = useCallback(async (interval: number) => {
     setSyncInterval(interval);
+    setSettingsError(null);
     try { await persistSetting("syncInterval", interval); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
   const handleMyDayReset = useCallback(async (date: string) => {
     setLastMyDayReset(date);
+    setSettingsError(null);
     try { await persistSetting("lastMyDayReset", date); }
     catch { setSettingsError("Failed to save setting"); }
   }, []);
