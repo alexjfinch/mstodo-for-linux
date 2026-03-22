@@ -649,7 +649,7 @@ export const TaskDetail = ({
                   {DAYS_OF_WEEK.map((day, i) => (
                     <button
                       key={day}
-                      className={`recurrence-day-btn${(task.recurrence!.pattern.daysOfWeek || []).includes(day) ? " active" : ""}`}
+                      className={`recurrence-day-btn${(task.recurrence?.pattern.daysOfWeek ?? []).includes(day) ? " active" : ""}`}
                       onClick={() => handleToggleDayOfWeek(day)}
                     >
                       {DAY_LABELS[i]}

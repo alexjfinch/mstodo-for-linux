@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Task } from "../types";
+import axios from "axios";
 import Database from "@tauri-apps/plugin-sql";
 import {
   createTask as createTaskGraph,
@@ -291,8 +292,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         // Propagate cancellation so the outer catch's generation check can handle it cleanly
         if (signal.aborted) throw err;
         // Delta token expired or invalid — clear tokens and do a full sync
-        const errWithResponse = err as { response?: { status: number } };
-        if (errWithResponse?.response?.status === 410) {
+        if (axios.isAxiosError(err) && err.response?.status === 410) {
           logger.warn("Delta token expired, performing full sync");
           await clearDeltaTokens(database);
           const [delta, assignedTasks] = await Promise.all([

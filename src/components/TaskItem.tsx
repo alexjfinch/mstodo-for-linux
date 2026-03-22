@@ -347,6 +347,7 @@ export const TaskItem = ({
               onBlur={handleDateInputBlur}
               onKeyDown={handleDateInputKeyDown}
               placeholder="e.g., 20/01/2025, 2025-01-20, tomorrow"
+              aria-label="Due date"
             />
           </div>
         ) : (
@@ -408,6 +409,8 @@ export const TaskItem = ({
             task.importance === "high" ? "important" : ""
           }`}
           onClick={onToggleImportance}
+          aria-label={task.importance === "high" ? "Unmark important" : "Mark important"}
+          aria-pressed={task.importance === "high"}
         >
           <span className="importance-star">
             {task.importance === "high" ? "★" : "☆"}

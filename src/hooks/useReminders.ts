@@ -89,10 +89,10 @@ export const useReminders = (
 
       // Fire explicit reminder notifications
       for (const task of reminderTasks) {
-        const key = `reminder-${task.id}-${task.reminderDateTime!.dateTime}`;
+        const key = `reminder-${task.id}-${task.reminderDateTime?.dateTime}`;
         notifiedRef.current.add(key);
 
-        const reminderDate = new Date(task.reminderDateTime!.dateTime);
+        const reminderDate = new Date(task.reminderDateTime?.dateTime ?? "");
         const body = `Reminder — ${reminderDate.toLocaleDateString(undefined, {
           weekday: "short",
           month: "short",
@@ -120,10 +120,10 @@ export const useReminders = (
 
       // Fire due-date notifications
       for (const task of dueTasks) {
-        const key = `${task.id}-${task.dueDateTime!.dateTime}`;
+        const key = `${task.id}-${task.dueDateTime?.dateTime}`;
         notifiedRef.current.add(key);
 
-        const dueDate = new Date(task.dueDateTime!.dateTime);
+        const dueDate = new Date(task.dueDateTime?.dateTime ?? "");
         const isOverdue = now > dueDate.getTime();
         const dueDateStr = dueDate.toLocaleDateString(undefined, {
           weekday: "short",
