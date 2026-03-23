@@ -162,7 +162,7 @@ export const useAuth = () => {
       // Only sign out on permanent failures (invalid_grant, interaction_required).
       // Transient errors (network timeouts, 5xx) should not force re-authentication.
       const errMsg = err instanceof Error ? err.message : String(err);
-      const isPermanent = /invalid_grant|interaction_required|invalid_client|unauthorized_client|consent_required/.test(errMsg);
+      const isPermanent = /invalid_grant|interaction_required|invalid_client|unauthorized_client|consent_required/i.test(errMsg);
       consecutiveRefreshFailuresRef.current++;
       if (isPermanent || consecutiveRefreshFailuresRef.current >= 5) {
         if (!isPermanent) {

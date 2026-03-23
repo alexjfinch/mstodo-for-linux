@@ -115,9 +115,9 @@ export const useSettings = () => {
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
     setTaskOrder((prev) => {
       const next = { ...prev, [activeList]: reorderedIds };
-      // Best-effort persistence (fire-and-forget, outside of setState)
       persistSetting("taskOrder", next).catch((err: unknown) => {
         logger.error("Failed to persist taskOrder setting", String(err));
+        setSettingsError("Failed to save task order");
       });
       return next;
     });

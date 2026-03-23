@@ -24,14 +24,6 @@ export const CustomSelect = ({ options, value, onChange, className }: Props) => 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Reset focused index when opening the menu
-  useEffect(() => {
-    if (open) {
-      const idx = options.findIndex((o) => o.value === value);
-      setFocusedIndex(idx >= 0 ? idx : 0);
-    }
-  }, [open, options, value]);
-
   // Scroll focused option into view
   useEffect(() => {
     if (!open || focusedIndex < 0) return;
@@ -41,11 +33,19 @@ export const CustomSelect = ({ options, value, onChange, className }: Props) => 
     item?.scrollIntoView?.({ block: "nearest" });
   }, [open, focusedIndex]);
 
+  // Open the menu and initialise keyboard focus to the currently selected option.
+  // Centralised here so both click and keyboard open paths are consistent.
+  const openMenu = useCallback(() => {
+    const idx = options.findIndex((o) => o.value === value);
+    setFocusedIndex(idx >= 0 ? idx : 0);
+    setOpen(true);
+  }, [options, value]);
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!open) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        setOpen(true);
+        openMenu();
       }
       return;
     }
@@ -80,18 +80,24 @@ export const CustomSelect = ({ options, value, onChange, className }: Props) => 
         setFocusedIndex(options.length - 1);
         break;
     }
-  }, [open, focusedIndex, options, onChange]);
+  }, [open, focusedIndex, options, onChange, openMenu]);
 
   const selected = options.find((o) => o.value === value);
 
   return (
-    <div className={`custom-select${className ? ` ${className}` : ""}`} ref={ref} onKeyDown={handleKeyDown}>
+    <div
+      className={`custom-select${className ? ` ${className}` : ""}`}
+      ref={ref}
+      onKeyDown={handleKeyDown}
+      role="combobox"
+      aria-expanded={open}
+      aria-haspopup="listbox"
+    >
       <button
         className="custom-select-trigger"
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        onClick={(e) => { e.stopPropagation(); if (open) setOpen(false); else openMenu(); }}
         type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
+        aria-label={`${selected?.label ?? ""}; activate to change`}
       >
         <span>{selected?.label ?? ""}</span>
         <span className="custom-select-arrow">{open ? "\u25B2" : "\u25BC"}</span>

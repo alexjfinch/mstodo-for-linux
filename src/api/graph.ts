@@ -101,12 +101,33 @@ export function setTokenRefreshCallback(cb: (() => Promise<string>) | null) {
   tokenRefreshCallback = cb;
 }
 
-/** Strip the Authorization header from an Axios error config before it reaches logs. */
+/** Strip auth tokens from an Axios error before it reaches logs. */
 function sanitizeAxiosError(err: unknown): unknown {
-  if (err && typeof err === "object" && "config" in err) {
-    const axiosErr = err as { config?: { headers?: Record<string, unknown> } };
-    if (axiosErr.config?.headers) {
-      delete axiosErr.config.headers["Authorization"];
+  if (err && typeof err === "object") {
+    if ("config" in err) {
+      const axiosErr = err as { config?: { headers?: Record<string, unknown> } };
+      if (axiosErr.config?.headers) {
+        delete axiosErr.config.headers["Authorization"];
+      }
+    }
+    // Also scrub any bearer token that leaked into the response body or message
+    if ("response" in err) {
+      const withResp = err as { response?: { data?: unknown } };
+      if (typeof withResp.response?.data === "string") {
+        withResp.response.data = withResp.response.data.replace(
+          /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+          "Bearer [REDACTED]"
+        );
+      }
+    }
+    if ("message" in err) {
+      const withMsg = err as { message?: string };
+      if (typeof withMsg.message === "string") {
+        withMsg.message = withMsg.message.replace(
+          /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+          "Bearer [REDACTED]"
+        );
+      }
     }
   }
   return err;

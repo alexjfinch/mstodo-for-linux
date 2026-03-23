@@ -17,10 +17,12 @@ async function probeNetwork(): Promise<boolean> {
       method: "HEAD",
       signal: controller.signal,
       cache: "no-store",
+      // HEAD requests transfer no body, keeping the connectivity probe lightweight
     });
     clearTimeout(timer);
-    // Any HTTP response (even 4xx/5xx) means the network is reachable
-    return resp.status > 0;
+    // A 2xx/3xx response confirms the network and Graph endpoint are reachable.
+    // 4xx/5xx responses are server errors, not network reachability.
+    return resp.ok;
   } catch {
     return false;
   }

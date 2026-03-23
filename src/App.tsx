@@ -210,6 +210,12 @@ export default function App() {
 
   const handleCloseDetail = useCallback(() => setDetailTaskId(null), []);
 
+  // If the task open in the detail panel is deleted externally (e.g. via sync),
+  // clear the stale ID so the panel closes cleanly.
+  useEffect(() => {
+    if (detailTaskId && !detailTask) setDetailTaskId(null);
+  }, [detailTask, detailTaskId]);
+
   const handleManualSync = useCallback(async () => {
     await Promise.all([syncWithGraph(), syncLists()]);
   }, [syncWithGraph, syncLists]);
@@ -387,14 +393,14 @@ export default function App() {
   useEffect(() => { handleManualSyncRef.current = handleManualSync; }, [handleManualSync]);
   useEffect(() => { addTaskRef.current = addTask; }, [addTask]);
 
-  // Listen for tray and quick-add events (subscribe once, use refs to avoid leak)
+  // Listen for tray and quick-add events (subscribe once, use refs to avoid leak).
+  // Store the promise directly so cleanup can await it even if it resolves after
+  // the effect teardown runs (avoids the listener leaking on fast unmounts).
   useEffect(() => {
-    const unlisteners: (() => void)[] = [];
-    listen("tray-sync", () => {
-      handleManualSyncRef.current();
-    }).then((fn) => unlisteners.push(fn))
-      .catch((err) => logger.warn("Failed to register tray-sync listener", String(err)));
-    listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string }; categories?: string[] }>(
+    const p1 = listen("tray-sync", () => handleManualSyncRef.current()).catch(
+      (err) => { logger.warn("Failed to register tray-sync listener", String(err)); return null; }
+    );
+    const p2 = listen<{ title: string; dueDateTime?: { dateTime: string; timeZone: string }; categories?: string[] }>(
       "quick-add-task",
       (event) => {
         const { title, dueDateTime, categories } = event.payload;
@@ -403,9 +409,13 @@ export default function App() {
         if (categories) attrs.categories = categories;
         addTaskRef.current(title, undefined, Object.keys(attrs).length > 0 ? attrs : undefined);
       }
-    ).then((fn) => unlisteners.push(fn))
-      .catch((err) => logger.warn("Failed to register quick-add-task listener", String(err)));
-    return () => unlisteners.forEach((fn) => fn());
+    ).catch(
+      (err) => { logger.warn("Failed to register quick-add-task listener", String(err)); return null; }
+    );
+    return () => {
+      p1.then((fn) => fn?.());
+      p2.then((fn) => fn?.());
+    };
   }, []);
 
   const handleCreateList = async (name: string) => {
@@ -670,8 +680,9 @@ export default function App() {
                 if (activeList === "My Day") viewAttributes.isInMyDay = true;
                 if (activeList === "Important") viewAttributes.importance = "high";
                 if (parsed.dueDateTime) viewAttributes.dueDateTime = parsed.dueDateTime;
-                // Extract #hashtags as categories
-                const hashtagRegex = /#([\w-]+)/g;
+                // Extract #hashtags as categories — require # to follow whitespace or be at
+                // the start of the string to avoid matching mid-word (e.g. "task-#tag").
+                const hashtagRegex = /(?:^|\s)#([\w-]+)/g;
                 const hashtags: string[] = [];
                 let match;
                 let cleanTitle = parsed.title;
@@ -679,7 +690,7 @@ export default function App() {
                   if (match[1] !== "MyDay") hashtags.push(match[1]);
                 }
                 if (hashtags.length > 0) {
-                  cleanTitle = cleanTitle.replace(/#[\w-]+/g, "").replace(/\s+/g, " ").trim();
+                  cleanTitle = cleanTitle.replace(/(?:^|\s)#[\w-]+/g, " ").replace(/\s+/g, " ").trim();
                   viewAttributes.categories = hashtags;
                 }
                 addTask(cleanTitle || parsed.title, undefined, Object.keys(viewAttributes).length > 0 ? viewAttributes : undefined);

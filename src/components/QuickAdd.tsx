@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -45,8 +45,20 @@ function applyTheme(theme: string) {
 
 export const QuickAdd = () => {
   const [value, setValue] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const preview = useMemo<string | null>(() => {
+    if (!value.trim()) return null;
+    const parsed = parseTaskInput(value);
+    if (!parsed.dueDateTime) return null;
+    const d = new Date(parsed.dueDateTime.dateTime);
+    const dateStr = d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    return `"${parsed.title}" due ${dateStr}`;
+  }, [value]);
 
   // Query system theme on mount and listen for live changes
   useEffect(() => {
@@ -65,26 +77,6 @@ export const QuickAdd = () => {
       unlistenFn?.();
     };
   }, []);
-
-  // Parse date preview as user types
-  useEffect(() => {
-    if (!value.trim()) {
-      setPreview(null);
-      return;
-    }
-    const parsed = parseTaskInput(value);
-    if (parsed.dueDateTime) {
-      const d = new Date(parsed.dueDateTime.dateTime);
-      const dateStr = d.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
-      setPreview(`"${parsed.title}" due ${dateStr}`);
-    } else {
-      setPreview(null);
-    }
-  }, [value]);
 
   const handleSubmit = async () => {
     if (!value.trim()) return;

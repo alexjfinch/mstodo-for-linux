@@ -502,12 +502,21 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               logger.warn("Failed to set task attributes", attrErr);
             }
           }
-          await updateTaskId(database, tempId, created.id, Date.now());
-          setTasks((prev) =>
-            prev.map((t) =>
-              t.id === tempId ? { ...created, ...attributes, lastModified: Date.now() } : t
-            )
-          );
+          try {
+            await updateTaskId(database, tempId, created.id, Date.now());
+            setTasks((prev) =>
+              prev.map((t) =>
+                t.id === tempId ? { ...created, ...attributes, lastModified: Date.now() } : t
+              )
+            );
+          } catch (idErr) {
+            // DB record still has tempId; queue a pending op so the next sync
+            // will reconcile the local record with the server-created task.
+            logger.warn("Failed to update task ID in DB — queuing pending op", idErr);
+            await queuePendingOp(database, tempId, "create", newTask).catch((qErr) => {
+              logger.error("Failed to queue pending op after ID update failure", qErr);
+            });
+          }
         } else {
           await queuePendingOp(database, tempId, "create", newTask);
         }

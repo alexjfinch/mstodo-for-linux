@@ -86,7 +86,12 @@ export async function pickImportFile(): Promise<{ name: string; content: string 
   } catch {
     throw new Error("Failed to decode file content (invalid base64 from backend).");
   }
-  const content = new TextDecoder("utf-8").decode(bytes);
+  let content: string;
+  try {
+    content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error("File is not valid UTF-8 text.");
+  }
   return { name: result.name, content };
 }
 

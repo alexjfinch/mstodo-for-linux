@@ -280,6 +280,14 @@ export const TaskItem = ({
       }${isDragOver ? " drag-over" : ""}${isOverdue ? " overdue" : ""}`}
       onContextMenu={onRightClick}
       onClick={onToggleSelection}
+      onKeyDown={(e) => {
+        // Shift+F10 or the ContextMenu key opens the context menu via keyboard
+        if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
+          e.preventDefault();
+          onRightClick(e as unknown as React.MouseEvent);
+        }
+      }}
+      tabIndex={0}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
