@@ -83,6 +83,7 @@ type Props = {
   onReorderTasks?: (reorderedIds: string[]) => void;
   showListBadge?: boolean;
   defaultListId?: string;
+  weekStartDay?: 0 | 1 | 6;
 };
 
 export const TaskList = ({
@@ -99,6 +100,7 @@ export const TaskList = ({
   onReorderTasks,
   showListBadge,
   defaultListId,
+  weekStartDay = 1,
 }: Props) => {
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -408,6 +410,7 @@ export const TaskList = ({
       onDrop={draggable ? (e) => handleDrop(e, task.id) : undefined}
       onDragEnd={draggable ? handleDragEnd : undefined}
       listName={taskListNames.get(task.id)}
+      weekStartDay={weekStartDay}
     />
   );
 

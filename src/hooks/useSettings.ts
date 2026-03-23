@@ -19,6 +19,7 @@ export const useSettings = () => {
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const [lastMyDayReset, setLastMyDayReset] = useState<string | null>(null);
+  const [weekStartDay, setWeekStartDay] = useState<0 | 1 | 6>(1);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -45,6 +46,8 @@ export const useSettings = () => {
         if (savedTaskOrder) setTaskOrder(savedTaskOrder);
         const savedLastMyDayReset = await store.get<string>("lastMyDayReset");
         if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
+        const savedWeekStartDay = await store.get<0 | 1 | 6>("weekStartDay");
+        if (savedWeekStartDay !== null && savedWeekStartDay !== undefined) setWeekStartDay(savedWeekStartDay);
       } catch (err: unknown) {
         logger.error("Failed to load settings from store", err);
         setSettingsError("Failed to load settings");
@@ -102,6 +105,13 @@ export const useSettings = () => {
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
+  const handleWeekStartDayChange = useCallback(async (day: 0 | 1 | 6) => {
+    setWeekStartDay(day);
+    setSettingsError(null);
+    try { await persistSetting("weekStartDay", day); }
+    catch { setSettingsError("Failed to save setting"); }
+  }, []);
+
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
     setTaskOrder((prev) => {
       const next = { ...prev, [activeList]: reorderedIds };
@@ -130,6 +140,8 @@ export const useSettings = () => {
     handleReorderTasks,
     lastMyDayReset,
     handleMyDayReset,
+    weekStartDay,
+    handleWeekStartDayChange,
     settingsLoaded,
     settingsError,
   };

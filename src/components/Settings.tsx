@@ -30,6 +30,8 @@ type Props = {
   onRemindersEnabledChange: (enabled: boolean) => void;
   reminderTiming: ReminderTiming;
   onReminderTimingChange: (timing: ReminderTiming) => void;
+  weekStartDay: 0 | 1 | 6;
+  onWeekStartDayChange: (day: 0 | 1 | 6) => void;
   isOnline: boolean;
   syncing: boolean;
   syncError: string | null;
@@ -85,6 +87,8 @@ export const Settings = ({
   onRemindersEnabledChange,
   reminderTiming,
   onReminderTimingChange,
+  weekStartDay,
+  onWeekStartDayChange,
   isOnline,
   syncing,
   syncError,
@@ -183,6 +187,28 @@ export const Settings = ({
               >
                 <span className="settings-toggle-knob" />
               </button>
+            </div>
+
+            <div className="settings-item">
+              <div className="settings-item-info">
+                <div className="settings-item-label">Week Starts On</div>
+                <div className="settings-item-description">Choose the first day of the week in calendars</div>
+              </div>
+              <div className="settings-button-group">
+                {([
+                  { value: 1, label: "Monday" },
+                  { value: 0, label: "Sunday" },
+                  { value: 6, label: "Saturday" },
+                ] as const).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    className={`settings-option-btn${weekStartDay === value ? " active" : ""}`}
+                    onClick={() => onWeekStartDayChange(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="settings-item">

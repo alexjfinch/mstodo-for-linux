@@ -54,6 +54,7 @@ type Props = {
   onToggleSelection: (id: string, shiftKey: boolean) => void;
   onClearSelection: () => void;
   onOpenDetail: (id: string) => void;
+  weekStartDay?: 0 | 1 | 6;
 };
 
 type DateSection = {
@@ -73,6 +74,7 @@ export const PlannedView = ({
   onToggleSelection,
   onClearSelection,
   onOpenDetail,
+  weekStartDay = 1,
 }: Props) => {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{
@@ -311,6 +313,7 @@ export const PlannedView = ({
       onToggleImportance={() => handleToggleImportance(task.id)}
       onUpdateDueDate={(date) => handleUpdateDueDate(task.id, date)}
       onRightClick={(e) => handleRightClick(e, task.id)}
+      weekStartDay={weekStartDay}
     />
   );
 

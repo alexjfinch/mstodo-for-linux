@@ -51,7 +51,8 @@ export default function App() {
     handleThemeChange, handleFontSizeChange, handleCompactModeChange,
     handleSyncIntervalChange, handleRemindersEnabledChange,
     handleReminderTimingChange, handleReorderTasks: reorderTasks,
-    lastMyDayReset, handleMyDayReset, settingsLoaded, settingsError,
+    lastMyDayReset, handleMyDayReset, weekStartDay, handleWeekStartDayChange,
+    settingsLoaded, settingsError,
   } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -514,6 +515,8 @@ export default function App() {
             onRemindersEnabledChange={handleRemindersEnabledChange}
             reminderTiming={reminderTiming}
             onReminderTimingChange={handleReminderTimingChange}
+            weekStartDay={weekStartDay}
+            onWeekStartDayChange={handleWeekStartDayChange}
             isOnline={isOnline}
             syncing={syncing}
             syncError={syncError}
@@ -586,6 +589,7 @@ export default function App() {
               onToggleSelection={handleToggleSelection}
               onClearSelection={handleClearSelection}
               onOpenDetail={handleOpenDetail}
+              weekStartDay={weekStartDay}
             />
           ) : activeList === "My Day" ? (
             <div
@@ -626,6 +630,7 @@ export default function App() {
                   onReorderTasks={handleReorderTasks}
                   showListBadge={false}
                   defaultListId={currentListId || undefined}
+                  weekStartDay={weekStartDay}
                 />
               </div>
               <MyDaySuggestions
@@ -649,6 +654,7 @@ export default function App() {
                 onReorderTasks={handleReorderTasks}
                 showListBadge={activeList === "Tasks"}
                 defaultListId={currentListId || undefined}
+                weekStartDay={weekStartDay}
               />
             </div>
           )}
@@ -694,6 +700,7 @@ export default function App() {
               onUpdateAttributes={updateAttributes}
               onToggleComplete={toggleTask}
               onDeleteTask={deleteTask}
+              weekStartDay={weekStartDay}
             />
           </ComponentBoundary>
         </div>

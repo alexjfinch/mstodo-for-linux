@@ -12,6 +12,7 @@ type Props = {
   onToggleImportance: () => void;
   onUpdateDueDate: (date: string | undefined) => void;
   onRightClick: (e: React.MouseEvent) => void;
+  weekStartDay?: 0 | 1 | 6;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -30,6 +31,7 @@ export const TaskItem = ({
   onToggleImportance,
   onUpdateDueDate,
   onRightClick,
+  weekStartDay = 1,
   draggable,
   onDragStart,
   onDragOver,
@@ -188,10 +190,10 @@ export const TaskItem = ({
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    const offset = (firstDay.getDay() - weekStartDay + 7) % 7;
 
     const days: (number | null)[] = [];
-    for (let i = 0; i < startingDayOfWeek; i++) {
+    for (let i = 0; i < offset; i++) {
       days.push(null);
     }
     for (let i = 1; i <= daysInMonth; i++) {
@@ -227,13 +229,10 @@ export const TaskItem = ({
         </div>
 
         <div className="calendar-weekdays">
-          <div>Su</div>
-          <div>Mo</div>
-          <div>Tu</div>
-          <div>We</div>
-          <div>Th</div>
-          <div>Fr</div>
-          <div>Sa</div>
+          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+            .slice(weekStartDay)
+            .concat(["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].slice(0, weekStartDay))
+            .map((d) => <div key={d}>{d}</div>)}
         </div>
 
         <div className="calendar-days">

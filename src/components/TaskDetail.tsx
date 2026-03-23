@@ -24,6 +24,7 @@ type Props = {
   onUpdateAttributes: (id: string, updates: Partial<Task>) => Promise<void>;
   onToggleComplete: (id: string) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
+  weekStartDay?: 0 | 1 | 6;
 };
 
 function recurrenceToOption(r?: Recurrence): string {
@@ -83,6 +84,7 @@ export const TaskDetail = ({
   onUpdateAttributes,
   onToggleComplete,
   onDeleteTask,
+  weekStartDay = 1,
 }: Props) => {
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(cleanNotes(task.body));
@@ -433,18 +435,21 @@ export const TaskDetail = ({
                 <button aria-label="Next month" onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() + 1, 1))}>›</button>
               </div>
               <div className="calendar-weekdays">
-                <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+                  .slice(weekStartDay)
+                  .concat(["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].slice(0, weekStartDay))
+                  .map((d) => <div key={d}>{d}</div>)}
               </div>
               <div className="calendar-days">
                 {(() => {
                   const year = dueDateCalendarMonth.getFullYear();
                   const month = dueDateCalendarMonth.getMonth();
-                  const firstDay = new Date(year, month, 1).getDay();
+                  const offset = (new Date(year, month, 1).getDay() - weekStartDay + 7) % 7;
                   const daysInMonth = new Date(year, month + 1, 0).getDate();
                   const today = new Date();
                   const selected = task.dueDateTime ? new Date(task.dueDateTime.dateTime) : null;
                   const cells: React.ReactNode[] = [];
-                  for (let i = 0; i < firstDay; i++) cells.push(<div key={`e-${i}`} className="calendar-day calendar-day-empty" />);
+                  for (let i = 0; i < offset; i++) cells.push(<div key={`e-${i}`} className="calendar-day calendar-day-empty" />);
                   for (let d = 1; d <= daysInMonth; d++) {
                     const dayDate = new Date(year, month, d);
                     const isToday = dayDate.toDateString() === today.toDateString();
