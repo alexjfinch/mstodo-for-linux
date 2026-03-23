@@ -14,7 +14,7 @@ async function probeNetwork(): Promise<boolean> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PING_TIMEOUT);
     const resp = await fetch(PING_URL, {
-      method: "GET",
+      method: "HEAD",
       signal: controller.signal,
       cache: "no-store",
     });

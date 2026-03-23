@@ -436,24 +436,28 @@ export async function clearMyDayFlags(db: Database): Promise<void> {
 
 /**
  * Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching.
- * Deduplicated: if multiple hooks call this concurrently (useTasks + useLists),
- * only the first call actually runs; subsequent calls await the same promise.
+ * Deduplicated per Database instance: if multiple hooks call this concurrently
+ * (useTasks + useLists), only the first call actually runs; subsequent calls
+ * await the same promise. Using a WeakMap keyed on the db instance ensures
+ * multiple Database instances (e.g. in tests) don't share the same in-flight slot.
  */
-let clearInFlight: Promise<void> | null = null;
+const clearInFlightMap = new WeakMap<Database, Promise<void>>();
 
 export function clearAllData(db: Database): Promise<void> {
-  if (clearInFlight) return clearInFlight;
+  const existing = clearInFlightMap.get(db);
+  if (existing) return existing;
 
-  clearInFlight = (async () => {
+  const promise = (async () => {
     try {
       await db.execute("DELETE FROM tasks");
       await db.execute("DELETE FROM lists");
       await db.execute("DELETE FROM deltaTokens");
       await db.execute("DELETE FROM pendingOps");
     } finally {
-      clearInFlight = null;
+      clearInFlightMap.delete(db);
     }
   })();
 
-  return clearInFlight;
+  clearInFlightMap.set(db, promise);
+  return promise;
 }

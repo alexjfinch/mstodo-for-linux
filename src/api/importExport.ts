@@ -13,6 +13,8 @@ export interface ExportData {
 export interface ImportResult {
   tasks: Omit<Task, "id">[];
   count: number;
+  /** Number of tasks whose due date could not be parsed and was silently dropped. */
+  skippedDates?: number;
 }
 
 export function buildJsonExport(tasks: Task[], lists: TaskList[]): string {
@@ -141,6 +143,7 @@ export function importFromTodoistCsv(content: string): ImportResult {
   if (contentIdx === -1) throw new Error("Invalid Todoist CSV: missing CONTENT column.");
 
   const tasks: Omit<Task, "id">[] = [];
+  let skippedDates = 0;
   for (let i = 1; i < lines.length; i++) {
     const row = lines[i];
     const type = typeIdx >= 0 ? (row[typeIdx] || "").toLowerCase() : "task";
@@ -176,6 +179,7 @@ export function importFromTodoistCsv(content: string): ImportResult {
         task.dueDateTime = { dateTime: due.toISOString(), timeZone: "UTC" };
       } else {
         logger.warn(`Todoist CSV import: unparseable date "${dueStr}" on row ${i}, skipping due date`);
+        skippedDates++;
       }
     }
     if (description) {
@@ -185,7 +189,7 @@ export function importFromTodoistCsv(content: string): ImportResult {
     tasks.push(task);
   }
 
-  return { tasks, count: tasks.length };
+  return { tasks, count: tasks.length, skippedDates: skippedDates > 0 ? skippedDates : undefined };
 }
 
 export function importFromEvernoteEnex(content: string): ImportResult {

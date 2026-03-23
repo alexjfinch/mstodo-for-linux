@@ -22,23 +22,15 @@ import { useLists } from "./hooks/useLists";
 import { useFilteredTasks } from "./hooks/useFilteredTasks";
 import { useReminders } from "./hooks/useReminders";
 import { useSettings } from "./hooks/useSettings";
+import { useSelection } from "./hooks/useSelection";
+import { useImportExport } from "./hooks/useImportExport";
+import { useTraySync } from "./hooks/useTraySync";
 import { ToastContainer } from "./components/ToastContainer";
 import { ComponentBoundary } from "./components/ComponentBoundary";
 import { ListBanner, SPECIAL_LISTS } from "./components/ListBanner";
 import { MyDaySuggestions } from "./components/MyDaySuggestions";
 import { fetchUserProfile } from "./api/graph";
 import { logger } from "./services/logger";
-import {
-  buildJsonExport,
-  buildCsvExport,
-  downloadTextFile,
-  pickImportFile,
-  importFromJson,
-  importFromTodoistCsv,
-  importFromEvernoteEnex,
-  importFromGenericCsv,
-  ImportResult,
-} from "./api/importExport";
 
 export default function App() {
   const {
@@ -63,11 +55,9 @@ export default function App() {
   } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
@@ -230,6 +220,28 @@ export default function App() {
     }
     return lists.find(l => l.id === activeList)?.displayName ?? "Unknown List";
   }, [activeList, lists]);
+
+  const {
+    selectedTasks,
+    setSelectedTasks,
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    handleClearSelection,
+    handleToggleSelection,
+    handleBulkComplete,
+    handleBulkDelete,
+  } = useSelection({ filteredTasks, toggleTask, deleteTask, setDetailTaskId });
+
+  const {
+    handleExportJson,
+    handleExportCsv,
+    handleImportJson,
+    handleImportTodoist,
+    handleImportEvernote,
+    handleImportCsv,
+  } = useImportExport({ tasks, lists, addTask, pushToast });
+
+  useTraySync({ tasks, isOnline, syncing });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -395,114 +407,6 @@ export default function App() {
     return () => unlisteners.forEach((fn) => fn());
   }, []);
 
-  useEffect(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    const urgentCount = tasks.filter((t) => {
-      if (t.completed || !t.dueDateTime) return false;
-      const due = t.dueDateTime.dateTime.split("T")[0];
-      return due <= todayStr;
-    }).length;
-    const tooltip = urgentCount > 0
-      ? `Microsoft To Do - ${urgentCount} task${urgentCount !== 1 ? "s" : ""} due/overdue`
-      : "Microsoft To Do - No tasks due";
-    invoke("update_tray_tooltip", { tooltip }).catch(() => {});
-  }, [tasks]);
-
-  useEffect(() => {
-    const status = !isOnline ? "offline" : syncing ? "syncing" : "synced";
-    invoke("update_tray_status", { status }).catch(() => {});
-  }, [isOnline, syncing]);
-
-  const handleExportJson = useCallback(() => {
-    const content = buildJsonExport(tasks, lists);
-    const date = new Date().toISOString().split("T")[0];
-    downloadTextFile(`mstodo-backup-${date}.json`, content, "application/json");
-    pushToast({ type: "success", title: "Export complete", body: "Tasks downloaded as a JSON backup." });
-  }, [tasks, lists, pushToast]);
-
-  const handleExportCsv = useCallback(() => {
-    const content = buildCsvExport(tasks, lists);
-    const date = new Date().toISOString().split("T")[0];
-    downloadTextFile(`mstodo-export-${date}.csv`, content, "text/csv");
-    pushToast({ type: "success", title: "Export complete", body: "Tasks downloaded as a CSV file." });
-  }, [tasks, lists, pushToast]);
-
-  const handleImport = useCallback(
-    async (parser: (content: string) => ImportResult): Promise<number | null> => {
-      const file = await pickImportFile();
-      if (!file) return null;
-
-      const { tasks: importedTasks } = parser(file.content);
-
-      // Import into the default list
-      const defaultList =
-        lists.find((l) => l.wellknownListName === "defaultList") ||
-        lists.find((l) => l.displayName === "Tasks") ||
-        lists[0];
-
-      if (!defaultList) throw new Error("No task list found to import into.");
-
-      for (const t of importedTasks) {
-        await addTask(t.title, defaultList.id, {
-          importance: t.importance,
-          dueDateTime: t.dueDateTime,
-          body: t.body,
-          categories: t.categories,
-          isInMyDay: t.isInMyDay,
-        });
-      }
-
-      const count = importedTasks.length;
-      pushToast({
-        type: "success",
-        title: "Import complete",
-        body: `${count} task${count !== 1 ? "s" : ""} imported successfully.`,
-      });
-      return count;
-    },
-    [lists, addTask, pushToast]
-  );
-
-  const handleClearSelection = useCallback(() => {
-    setSelectedTasks([]);
-  }, []);
-
-  const handleToggleSelection = useCallback((taskId: string, shiftKey: boolean) => {
-    setDetailTaskId(null);
-    if (!shiftKey) {
-      setSelectedTasks((prev) =>
-        prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
-      );
-    } else {
-      const currentTaskIds = filteredTasks.filter(t => !t.completed).map(t => t.id);
-      const clickedIndex = currentTaskIds.indexOf(taskId);
-
-      setSelectedTasks((prev) => {
-        if (prev.length === 0) return [taskId];
-        const lastIndex = currentTaskIds.indexOf(prev[prev.length - 1]);
-        if (lastIndex === -1) return [taskId];
-        const start = Math.min(lastIndex, clickedIndex);
-        const end = Math.max(lastIndex, clickedIndex);
-        return [...new Set([...prev, ...currentTaskIds.slice(start, end + 1)])];
-      });
-    }
-  }, [filteredTasks]);
-
-  const handleBulkComplete = useCallback(async () => {
-    for (const id of selectedTasks) {
-      await toggleTask(id);
-    }
-    setSelectedTasks([]);
-  }, [selectedTasks, toggleTask]);
-
-  const handleBulkDelete = useCallback(async () => {
-    for (const id of selectedTasks) {
-      await deleteTask(id);
-    }
-    setSelectedTasks([]);
-  }, [selectedTasks, deleteTask]);
-
   const handleCreateList = async (name: string) => {
     const newList = await createList(name);
     if (newList) {
@@ -616,10 +520,10 @@ export default function App() {
             lastSyncTime={lastSyncTime}
             onExportJson={handleExportJson}
             onExportCsv={handleExportCsv}
-            onImportJson={() => handleImport(importFromJson)}
-            onImportTodoist={() => handleImport(importFromTodoistCsv)}
-            onImportEvernote={() => handleImport(importFromEvernoteEnex)}
-            onImportCsv={() => handleImport(importFromGenericCsv)}
+            onImportJson={handleImportJson}
+            onImportTodoist={handleImportTodoist}
+            onImportEvernote={handleImportEvernote}
+            onImportCsv={handleImportCsv}
           />
 
           {bulkDeleteConfirm && (
