@@ -691,8 +691,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
   const clearMyDay = useCallback(async () => {
     const database = dbRef.current;
-    if (database) await clearMyDayFlags(database);
-    setTasks((prev) => prev.map((t) => t.isInMyDay ? { ...t, isInMyDay: false } : t));
+    const now = Date.now();
+    if (database) await clearMyDayFlags(database, now);
+    setTasks((prev) => prev.map((t) => t.isInMyDay ? { ...t, isInMyDay: false, lastModified: now } : t));
   }, []);
 
   return {
