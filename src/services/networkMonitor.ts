@@ -6,23 +6,22 @@ const PING_TIMEOUT = 5_000;
 
 /**
  * navigator.onLine is unreliable on Linux/WebKitGTK — it often returns true
- * even with no network. We use a lightweight HEAD request to Graph as the
- * primary signal, falling back to browser events for immediate transitions.
+ * even with no network. We use a lightweight HEAD request to Graph as the primary signal,
+ * falling back to browser events for immediate transitions.
  */
 async function probeNetwork(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PING_TIMEOUT);
     const resp = await fetch(PING_URL, {
-      method: "HEAD",
+      method: "GET",
       signal: controller.signal,
       cache: "no-store",
-      // HEAD requests transfer no body, keeping the connectivity probe lightweight
     });
     clearTimeout(timer);
-    // A 2xx/3xx response confirms the network and Graph endpoint are reachable.
-    // 4xx/5xx responses are server errors, not network reachability.
-    return resp.ok;
+    // Any HTTP response (even 4xx/5xx) means the network and Graph endpoint
+    // are reachable. Only a fetch exception (timeout, DNS failure) means offline.
+    return resp.status > 0;
   } catch {
     return false;
   }
