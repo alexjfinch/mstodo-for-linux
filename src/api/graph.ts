@@ -115,7 +115,7 @@ function sanitizeAxiosError(err: unknown): unknown {
       const withResp = err as { response?: { data?: unknown } };
       if (typeof withResp.response?.data === "string") {
         withResp.response.data = withResp.response.data.replace(
-          /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+          /Bearer\s+\S+/g,
           "Bearer [REDACTED]"
         );
       }
@@ -124,7 +124,7 @@ function sanitizeAxiosError(err: unknown): unknown {
       const withMsg = err as { message?: string };
       if (typeof withMsg.message === "string") {
         withMsg.message = withMsg.message.replace(
-          /Bearer\s+[A-Za-z0-9\-._~+/]+=*/g,
+          /Bearer\s+\S+/g,
           "Bearer [REDACTED]"
         );
       }
@@ -168,8 +168,18 @@ async function graphRequest<T>(
     }
     // Respect 429 rate-limit: wait for Retry-After, refresh token, then retry once.
     if (axiosErr?.response?.status === 429) {
-      const retryAfter = parseInt(axiosErr.response.headers?.["retry-after"] as string, 10);
-      const waitMs = (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 30) * 1000;
+      const retryAfterHeader = axiosErr.response.headers?.["retry-after"] as string | undefined;
+      let retryAfterSeconds = 30;
+      if (retryAfterHeader) {
+        const asInt = parseInt(retryAfterHeader, 10);
+        if (Number.isFinite(asInt) && asInt > 0) {
+          retryAfterSeconds = asInt;
+        } else {
+          const asDate = Date.parse(retryAfterHeader);
+          if (!isNaN(asDate)) retryAfterSeconds = Math.max(1, Math.ceil((asDate - Date.now()) / 1000));
+        }
+      }
+      const waitMs = retryAfterSeconds * 1000;
       logger.warn(`Rate-limited (429), waiting ${waitMs / 1000}s before retry`);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       let retryToken = accessToken;
@@ -197,10 +207,13 @@ async function graphRequest<T>(
   }
 }
 
-/** Clear module-level caches (call on account switch). */
+/** Clear module-level caches and reset in-flight refresh state (call on account switch). */
 export function resetGraphCaches() {
   deltaUnsupportedLists.clear();
   unfetchableLists.clear();
+  // Discard any stale in-flight refresh promise from the previous account so it
+  // cannot block token refreshes for the newly active account.
+  inflightRefresh = null;
 }
 
 export type UserProfile = {
@@ -462,7 +475,12 @@ function isValidGraphNextLink(url: string | undefined): url is string {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return u.protocol === "https:" && u.hostname === "graph.microsoft.com";
+    return (
+      u.protocol === "https:" &&
+      u.hostname === "graph.microsoft.com" &&
+      u.port === "" &&
+      (u.pathname.startsWith("/v1.0/") || u.pathname.startsWith("/beta/"))
+    );
   } catch {
     return false;
   }

@@ -60,7 +60,7 @@ export const ConfirmDialog = ({
   }, []);
 
   return (
-    <div className="confirm-overlay" onClick={onCancel} role="dialog" aria-modal="true" aria-label={message}>
+    <div className="confirm-overlay" onClick={onCancel} role="dialog" aria-modal="true" aria-label={message} data-no-close-detail>
       <div className="confirm-dialog" ref={dialogRef} onClick={(e) => e.stopPropagation()}>
         <p className="confirm-message">{message}</p>
         <div className="confirm-actions">

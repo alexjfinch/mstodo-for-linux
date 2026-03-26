@@ -30,6 +30,7 @@ export type Recurrence = {
   pattern: {
     type: "daily" | "weekly" | "absoluteMonthly" | "absoluteYearly";
     interval: number;
+    /** Graph API values: "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" */
     daysOfWeek?: string[];
   };
   range: { type: "noEnd" | "endDate" | "numbered"; startDate: string; endDate?: string; numberOfOccurrences?: number };

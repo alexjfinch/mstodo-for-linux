@@ -646,12 +646,14 @@ export const Settings = ({
                     e.preventDefault();
                     const next = NAV_ITEMS[(i + 1) % NAV_ITEMS.length];
                     setActiveSection(next.key);
-                    (e.currentTarget.parentElement?.children[(i + 1) % NAV_ITEMS.length] as HTMLElement)?.focus();
+                    const tabs = e.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]');
+                    tabs?.[(i + 1) % NAV_ITEMS.length]?.focus();
                   } else if (e.key === "ArrowUp") {
                     e.preventDefault();
                     const prev = NAV_ITEMS[(i - 1 + NAV_ITEMS.length) % NAV_ITEMS.length];
                     setActiveSection(prev.key);
-                    (e.currentTarget.parentElement?.children[(i - 1 + NAV_ITEMS.length) % NAV_ITEMS.length] as HTMLElement)?.focus();
+                    const tabs = e.currentTarget.closest('[role="tablist"]')?.querySelectorAll<HTMLElement>('[role="tab"]');
+                    tabs?.[(i - 1 + NAV_ITEMS.length) % NAV_ITEMS.length]?.focus();
                   }
                 }}
               >

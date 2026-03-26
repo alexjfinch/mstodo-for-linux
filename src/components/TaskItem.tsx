@@ -86,7 +86,7 @@ export const TaskItem = ({
   const formatDisplayDate = (dateTime?: { dateTime: string; timeZone: string }) => {
     if (!dateTime) return "";
     const d = new Date(dateTime.dateTime);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 
   const handleDateClick = () => {
@@ -214,7 +214,7 @@ export const TaskItem = ({
             ‹
           </button>
           <span>
-            {calendarDate.toLocaleDateString("en-US", {
+            {calendarDate.toLocaleDateString(undefined, {
               month: "long",
               year: "numeric",
             })}
@@ -278,13 +278,23 @@ export const TaskItem = ({
       className={`task-item ${task.completed ? "completed" : ""} ${
         isSelected ? "selected" : ""
       }${isDragOver ? " drag-over" : ""}${isOverdue ? " overdue" : ""}`}
+      data-no-close-detail
       onContextMenu={onRightClick}
       onClick={onToggleSelection}
       onKeyDown={(e) => {
-        // Shift+F10 or the ContextMenu key opens the context menu via keyboard
+        // Shift+F10 or the ContextMenu key opens the context menu via keyboard.
+        // Dispatch a real contextmenu event so onContextMenu receives a typed MouseEvent
+        // with coordinates derived from the element's position.
         if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
           e.preventDefault();
-          onRightClick(e as unknown as React.MouseEvent);
+          const el = e.currentTarget as HTMLElement;
+          const rect = el.getBoundingClientRect();
+          el.dispatchEvent(new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left,
+            clientY: rect.bottom,
+          }));
         }
       }}
       tabIndex={0}

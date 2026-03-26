@@ -200,7 +200,7 @@ export const Sidebar = ({
             className="sidebar-theme-emoji-input"
             placeholder="Emoji"
             value={emojiInput}
-            maxLength={2}
+            maxLength={8}
             onChange={(e) => setEmojiInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -222,7 +222,7 @@ export const Sidebar = ({
 
   // Drag-and-drop handlers
   const handleDragStart = (e: React.DragEvent, listId: string) => {
-    e.dataTransfer.setData("listId", listId);
+    e.dataTransfer.setData("application/x-list-id", listId);
     e.dataTransfer.effectAllowed = "move";
   };
 
@@ -242,7 +242,7 @@ export const Sidebar = ({
   const handleDrop = (e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     setDragOverGroupId(null);
-    const listId = e.dataTransfer.getData("listId");
+    const listId = e.dataTransfer.getData("application/x-list-id");
     if (listId && listId !== groupId) {
       onMoveToGroup(listId, groupId);
       // Expand the group so the user sees the dropped list
@@ -258,8 +258,8 @@ export const Sidebar = ({
   const [taskDropTarget, setTaskDropTarget] = useState<string | null>(null);
 
   const handleTaskDragOver = (e: React.DragEvent, targetId: string) => {
-    // Only accept if it's a task drag (has text/plain but no listId)
-    if (e.dataTransfer.types.includes("text/plain") && !e.dataTransfer.types.includes("listId")) {
+    // Only accept if it's a task drag (has text/plain but no list-id)
+    if (e.dataTransfer.types.includes("text/plain") && !e.dataTransfer.types.includes("application/x-list-id")) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       setTaskDropTarget(targetId);

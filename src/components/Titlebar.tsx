@@ -13,6 +13,7 @@ export const Titlebar = () => {
   };
 
   const handleClose = async () => {
+    // Hides to the system tray rather than quitting — the tray icon keeps the app running.
     await appWindow.hide();
   };
 

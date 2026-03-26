@@ -346,9 +346,11 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
                 title: local.title,
                 importance: local.importance,
                 dueDateTime: local.dueDateTime,
+                reminderDateTime: local.reminderDateTime,
                 body: local.body,
                 recurrence: local.recurrence,
                 categories: local.categories,
+                isInMyDay: local.isInMyDay,
               }, token);
             } catch (pushErr) {
               logger.warn(`Failed to push local changes for ${local.id}`, pushErr);
@@ -506,7 +508,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             await updateTaskId(database, tempId, created.id, Date.now());
             setTasks((prev) =>
               prev.map((t) =>
-                t.id === tempId ? { ...created, ...attributes, lastModified: Date.now() } : t
+                t.id === tempId ? { ...created, lastModified: Date.now() } : t
               )
             );
           } catch (idErr) {
@@ -643,6 +645,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
       // Sync via Graph: create on target list, then delete from source.
       // If create succeeds but delete fails, we clean up the created task.
+      const queueMoveOp = () => queuePendingOp(database, taskId, "move", { oldListId, targetListId, title: task.title, task });
       if (isOnlineRef.current && token && oldListId && !taskId.startsWith("local-") && !oldListId.startsWith("local-")) {
         let created: Task | null = null;
         try {
@@ -675,12 +678,10 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
           }
         } catch (err) {
           logger.warn("Failed to move task on Graph — will sync on next cycle", err);
-          // Queue for retry on next sync
-          await queuePendingOp(database, taskId, "move", { oldListId, targetListId, title: task.title, task });
+          await queueMoveOp();
         }
       } else if (!isOnlineRef.current && oldListId && !taskId.startsWith("local-")) {
-        // Offline: queue the move for later
-        await queuePendingOp(database, taskId, "move", { oldListId, targetListId, title: task.title, task });
+        await queueMoveOp();
       }
     } catch (err) {
       logger.error("Failed to move task to list", err);

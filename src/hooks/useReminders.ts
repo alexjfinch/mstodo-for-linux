@@ -38,7 +38,8 @@ export const useReminders = (
   enabled: boolean,
   timing: ReminderTiming
 ) => {
-  const notifiedRef = useRef<Set<string>>(new Set());
+  // Maps composite notification key → taskId for O(1) pruning without key parsing.
+  const notifiedRef = useRef<Map<string, string>>(new Map());
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const dismissToast = useCallback((id: string) => {
@@ -93,7 +94,7 @@ export const useReminders = (
         const reminderDateTimeStr = task.reminderDateTime?.dateTime;
         if (!reminderDateTimeStr) continue;
         const key = `reminder-${task.id}-${reminderDateTimeStr}`;
-        notifiedRef.current.add(key);
+        notifiedRef.current.set(key, task.id);
 
         const reminderDate = new Date(reminderDateTimeStr);
         const body = `Reminder — ${reminderDate.toLocaleDateString(undefined, {
@@ -126,7 +127,7 @@ export const useReminders = (
         const dueDateTimeStr = task.dueDateTime?.dateTime;
         if (!dueDateTimeStr) continue;
         const key = `${task.id}-${dueDateTimeStr}`;
-        notifiedRef.current.add(key);
+        notifiedRef.current.set(key, task.id);
 
         const dueDate = new Date(dueDateTimeStr);
         const isOverdue = now > dueDate.getTime();
@@ -172,23 +173,10 @@ export const useReminders = (
   }, [hasTasks]);
 
   // Prune stale notification keys for tasks that no longer exist.
-  // Keys are formatted as "taskId-dateTime" or "reminder-taskId-dateTime".
-  // Since both taskIds and datetimes contain hyphens (GUIDs, ISO dates), we
-  // store a reverse lookup to extract the taskId reliably.
   useEffect(() => {
     const taskIdSet = new Set(tasks.map((t) => t.id));
-    for (const key of notifiedRef.current) {
-      // Keys are "taskId-dateTime" or "reminder-taskId-dateTime".
-      // Strip optional "reminder-" prefix, then check if any hyphen-delimited
-      // prefix of the remainder matches a known task ID (O(1) Set lookup per prefix).
-      const rest = key.startsWith("reminder-") ? key.slice("reminder-".length) : key;
-      let found = false;
-      let idx = rest.indexOf("-");
-      while (idx !== -1) {
-        if (taskIdSet.has(rest.slice(0, idx))) { found = true; break; }
-        idx = rest.indexOf("-", idx + 1);
-      }
-      if (!found) notifiedRef.current.delete(key);
+    for (const [key, taskId] of notifiedRef.current) {
+      if (!taskIdSet.has(taskId)) notifiedRef.current.delete(key);
     }
   }, [tasks]);
 

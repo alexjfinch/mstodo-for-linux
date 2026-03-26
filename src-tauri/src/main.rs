@@ -437,12 +437,22 @@ async fn sign_in() -> Result<TokenPayload, String> {
 fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>) -> String {
     // Prefer XDG_RUNTIME_DIR (mode 700, user-only) so the FIFO is not world-readable.
     // Fall back to XDG data-local dir, then /tmp only as last resort.
-    // When falling back to /tmp (world-readable), include the process ID to reduce
-    // the chance of a name collision with another process.
+    // When falling back to /tmp (world-readable), mix the PID with sub-second time to
+    // produce an unpredictable name — the ownership check below is the primary defence,
+    // but an unguessable name also prevents pre-creation denial-of-service attacks.
     let fifo_path = dirs::runtime_dir()
         .or_else(|| dirs::data_local_dir())
         .map(|p| p.join("mstodo-quickadd").to_string_lossy().into_owned())
-        .unwrap_or_else(|| format!("/tmp/mstodo-quickadd-{}", std::process::id()));
+        .unwrap_or_else(|| {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos();
+            let nonce = (std::process::id() as u64)
+                .wrapping_mul(0x9e3779b97f4a7c15)
+                ^ (nanos as u64);
+            format!("/tmp/mstodo-quickadd-{:016x}", nonce)
+        });
 
     // Attempt to create the FIFO. If mkfifo fails the file already exists.
     let mkfifo_ok = std::process::Command::new("mkfifo")
@@ -514,6 +524,34 @@ fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
+/// Parse a GVariant string-array as printed by `gsettings get` into a `Vec<String>`.
+/// Handles the empty-array forms `@as []` and `[]` as well as `['a', 'b', ...]`.
+fn parse_gvariant_strv(raw: &str) -> Vec<String> {
+    let s = raw.trim();
+    if s == "@as []" || s == "[]" || s.is_empty() {
+        return vec![];
+    }
+    let inner = s
+        .strip_prefix('[').unwrap_or(s)
+        .strip_suffix(']').unwrap_or(s);
+    inner
+        .split(',')
+        .map(|item| item.trim().trim_matches('\'').to_string())
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
+/// Serialize a slice of strings back to the GVariant string-array format expected by gsettings.
+fn format_gvariant_strv(items: &[String]) -> String {
+    if items.is_empty() {
+        return "@as []".to_string();
+    }
+    format!(
+        "[{}]",
+        items.iter().map(|s| format!("'{}'", s)).collect::<Vec<_>>().join(", ")
+    )
+}
+
 /// Registers a GNOME custom keybinding (Super+Shift+T) that writes to the IPC FIFO.
 /// Detects GNOME via XDG_CURRENT_DESKTOP. Safe to call on non-GNOME DEs (no-op).
 fn register_gnome_shortcut(fifo_path: &str) {
@@ -526,26 +564,17 @@ fn register_gnome_shortcut(fifo_path: &str) {
     // Single-quote the FIFO path to guard against metacharacters in XDG_RUNTIME_DIR.
     let command = format!("echo q > {}", shell_single_quote(fifo_path));
 
-    // Fetch current custom-keybindings list and append our path if absent
-    let current = std::process::Command::new("gsettings")
+    // Fetch current custom-keybindings list and append our path if absent.
+    let current_raw = std::process::Command::new("gsettings")
         .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
 
-    if !current.contains(binding_path) {
-        let new_list = if current.trim() == "@as []" || current.trim() == "[]" {
-            format!("['{}']", binding_path)
-        } else if let Some(pos) = current.rfind(']') {
-            let prefix = current[..pos].trim_end_matches(',').trim();
-            if prefix.trim_end() == "[" {
-                format!("['{}']", binding_path)
-            } else {
-                format!("{}, '{}']", prefix, binding_path)
-            }
-        } else {
-            format!("['{}']", binding_path)
-        };
+    let mut entries = parse_gvariant_strv(&current_raw);
+    if !entries.iter().any(|e| e == binding_path) {
+        entries.push(binding_path.to_string());
+        let new_list = format_gvariant_strv(&entries);
         let list_ok = std::process::Command::new("gsettings")
             .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
             .status()

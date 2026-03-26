@@ -312,8 +312,8 @@ export default function App() {
     const fn = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (detailPanelRef.current && !detailPanelRef.current.contains(target)) {
-        // Don't close if clicking a task row (user is switching tasks) or a modal overlay
-        if (target.closest(".task-item, .confirm-overlay, .context-menu")) return;
+        // Don't close if clicking a task row, modal overlay, or context menu
+        if (target.closest("[data-no-close-detail]")) return;
         setDetailTaskId(null);
       }
     };

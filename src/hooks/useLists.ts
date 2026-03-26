@@ -118,11 +118,18 @@ export const useLists = (accessToken: string | null, db: Database | null, active
           const parentGroupId = data.parentGroupId as string | undefined;
           const created = await createTaskListGraph(displayName, token);
           const withGroup = parentGroupId ? { ...created, parentGroupId } : created;
-          // Update tasks first so they're never left pointing at a deleted list
-          await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, localId]);
-          // Now safe to swap the list record
-          await deleteListFromDB(database, localId);
-          await saveListToDB(database, withGroup);
+          // Remap task IDs and swap the list record atomically so tasks are
+          // never left pointing at a non-existent list on partial failure.
+          await database.execute("BEGIN TRANSACTION");
+          try {
+            await database.execute("UPDATE tasks SET listId = ? WHERE listId = ?", [created.id, localId]);
+            await deleteListFromDB(database, localId);
+            await saveListToDB(database, withGroup);
+            await database.execute("COMMIT");
+          } catch (txErr) {
+            await database.execute("ROLLBACK").catch(() => {});
+            throw txErr;
+          }
           setLists((prev) => prev.map((l) => (l.id === localId ? withGroup : l)));
           await deletePendingOp(database, op.id!);
         } catch (err) {

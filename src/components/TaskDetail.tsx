@@ -296,9 +296,12 @@ export const TaskDetail = ({
       a.href = url;
       a.download = name;
       document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      try {
+        a.click();
+      } finally {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : "Download failed. Please try again.");
     }
@@ -358,7 +361,7 @@ export const TaskDetail = ({
   };
 
   const dueDateDisplay = task.dueDateTime
-    ? new Date(task.dueDateTime.dateTime).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+    ? new Date(task.dueDateTime.dateTime).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })
     : "";
 
   return (
@@ -431,14 +434,11 @@ export const TaskDetail = ({
             <div className="mini-calendar task-detail-calendar" ref={dueDateCalendarRef}>
               <div className="calendar-header">
                 <button aria-label="Previous month" onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() - 1, 1))}>‹</button>
-                <span>{dueDateCalendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+                <span>{dueDateCalendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</span>
                 <button aria-label="Next month" onClick={() => setDueDateCalendarMonth(new Date(dueDateCalendarMonth.getFullYear(), dueDateCalendarMonth.getMonth() + 1, 1))}>›</button>
               </div>
               <div className="calendar-weekdays">
-                {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-                  .slice(weekStartDay)
-                  .concat(["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].slice(0, weekStartDay))
-                  .map((d) => <div key={d}>{d}</div>)}
+                {DAY_LABELS.slice(weekStartDay).concat(DAY_LABELS.slice(0, weekStartDay)).map((d) => <div key={d}>{d}</div>)}
               </div>
               <div className="calendar-days">
                 {(() => {

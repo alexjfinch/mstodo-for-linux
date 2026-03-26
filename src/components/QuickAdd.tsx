@@ -32,12 +32,6 @@ const QUICKADD_THEME_CSS = `
   }
 `;
 
-if (typeof document !== "undefined" && !document.getElementById("qa-theme")) {
-  const style = document.createElement("style");
-  style.id = "qa-theme";
-  style.textContent = QUICKADD_THEME_CSS;
-  document.head.appendChild(style);
-}
 
 function applyTheme(theme: string) {
   document.documentElement.setAttribute("data-theme", theme);
@@ -52,13 +46,24 @@ export const QuickAdd = () => {
     const parsed = parseTaskInput(value);
     if (!parsed.dueDateTime) return null;
     const d = new Date(parsed.dueDateTime.dateTime);
-    const dateStr = d.toLocaleDateString("en-US", {
+    const dateStr = d.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
     });
     return `"${parsed.title}" due ${dateStr}`;
   }, [value]);
+
+  // Inject theme CSS variables on mount; remove on unmount.
+  useEffect(() => {
+    if (!document.getElementById("qa-theme")) {
+      const style = document.createElement("style");
+      style.id = "qa-theme";
+      style.textContent = QUICKADD_THEME_CSS;
+      document.head.appendChild(style);
+    }
+    return () => { document.getElementById("qa-theme")?.remove(); };
+  }, []);
 
   // Query system theme on mount and listen for live changes
   useEffect(() => {
@@ -125,6 +130,7 @@ export const QuickAdd = () => {
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder='e.g. "Buy milk tomorrow" or "Meeting on Friday"'
+        maxLength={255}
       />
       {preview && <div style={styles.preview}>{preview}</div>}
       <div style={styles.footer}>

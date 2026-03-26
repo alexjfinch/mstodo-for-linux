@@ -1,6 +1,7 @@
 import "./MyDaySuggestions.css";
 import { useState, useMemo } from "react";
 import { Task } from "../types";
+import { logger } from "../services/logger";
 
 type Props = {
   allTasks: Task[];
@@ -26,7 +27,8 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem("myday-suggestions-collapsed") === "true";
-    } catch {
+    } catch (err) {
+      logger.warn("Failed to read My Day collapsed state from localStorage", err);
       return false;
     }
   });
@@ -37,8 +39,8 @@ export const MyDaySuggestions = ({ allTasks, onAddToMyDay }: Props) => {
     setCollapsed(next);
     try {
       localStorage.setItem("myday-suggestions-collapsed", String(next));
-    } catch {
-      // Ignore storage errors (e.g. QuotaExceededError)
+    } catch (err) {
+      logger.warn("Failed to persist My Day collapsed state to localStorage", err);
     }
   };
 

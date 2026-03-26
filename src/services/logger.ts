@@ -7,9 +7,9 @@ const isDev = import.meta.env.DEV;
 /** Redact bearer tokens and other secrets from log output. */
 function redactSecrets(text: string): string {
   return text
-    .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, "Bearer [REDACTED]")
-    .replace(/access_token["\s:=]+[A-Za-z0-9\-._~+/]+=*/g, "access_token=[REDACTED]")
-    .replace(/refresh_token["\s:=]+[A-Za-z0-9\-._~+/]+=*/g, "refresh_token=[REDACTED]");
+    .replace(/Bearer\s+\S+/g, "Bearer [REDACTED]")
+    .replace(/access_token["\s:=]+\S+/g, "access_token=[REDACTED]")
+    .replace(/refresh_token["\s:=]+\S+/g, "refresh_token=[REDACTED]");
 }
 
 function formatError(err: unknown): string {

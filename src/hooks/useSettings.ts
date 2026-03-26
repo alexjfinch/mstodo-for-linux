@@ -2,12 +2,30 @@ import { useState, useEffect, useCallback } from "react";
 import { ReminderTiming } from "./useReminders";
 import { logger } from "../services/logger";
 
-/** Persist a single setting to the Tauri store. */
+// Lazily initialised store — cached so we don't re-load from disk on every setting change.
+type TauriStore = Awaited<ReturnType<typeof import("@tauri-apps/plugin-store")["Store"]["load"]>>;
+let _storeCache: TauriStore | null = null;
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function getStore(): Promise<TauriStore> {
+  if (!_storeCache) {
+    const { Store } = await import("@tauri-apps/plugin-store");
+    _storeCache = await Store.load("settings.json");
+  }
+  return _storeCache;
+}
+
+/** Persist a single setting. The in-memory set is immediate; disk flush is debounced. */
 async function persistSetting(key: string, value: unknown): Promise<void> {
-  const { Store } = await import("@tauri-apps/plugin-store");
-  const store = await Store.load("settings.json");
+  const store = await getStore();
   await store.set(key, value);
-  await store.save();
+  if (_saveTimer !== null) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    _saveTimer = null;
+    store.save().catch((err: unknown) => {
+      logger.error("Failed to flush settings to disk", err);
+    });
+  }, 500);
 }
 
 export const useSettings = () => {
@@ -27,8 +45,7 @@ export const useSettings = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { Store } = await import("@tauri-apps/plugin-store");
-        const store = await Store.load("settings.json");
+        const store = await getStore();
         const enabled = await store.get<boolean>("remindersEnabled");
         const timing = await store.get<ReminderTiming>("reminderTiming");
         if (enabled !== null && enabled !== undefined) setRemindersEnabled(enabled);

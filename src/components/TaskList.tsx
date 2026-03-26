@@ -1,5 +1,5 @@
 import "./TaskList.css";
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -155,12 +155,20 @@ export const TaskList = ({
     };
   }, [contextMenu.visible]);
 
+  // Clamp the context menu to the viewport after it has been rendered and measured.
+  useLayoutEffect(() => {
+    if (!contextMenu.visible || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const overflowX = Math.max(0, rect.right - (window.innerWidth - 4));
+    const overflowY = Math.max(0, rect.bottom - (window.innerHeight - 4));
+    if (overflowX > 0 || overflowY > 0) {
+      setContextMenu((prev) => ({ ...prev, x: prev.x - overflowX, y: prev.y - overflowY }));
+    }
+  }, [contextMenu.visible]);
+
   const handleRightClick = (e: React.MouseEvent, taskId: string) => {
     e.preventDefault();
-    const menuW = 180, menuH = 160;
-    const x = Math.min(e.clientX, window.innerWidth - menuW - 4);
-    const y = Math.min(e.clientY, window.innerHeight - menuH - 4);
-    setContextMenu({ visible: true, x, y, taskId });
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, taskId });
     setReminderSubmenuOpen(false);
     setMoveSubmenuOpen(false);
   };
@@ -323,6 +331,15 @@ export const TaskList = ({
     onUpdateAttributes(taskId, { importance: newValue });
   };
 
+  const handleDeleteConfirmed = async () => {
+    if (!deleteConfirm) return;
+    const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id)));
+    const failures = results.filter((r) => r.status === "rejected");
+    if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures);
+    if (deleteConfirm.taskIds.length > 1) onClearSelection();
+    setDeleteConfirm(null);
+  };
+
   const currentTask = contextMenu.taskId ? tasks.find((t) => t.id === contextMenu.taskId) ?? null : null;
 
   // Close context menu if the referenced task was deleted externally (e.g. via sync).
@@ -364,7 +381,7 @@ export const TaskList = ({
         message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
         confirmLabel="Delete"
         danger
-        onConfirm={async () => { const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id))); const failures = results.filter((r) => r.status === "rejected"); if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures); if (deleteConfirm.taskIds.length > 1) onClearSelection(); setDeleteConfirm(null); }}
+        onConfirm={handleDeleteConfirmed}
         onCancel={() => setDeleteConfirm(null)}
       />
     )}
@@ -441,6 +458,7 @@ export const TaskList = ({
           className="context-menu"
           role="menu"
           aria-label="Task actions"
+          data-no-close-detail
           tabIndex={-1}
           onKeyDown={(e) => {
             if (e.key === "Escape") {

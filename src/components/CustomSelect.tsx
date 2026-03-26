@@ -97,7 +97,7 @@ export const CustomSelect = ({ options, value, onChange, className }: Props) => 
         className="custom-select-trigger"
         onClick={(e) => { e.stopPropagation(); if (open) setOpen(false); else openMenu(); }}
         type="button"
-        aria-label={`${selected?.label ?? ""}; activate to change`}
+        aria-label={`${selected?.label ?? ""}, activate to change`}
       >
         <span>{selected?.label ?? ""}</span>
         <span className="custom-select-arrow">{open ? "\u25B2" : "\u25BC"}</span>

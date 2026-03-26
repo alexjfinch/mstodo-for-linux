@@ -51,9 +51,10 @@ export function useImportExport({ tasks, lists, addTask, pushToast }: UseImportE
 
       if (!defaultList) throw new Error("No task list found to import into.");
 
+      let totalFailed = 0;
       for (let i = 0; i < importedTasks.length; i += IMPORT_BATCH_SIZE) {
         const batch = importedTasks.slice(i, i + IMPORT_BATCH_SIZE);
-        await Promise.allSettled(
+        const results = await Promise.allSettled(
           batch.map((t) =>
             addTask(t.title, defaultList.id, {
               importance: t.importance,
@@ -64,18 +65,22 @@ export function useImportExport({ tasks, lists, addTask, pushToast }: UseImportE
             })
           )
         );
+        totalFailed += results.filter((r) => r.status === "rejected").length;
       }
 
-      const count = importedTasks.length;
+      const succeeded = importedTasks.length - totalFailed;
       const skippedNote = skippedDates
         ? ` (${skippedDates} due date${skippedDates !== 1 ? "s" : ""} could not be parsed and were skipped)`
         : "";
+      const failedNote = totalFailed > 0
+        ? ` ${totalFailed} task${totalFailed !== 1 ? "s" : ""} failed to import.`
+        : "";
       pushToast({
-        type: "success",
+        type: totalFailed > 0 && succeeded === 0 ? "error" : "success",
         title: "Import complete",
-        body: `${count} task${count !== 1 ? "s" : ""} imported successfully.${skippedNote}`,
+        body: `${succeeded} task${succeeded !== 1 ? "s" : ""} imported successfully.${skippedNote}${failedNote}`,
       });
-      return count;
+      return succeeded;
     },
     [lists, addTask, pushToast]
   );

@@ -216,12 +216,19 @@ export function importFromEvernoteEnex(content: string): ImportResult {
       .map((t) => t.textContent?.trim() || "")
       .filter(Boolean);
 
-    // Evernote content is ENML (subset of XHTML) wrapped in CDATA
+    // Evernote content is ENML (subset of XHTML) wrapped in CDATA.
+    // Read the CDATA node value directly to avoid textContent entity-decode side effects.
     let noteBody = "";
     const contentEl = note.querySelector("content");
-    if (contentEl?.textContent) {
-      const enml = new DOMParser().parseFromString(contentEl.textContent, "text/html");
-      noteBody = enml.body?.textContent?.trim() || "";
+    if (contentEl) {
+      const cdataNode = contentEl.firstChild;
+      const cdataText = cdataNode?.nodeType === Node.CDATA_SECTION_NODE
+        ? (cdataNode.nodeValue ?? "")
+        : (contentEl.textContent ?? "");
+      if (cdataText) {
+        const enml = new DOMParser().parseFromString(cdataText, "text/html");
+        noteBody = enml.body?.textContent?.trim() || "";
+      }
     }
 
     const task: Omit<Task, "id"> = {

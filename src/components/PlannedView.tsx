@@ -226,11 +226,11 @@ export const PlannedView = ({
     const lastDayOfWeek = new Date(weekEnd);
     lastDayOfWeek.setDate(lastDayOfWeek.getDate() - 1);
 
-    const weekRangeTitle = `${dayAfterTomorrow.toLocaleDateString("en-US", {
+    const weekRangeTitle = `${dayAfterTomorrow.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
-    })} to ${lastDayOfWeek.toLocaleDateString("en-US", {
+    })} to ${lastDayOfWeek.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -357,6 +357,7 @@ export const PlannedView = ({
             role="menu"
             aria-label="Task actions"
             tabIndex={-1}
+            data-no-close-detail
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setContextMenu({ visible: false, x: 0, y: 0, taskId: null });

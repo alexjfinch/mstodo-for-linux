@@ -31,7 +31,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <div style={styles.container}>
           <div style={styles.card}>
             <h2 style={styles.title}>Something went wrong</h2>
-            <p style={styles.message}>{this.state.error?.message}</p>
+            <p style={styles.message} role="status">{this.state.error?.message}</p>
             <button style={styles.button} onClick={this.handleReload}>
               Reload App
             </button>
