@@ -1,6 +1,6 @@
 [package]
 name = "mstodo-for-linux"
-version = "0.1.8"
+version = "0.1.9"
 description = "An Unofficial Microsoft ToDo Client for Linux"
 authors = ["Alex"]
 edition = "2021"
