@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Microsoft To Do
+Comment=An Unofficial Microsoft To Do Client for Linux
+Exec=mstodo-for-linux
+Icon=io.github.alexjfinch.mstodo-for-linux
+Terminal=false
+Type=Application
+Categories=Utility;Office;ProjectManagement;
+Keywords=todo;tasks;microsoft;productivity;
+StartupWMClass=mstodo-for-linux

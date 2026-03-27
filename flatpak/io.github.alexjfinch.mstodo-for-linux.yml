@@ -1,0 +1,75 @@
+app-id: io.github.alexjfinch.mstodo-for-linux
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: mstodo-for-linux
+
+finish-args:
+  - --share=network          # Microsoft Graph API + OAuth callback server
+  - --share=ipc
+  - --socket=wayland
+  - --socket=x11
+  - --device=dri
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets        # keyring (libsecret)
+  - --talk-name=org.freedesktop.StatusNotifierWatcher  # system tray
+  - --talk-name=com.canonical.AppMenu.Registrar        # system tray (Ubuntu)
+  - --filesystem=xdg-run/keyring               # GNOME Keyring socket
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+  env:
+    CARGO_HOME: /run/build/mstodo-for-linux/cargo
+    RUSTUP_HOME: /usr/lib/sdk/rust-stable
+    npm_config_cache: /run/build/mstodo-for-linux/npm-cache
+
+modules:
+  # libayatana-appindicator3 and its deps (not included in GNOME Platform).
+  # Requires: git submodule add https://github.com/flathub/shared-modules.git flatpak/shared-modules
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+
+  - name: mstodo-for-linux
+    buildsystem: simple
+    build-commands:
+      # Install frontend dependencies from pre-fetched npm sources
+      - npm install --offline
+
+      # Build the frontend (produces dist/)
+      - npm run build
+
+      # Build the Rust binary using pre-fetched cargo sources
+      - cd src-tauri && cargo build --release --frozen
+
+      # Install binary
+      - install -Dm755 src-tauri/target/release/mstodo-for-linux
+          /app/bin/mstodo-for-linux
+
+      # Install desktop file
+      - install -Dm644 flatpak/io.github.alexjfinch.mstodo-for-linux.desktop
+          /app/share/applications/io.github.alexjfinch.mstodo-for-linux.desktop
+
+      # Install icons
+      - install -Dm644 src-tauri/icons/32x32.png
+          /app/share/icons/hicolor/32x32/apps/io.github.alexjfinch.mstodo-for-linux.png
+      - install -Dm644 src-tauri/icons/64x64.png
+          /app/share/icons/hicolor/64x64/apps/io.github.alexjfinch.mstodo-for-linux.png
+      - install -Dm644 src-tauri/icons/128x128.png
+          /app/share/icons/hicolor/128x128/apps/io.github.alexjfinch.mstodo-for-linux.png
+      - install -Dm644 src-tauri/icons/128x128@2x.png
+          /app/share/icons/hicolor/256x256/apps/io.github.alexjfinch.mstodo-for-linux.png
+
+      # Install AppStream metainfo
+      - install -Dm644 src-tauri/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml
+          /app/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml
+
+    sources:
+      # Project source (manifest lives in flatpak/, so .. is the repo root)
+      - type: dir
+        path: ..
+
+      # Generated offline sources — see README steps below to produce these
+      - cargo-sources.json
+      - node-sources.json

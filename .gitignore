@@ -40,6 +40,10 @@ src-tauri/*.db
 src-tauri/*.db-shm
 src-tauri/*.db-wal
 
+# Flatpak build artifacts
+build-dir/
+.flatpak-builder/
+
 # AI tooling
 .claude
 

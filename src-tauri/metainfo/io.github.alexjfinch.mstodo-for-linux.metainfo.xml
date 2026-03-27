@@ -25,7 +25,7 @@
     </ul>
   </description>
 
-  <launchable type="desktop-id">mstodo-for-linux.desktop</launchable>
+  <launchable type="desktop-id">io.github.alexjfinch.mstodo-for-linux.desktop</launchable>
 
   <url type="homepage">https://github.com/alexjfinch/mstodo-for-linux</url>
   <url type="bugtracker">https://github.com/alexjfinch/mstodo-for-linux/issues</url>
