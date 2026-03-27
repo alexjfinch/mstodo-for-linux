@@ -362,18 +362,25 @@ export default function App() {
     return () => clearInterval(interval);
   }, [accessToken, dbReady, syncInterval]);
 
-  // Detect day change when waking from sleep or regaining focus
+  // Detect day change and re-sync when waking from sleep or regaining focus.
+  // isOnline doesn't transition when the app was already online before sleep,
+  // so the sync effect won't re-fire — we need an explicit trigger here.
   useEffect(() => {
     const checkDate = () => {
       const today = new Date().toISOString().split("T")[0];
       setCurrentDate((prev) => (prev !== today ? today : prev));
     };
-    const onVisible = () => { if (document.visibilityState === "visible") checkDate(); };
+    const onWake = () => {
+      checkDate();
+      syncWithGraphRef.current();
+      syncListsRef.current();
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") onWake(); };
     document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", checkDate);
+    window.addEventListener("focus", onWake);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", checkDate);
+      window.removeEventListener("focus", onWake);
     };
   }, []);
 

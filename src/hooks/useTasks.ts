@@ -429,7 +429,13 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             if (change.removed) {
               await deleteTaskFromDB(database, change.task.id);
             } else {
-              await saveTaskToDB(database, change.task);
+              const local = localMap.get(change.task.id);
+              if (local && typeof local.lastModified === "number" && typeof change.task.lastModified === "number" &&
+                  local.lastModified > change.task.lastModified) {
+                // Local is newer — skip DB overwrite to preserve local changes (e.g. My Day clear)
+              } else {
+                await saveTaskToDB(database, change.task);
+              }
             }
           }
           for (const assigned of assignedTasks) {
