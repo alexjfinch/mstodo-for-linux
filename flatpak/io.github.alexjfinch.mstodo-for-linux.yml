@@ -13,13 +13,14 @@ finish-args:
   - --socket=wayland
   - --socket=x11
   - --device=dri
-  - --allow=devel             # WebKit subprocess sandbox requires ptrace
+  - --allow=devel             # required for WebKit subprocess IPC in Flatpak
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets        # keyring (libsecret)
   - --talk-name=org.freedesktop.StatusNotifierWatcher  # system tray
   - --talk-name=com.canonical.AppMenu.Registrar        # system tray (Ubuntu)
   - --filesystem=xdg-run/keyring               # GNOME Keyring socket
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1     # KDE Wayland compositor compatibility
+  - --env=WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1  # disable WebKit inner sandbox; Flatpak is the sandbox
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
