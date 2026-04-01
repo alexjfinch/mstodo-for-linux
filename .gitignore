@@ -42,6 +42,7 @@ src-tauri/*.db-wal
 
 # Flatpak build artifacts
 build-dir/
+repo/
 .flatpak-builder/
 flatpak-repo/
 *.flatpak
