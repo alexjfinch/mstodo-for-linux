@@ -350,14 +350,16 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
                 body: local.body,
                 recurrence: local.recurrence,
                 categories: local.categories,
-                isInMyDay: local.isInMyDay,
+                // isInMyDay omitted — My Day is local-only, not synced to Graph
               }, token);
             } catch (pushErr) {
               logger.warn(`Failed to push local changes for ${local.id}`, pushErr);
             }
           } else {
-            merged.push(change.task);
-            await saveTaskToDB(database, change.task);
+            // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+            const taskToMerge = { ...change.task, isInMyDay: local?.isInMyDay ?? false };
+            merged.push(taskToMerge);
+            await saveTaskToDB(database, taskToMerge);
           }
         }
 
@@ -402,7 +404,8 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
                     local.lastModified > change.task.lastModified) {
                   // Local is newer — keep it (pending ops will push it)
                 } else {
-                  taskMap.set(change.task.id, change.task);
+                  // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+                  taskMap.set(change.task.id, { ...change.task, isInMyDay: local?.isInMyDay ?? false });
                 }
               }
             }
@@ -434,7 +437,8 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
                   local.lastModified > change.task.lastModified) {
                 // Local is newer — skip DB overwrite to preserve local changes (e.g. My Day clear)
               } else {
-                await saveTaskToDB(database, change.task);
+                // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+                await saveTaskToDB(database, { ...change.task, isInMyDay: local?.isInMyDay ?? false });
               }
             }
           }

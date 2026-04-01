@@ -431,8 +431,8 @@ export async function clearDeltaTokens(db: Database): Promise<void> {
 
 /** Clear isInMyDay flag for all tasks (used for daily My Day reset). */
 export async function clearMyDayFlags(db: Database, now: number): Promise<void> {
-  // Bumping updatedAt ensures the local version is newer than Graph's copy, so
-  // a post-reset sync won't overwrite the clear with isInMyDay: true from Graph.
+  // My Day is local-only — no Graph writes needed. Bumping updatedAt so that
+  // the local version wins any lastModified conflict check for other task fields.
   await db.execute("UPDATE tasks SET isInMyDay = 0, updatedAt = ? WHERE isInMyDay = 1", [now]);
 }
 

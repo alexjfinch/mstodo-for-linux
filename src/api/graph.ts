@@ -278,7 +278,7 @@ function mapGraphTask(t: GraphTask, listId: string): Task {
     completed: t.status === "completed",
     listId,
     status: t.status,
-    isInMyDay: t.body?.content?.includes("#MyDay") || false,
+    isInMyDay: false, // My Day is local-only; not read from Graph
     importance: t.importance || "normal",
     dueDateTime: t.dueDateTime
       ? { dateTime: t.dueDateTime.dateTime, timeZone: t.dueDateTime.timeZone }
@@ -532,20 +532,10 @@ export async function updateTaskAttributes(
 
   if ("title" in updates && updates.title && updates.title.trim().length > 0) body.title = updates.title;
 
-  // My Day: managed via #MyDay tag in body (see comment on mapGraphTask)
-  if (updates.isInMyDay !== undefined) {
-    const cleanContent = (task.body?.content || "").replace(/#MyDay/g, "").trim();
-    body.body = {
-      content: updates.isInMyDay ? `${cleanContent} #MyDay`.trim() : cleanContent,
-      contentType: "text",
-    };
-  } else if ("body" in updates) {
-    // Preserve existing #MyDay tag when user edits body content
+  if ("body" in updates) {
+    // Strip any legacy #MyDay tags — My Day is tracked locally only, not via Graph body content
     const clean = (updates.body?.content || "").replace(/#MyDay/g, "").trim();
-    body.body = {
-      content: task.isInMyDay ? `${clean} #MyDay`.trim() : clean,
-      contentType: "text",
-    };
+    body.body = { content: clean, contentType: "text" };
   }
 
   if ("importance" in updates) body.importance = updates.importance;
@@ -564,6 +554,9 @@ export async function updateTaskAttributes(
 
   if ("recurrence" in updates) body.recurrence = (updates.recurrence as Recurrence) ?? null;
   if ("categories" in updates) body.categories = updates.categories ?? [];
+
+  // Nothing to push — skip the round-trip (e.g. isInMyDay-only update, which is local-only)
+  if (Object.keys(body).length === 0) return { ...task, ...updates };
 
   const data = await graphRequest<GraphTask>(
     "patch", `${GRAPH_BASE}/${task.listId}/tasks/${task.id}`, accessToken,
