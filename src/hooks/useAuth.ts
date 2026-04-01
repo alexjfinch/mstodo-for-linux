@@ -86,15 +86,36 @@ export const useAuth = () => {
         const activeId = await store.get<string>("active_account_id");
 
         if (storedMeta && storedMeta.length > 0) {
-          const hydrated = await Promise.all(
-            storedMeta.map(async (meta) => {
-              const tokens = await loadTokens(meta.id);
-              return { ...meta, ...tokens };
-            })
-          );
+          // The keyring daemon (GNOME Keyring / KWallet) may not be ready immediately
+          // when the app autolaunchs at login. Retry with exponential backoff before
+          // giving up and forcing re-authentication.
+          const MAX_ATTEMPTS = 5;
+          let hydrated: StoredAccount[] | null = null;
 
-          setAccounts(hydrated);
-          setActiveAccountId(activeId ?? storedMeta[0].id);
+          for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            try {
+              hydrated = await Promise.all(
+                storedMeta.map(async (meta) => {
+                  const tokens = await loadTokens(meta.id);
+                  return { ...meta, ...tokens };
+                })
+              );
+              break;
+            } catch (err) {
+              if (attempt < MAX_ATTEMPTS - 1) {
+                const delay = Math.min(300 * 2 ** attempt, 2000);
+                logger.warn(`Keyring not ready (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying in ${delay}ms`, err);
+                await new Promise((res) => setTimeout(res, delay));
+              } else {
+                logger.error("Failed to load tokens from keyring after retries — user must re-authenticate", err);
+              }
+            }
+          }
+
+          if (hydrated) {
+            setAccounts(hydrated);
+            setActiveAccountId(activeId ?? storedMeta[0].id);
+          }
         }
       } catch (err) {
         logger.error("Failed to load accounts", err);
