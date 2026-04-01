@@ -1,6 +1,6 @@
 app-id: io.github.alexjfinch.mstodo-for-linux
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '48'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -17,9 +17,13 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets        # keyring (libsecret)
   - --talk-name=org.freedesktop.StatusNotifierWatcher  # system tray
+  - --talk-name=org.kde.StatusNotifierWatcher          # system tray (KDE Plasma)
   - --talk-name=com.canonical.AppMenu.Registrar        # system tray (Ubuntu)
+  - --talk-name=org.kde.kwalletd6                      # KDE KWallet 6 D-Bus access
   - --filesystem=xdg-run/keyring               # GNOME Keyring socket
+  - --filesystem=xdg-run/kwallet5              # KDE KWallet keyring socket
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1     # KDE Wayland compositor compatibility
+  - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1    # fixes blank window on KDE Plasma 6 Wayland
   - --env=WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1  # disable WebKit inner sandbox; Flatpak is the sandbox
 
 build-options:
