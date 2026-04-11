@@ -158,6 +158,7 @@ async function graphRequest<T>(
 
     const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
     if (axiosErr?.response?.status === 401 && tokenRefreshCallback) {
+      if (signal?.aborted) throw err;
       // Deduplicate concurrent refresh attempts — only the first caller
       // invokes the callback; others await the same promise.
       if (!inflightRefresh) {

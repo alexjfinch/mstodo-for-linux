@@ -127,7 +127,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
             await saveListToDB(database, withGroup);
             await database.execute("COMMIT");
           } catch (txErr) {
-            await database.execute("ROLLBACK").catch(() => {});
+            await database.execute("ROLLBACK").catch((rollbackErr) => {
+              logger.error("DB ROLLBACK failed", rollbackErr);
+            });
             throw txErr;
           }
           setLists((prev) => prev.map((l) => (l.id === localId ? withGroup : l)));
@@ -450,7 +452,9 @@ export const useLists = (accessToken: string | null, db: Database | null, active
       for (const child of children) {
         try {
           await updateListMeta(database, child.id, { parentGroupId: listId });
-        } catch { /* best effort */ }
+        } catch (err) {
+          logger.warn("Failed to restore child list parentage during delete rollback", err);
+        }
       }
     }
   }, []);

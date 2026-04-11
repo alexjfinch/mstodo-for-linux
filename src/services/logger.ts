@@ -30,7 +30,7 @@ function formatError(err: unknown): string {
 
 function writeToFile(level: LogLevel, message: string) {
   invoke("write_log", { level, message }).catch(() => {
-    // If file logging fails, we can't do much — avoid infinite recursion
+    if (!isDev) console.error(`[${level}] ${message}`);
   });
 }
 

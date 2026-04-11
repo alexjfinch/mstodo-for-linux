@@ -1,10 +1,9 @@
 import "./TaskList.css";
-import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { logger } from "../services/logger";
-import { getReminderOptions } from "../utils/reminderOptions";
+import { TaskContextMenu } from "./TaskContextMenu";
+import { useTaskContextMenu } from "../hooks/useTaskContextMenu";
 
 type SortField = "title" | "dueDate" | "importance" | null;
 type SortDirection = "asc" | "desc";
@@ -42,33 +41,45 @@ export const TaskList = ({
   defaultListId,
   weekStartDay = 1,
 }: Props) => {
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    taskId: string | null;
-  }>({ visible: false, x: 0, y: 0, taskId: null });
-
   const [completedCollapsed, setCompletedCollapsed] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
-  const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
-  // Increments every minute while the context menu is open, keeping time-relative
-  // reminder options fresh if the menu stays open past an hour boundary.
-  const [minuteTick, setMinuteTick] = useState(0);
-  const [moveSubmenuOpen, setMoveSubmenuOpen] = useState(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverTaskId, setDragOverTaskId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  const menuRef = useRef<HTMLUListElement>(null);
+  const {
+    contextMenu,
+    currentTask,
+    deleteConfirm,
+    setDeleteConfirm,
+    reminderSubmenuOpen,
+    setReminderSubmenuOpen,
+    moveSubmenuOpen,
+    setMoveSubmenuOpen,
+    menuRef,
+    reminderOptions,
+    handleRightClick,
+    handleToggleAttribute,
+    handleCompleteTask,
+    handleDeleteTask,
+    handleSetReminder,
+    handleRemoveReminder,
+    handleDeleteConfirmed,
+    closeMenu,
+  } = useTaskContextMenu({
+    tasks,
+    selectedTasks,
+    onUpdateAttributes,
+    onToggleTask,
+    onDeleteTask,
+    onClearSelection,
+  });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       if (sortDirection === "asc") {
         setSortDirection("desc");
       } else {
-        // Third click clears sort
         setSortField(null);
         setSortDirection("asc");
       }
@@ -85,7 +96,6 @@ export const TaskList = ({
 
   const completedTasks = useMemo(() => tasks.filter((t) => t.completed), [tasks]);
 
-  // Map taskId → custom list display name (only when showListBadge is active)
   const taskListNames = useMemo(() => {
     if (!showListBadge || !allLists || !defaultListId) return new Map<string, string>();
     const map = new Map<string, string>();
@@ -120,122 +130,6 @@ export const TaskList = ({
     });
   }, [tasks, sortField, sortDirection]);
 
-  // Tick every minute while the context menu is open to refresh time-relative labels
-  useEffect(() => {
-    if (!contextMenu.visible) return;
-    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, [contextMenu.visible]);
-
-  // Auto-focus the context menu when it opens for keyboard navigation
-  useEffect(() => {
-    if (contextMenu.visible && menuRef.current) {
-      menuRef.current.focus();
-    }
-  }, [contextMenu.visible]);
-
-  // Close context menu when clicking outside or scrolling (only when visible)
-  useEffect(() => {
-    if (!contextMenu.visible) return;
-
-    const closeMenu = () => setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        closeMenu();
-      }
-    };
-
-    document.addEventListener("click", handleClickOutside);
-    window.addEventListener("scroll", closeMenu, true);
-
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-      window.removeEventListener("scroll", closeMenu, true);
-    };
-  }, [contextMenu.visible]);
-
-  // Clamp the context menu to the viewport after it has been rendered and measured.
-  useLayoutEffect(() => {
-    if (!contextMenu.visible || !menuRef.current) return;
-    const rect = menuRef.current.getBoundingClientRect();
-    const overflowX = Math.max(0, rect.right - (window.innerWidth - 4));
-    const overflowY = Math.max(0, rect.bottom - (window.innerHeight - 4));
-    if (overflowX > 0 || overflowY > 0) {
-      setContextMenu((prev) => ({ ...prev, x: prev.x - overflowX, y: prev.y - overflowY }));
-    }
-  }, [contextMenu.visible]);
-
-  const handleRightClick = (e: React.MouseEvent, taskId: string) => {
-    e.preventDefault();
-    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, taskId });
-    setReminderSubmenuOpen(false);
-    setMoveSubmenuOpen(false);
-  };
-
-  const handleToggleAttribute = async (attribute: "isInMyDay" | "importance") => {
-    if (!contextMenu.taskId) return;
-
-    // Apply to all selected tasks if right-clicked task is in the selection
-    const idsToUpdate = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-
-    await Promise.all(idsToUpdate.map((id) => {
-      const task = tasks.find((t) => t.id === id);
-      if (!task) return Promise.resolve();
-
-      if (attribute === "importance") {
-        const newValue = task.importance === "high" ? "normal" : "high";
-        return onUpdateAttributes(id, { importance: newValue });
-      } else if (attribute === "isInMyDay") {
-        return onUpdateAttributes(id, { isInMyDay: !task.isInMyDay });
-      }
-      return Promise.resolve();
-    }));
-
-    if (idsToUpdate.length > 1) onClearSelection();
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  const handleCompleteTask = async () => {
-    if (!contextMenu.taskId) return;
-    const idsToToggle = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-    await Promise.all(idsToToggle.map((id) => onToggleTask(id)));
-    if (idsToToggle.length > 1) onClearSelection();
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  const handleDeleteTask = () => {
-    if (!contextMenu.taskId) return;
-    const idsToDelete = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-    const title = idsToDelete.length === 1
-      ? tasks.find((t) => t.id === idsToDelete[0])?.title || ""
-      : `${idsToDelete.length} tasks`;
-    setDeleteConfirm({ taskIds: idsToDelete, title });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
-
-  const handleSetReminder = useCallback((dateTime: string) => {
-    if (!contextMenu.taskId) return;
-    onUpdateAttributes(contextMenu.taskId, {
-      reminderDateTime: { dateTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-    });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  }, [contextMenu.taskId, onUpdateAttributes]);
-
-  const handleRemoveReminder = useCallback(() => {
-    if (!contextMenu.taskId) return;
-    onUpdateAttributes(contextMenu.taskId, { reminderDateTime: undefined });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  }, [contextMenu.taskId, onUpdateAttributes]);
-
   const handleTaskClick = (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation();
     if (e.shiftKey) {
@@ -246,7 +140,6 @@ export const TaskList = ({
     }
   };
 
-  // Drag-and-drop reordering for active tasks
   const dragGhostRef = useRef<HTMLElement | null>(null);
 
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
@@ -254,7 +147,6 @@ export const TaskList = ({
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", taskId);
 
-    // Create a 50%-scale ghost image with rounded corners
     const el = e.currentTarget as HTMLElement;
     const ghost = el.cloneNode(true) as HTMLElement;
     ghost.style.transform = "scale(0.5)";
@@ -310,7 +202,6 @@ export const TaskList = ({
     (e.currentTarget as HTMLElement).classList.remove("dragging");
     setDraggedTaskId(null);
     setDragOverTaskId(null);
-    // Clean up ghost element if rAF hasn't fired yet
     if (dragGhostRef.current?.parentNode) {
       dragGhostRef.current.parentNode.removeChild(dragGhostRef.current);
       dragGhostRef.current = null;
@@ -326,31 +217,9 @@ export const TaskList = ({
   const handleToggleImportance = (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-
     const newValue = task.importance === "high" ? "normal" : "high";
     onUpdateAttributes(taskId, { importance: newValue });
   };
-
-  const handleDeleteConfirmed = async () => {
-    if (!deleteConfirm) return;
-    const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id)));
-    const failures = results.filter((r) => r.status === "rejected");
-    if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures);
-    if (deleteConfirm.taskIds.length > 1) onClearSelection();
-    setDeleteConfirm(null);
-  };
-
-  const currentTask = contextMenu.taskId ? tasks.find((t) => t.id === contextMenu.taskId) ?? null : null;
-
-  // Close context menu if the referenced task was deleted externally (e.g. via sync).
-  // setState-in-effect is intentional: we're reacting to an external system change
-  // (task list updated by sync), which is exactly the use-case effects are designed for.
-  useEffect(() => {
-    if (contextMenu.visible && contextMenu.taskId && !currentTask) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-    }
-  }, [contextMenu.visible, contextMenu.taskId, currentTask]);
 
   const renderTask = (task: Task, draggable: boolean = false) => (
     <TaskItem
@@ -376,15 +245,27 @@ export const TaskList = ({
 
   return (
     <>
-    {deleteConfirm && (
-      <ConfirmDialog
-        message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
-        confirmLabel="Delete"
-        danger
-        onConfirm={handleDeleteConfirmed}
-        onCancel={() => setDeleteConfirm(null)}
-      />
-    )}
+    <TaskContextMenu
+      contextMenu={contextMenu}
+      currentTask={currentTask}
+      menuRef={menuRef}
+      deleteConfirm={deleteConfirm}
+      reminderSubmenuOpen={reminderSubmenuOpen}
+      setReminderSubmenuOpen={setReminderSubmenuOpen}
+      moveSubmenuOpen={moveSubmenuOpen}
+      setMoveSubmenuOpen={setMoveSubmenuOpen}
+      reminderOptions={reminderOptions}
+      onClose={closeMenu}
+      onCompleteTask={handleCompleteTask}
+      onToggleAttribute={handleToggleAttribute}
+      onSetReminder={handleSetReminder}
+      onRemoveReminder={handleRemoveReminder}
+      onDeleteTask={handleDeleteTask}
+      onDeleteConfirmed={handleDeleteConfirmed}
+      onCancelDelete={() => setDeleteConfirm(null)}
+      onMoveTaskToList={onMoveTaskToList}
+      allLists={allLists}
+    />
     <div className="tasks-container" data-custom-context>
       {/* Column Headers */}
       {activeTasks.length > 0 && (
@@ -449,131 +330,6 @@ export const TaskList = ({
           <div className="empty-state-text">No tasks yet</div>
           <div className="empty-state-subtext">Add a task to get started</div>
         </div>
-      )}
-
-      {/* Context Menu */}
-      {contextMenu.visible && currentTask && (
-        <ul
-          ref={menuRef}
-          className="context-menu"
-          role="menu"
-          aria-label="Task actions"
-          data-no-close-detail
-          tabIndex={-1}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-            } else if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab") {
-              e.preventDefault();
-              const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
-              if (!items || items.length === 0) return;
-              const active = document.activeElement as HTMLElement;
-              const idx = Array.from(items).indexOf(active);
-              const forward = e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey);
-              const next = forward
-                ? items[(idx + 1) % items.length]
-                : items[(idx - 1 + items.length) % items.length];
-              next?.focus();
-            }
-          }}
-          style={{
-            top: contextMenu.y,
-            left: contextMenu.x,
-            position: "fixed",
-          }}
-        >
-          <li className="context-menu-item" role="menuitem" tabIndex={-1} onClick={handleCompleteTask}>
-            {currentTask.completed ? "Mark as Incomplete" : "Mark as Complete"}
-          </li>
-
-          <li className="context-menu-divider" />
-
-          <li
-            className="context-menu-item"
-            role="menuitem"
-            tabIndex={-1}
-            onClick={() => handleToggleAttribute("isInMyDay")}
-          >
-            {currentTask.isInMyDay ? "Remove from My Day" : "Add to My Day"}
-          </li>
-
-          <li
-            className="context-menu-item"
-            role="menuitem"
-            tabIndex={-1}
-            onClick={() => handleToggleAttribute("importance")}
-          >
-            {currentTask.importance === "high" ? "Mark as Normal" : "Mark as Important"}
-          </li>
-
-          <li
-            className="context-menu-item context-menu-expandable"
-            onClick={() => setReminderSubmenuOpen(!reminderSubmenuOpen)}
-          >
-            <span>Remind me</span>
-            <span className={`context-menu-arrow ${reminderSubmenuOpen ? "expanded" : ""}`}>▸</span>
-          </li>
-          <div className={`context-menu-expand-panel ${reminderSubmenuOpen ? "open" : ""}`}>
-            <div className="context-menu-expand-inner">
-              {reminderOptions.map((opt) => (
-                <li
-                  key={opt.label}
-                  className="context-menu-item context-menu-inline-option"
-                  onClick={() => handleSetReminder(opt.getDateTime())}
-                >
-                  <span>{opt.label}</span>
-                  <span className="context-menu-hint">{opt.subLabel}</span>
-                </li>
-              ))}
-              {currentTask.reminderDateTime && (
-                <li
-                  className="context-menu-item context-menu-inline-option context-menu-item-danger"
-                  onClick={handleRemoveReminder}
-                >
-                  Remove reminder
-                </li>
-              )}
-            </div>
-          </div>
-
-          {onMoveTaskToList && allLists && allLists.filter(l => !l.isGroup && l.id !== currentTask.listId).length > 0 && (
-            <>
-              <li
-                className="context-menu-item context-menu-expandable"
-                onClick={() => setMoveSubmenuOpen(!moveSubmenuOpen)}
-              >
-                <span>Move to list</span>
-                <span className={`context-menu-arrow ${moveSubmenuOpen ? "expanded" : ""}`}>▸</span>
-              </li>
-              <div className={`context-menu-expand-panel ${moveSubmenuOpen ? "open" : ""}`}>
-                <div className="context-menu-expand-inner">
-                  {allLists
-                    .filter(l => !l.isGroup && l.id !== currentTask.listId)
-                    .map(l => (
-                      <li
-                        key={l.id}
-                        className="context-menu-item context-menu-inline-option"
-                        onClick={() => {
-                          onMoveTaskToList(currentTask.id, l.id);
-                          setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-                        }}
-                      >
-                        <span>{l.emoji || "📝"}</span>
-                        <span>{l.displayName}</span>
-                      </li>
-                    ))
-                  }
-                </div>
-              </div>
-            </>
-          )}
-
-          <li className="context-menu-divider" />
-
-          <li className="context-menu-item context-menu-item-danger" role="menuitem" tabIndex={-1} onClick={handleDeleteTask}>
-            Delete Task
-          </li>
-        </ul>
       )}
     </div>
     </>

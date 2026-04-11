@@ -461,7 +461,10 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         ? `${axiosErr.response.status} ${axiosErr.response.statusText}: ${JSON.stringify(axiosErr.response.data)}`
         : undefined;
       logger.error("Sync failed" + (detail ? ` — ${detail}` : ""), err);
-      setSyncError(detail || (err instanceof Error ? err.message : "Unknown sync error"));
+      const userMessage = axiosErr?.response
+        ? `Sync failed (${axiosErr.response.status} ${axiosErr.response.statusText})`
+        : (err instanceof Error ? err.message : "Unknown sync error");
+      setSyncError(userMessage);
     } finally {
       syncInProgressRef.current = false;
       if (syncGenerationRef.current === generation) {

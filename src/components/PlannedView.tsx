@@ -1,9 +1,8 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Task, TaskList as TaskListType } from "../types";
 import { TaskItem } from "./TaskItem";
-import { ConfirmDialog } from "./ConfirmDialog";
-import { logger } from "../services/logger";
-import { getReminderOptions } from "../utils/reminderOptions";
+import { TaskContextMenu } from "./TaskContextMenu";
+import { useTaskContextMenu } from "../hooks/useTaskContextMenu";
 
 type Props = {
   tasks: Task[];
@@ -39,20 +38,34 @@ export const PlannedView = ({
   weekStartDay = 1,
 }: Props) => {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    taskId: string | null;
-  }>({ visible: false, x: 0, y: 0, taskId: null });
-  const [deleteConfirm, setDeleteConfirm] = useState<{ taskIds: string[]; title: string } | null>(null);
-  const [reminderSubmenuOpen, setReminderSubmenuOpen] = useState(false);
-  const [moveSubmenuOpen, setMoveSubmenuOpen] = useState(false);
-  // Increments every minute while the context menu is open, keeping time-relative
-  // reminder options fresh if the menu stays open past an hour boundary.
-  const [minuteTick, setMinuteTick] = useState(0);
 
-  const menuRef = useRef<HTMLUListElement>(null);
+  const {
+    contextMenu,
+    currentTask,
+    deleteConfirm,
+    setDeleteConfirm,
+    reminderSubmenuOpen,
+    setReminderSubmenuOpen,
+    moveSubmenuOpen,
+    setMoveSubmenuOpen,
+    menuRef,
+    reminderOptions,
+    handleRightClick,
+    handleToggleAttribute,
+    handleCompleteTask,
+    handleDeleteTask,
+    handleSetReminder,
+    handleRemoveReminder,
+    handleDeleteConfirmed,
+    closeMenu,
+  } = useTaskContextMenu({
+    tasks,
+    selectedTasks,
+    onUpdateAttributes,
+    onToggleTask,
+    onDeleteTask,
+    onClearSelection,
+  });
 
   const toggleSection = (key: string) => {
     setCollapsedSections((prev) => {
@@ -65,117 +78,6 @@ export const PlannedView = ({
       return newSet;
     });
   };
-
-  // Tick every minute while the context menu is open to refresh time-relative labels
-  useEffect(() => {
-    if (!contextMenu.visible) return;
-    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, [contextMenu.visible]);
-
-  // Auto-focus the context menu when it opens for keyboard navigation
-  useEffect(() => {
-    if (contextMenu.visible && menuRef.current) {
-      menuRef.current.focus();
-    }
-  }, [contextMenu.visible]);
-
-  // Close context menu when clicking outside or scrolling
-  useEffect(() => {
-    if (!contextMenu.visible) return;
-    const closeMenu = () => setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        closeMenu();
-      }
-    };
-    document.addEventListener("click", handleClickOutside);
-    window.addEventListener("scroll", closeMenu, true);
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-      window.removeEventListener("scroll", closeMenu, true);
-    };
-  }, [contextMenu.visible]);
-
-  const handleRightClick = (e: React.MouseEvent, taskId: string) => {
-    e.preventDefault();
-    const menuW = 180, menuH = 160;
-    const x = Math.min(e.clientX, window.innerWidth - menuW - 4);
-    const y = Math.min(e.clientY, window.innerHeight - menuH - 4);
-    setContextMenu({ visible: true, x, y, taskId });
-    setReminderSubmenuOpen(false);
-    setMoveSubmenuOpen(false);
-  };
-
-  const currentTask = contextMenu.taskId ? tasks.find((t) => t.id === contextMenu.taskId) ?? null : null;
-
-  // Close context menu if the referenced task was deleted externally (e.g. via sync).
-  // setState-in-effect is intentional: we're reacting to an external system change
-  // (task list updated by sync), which is exactly the use-case effects are designed for.
-  useEffect(() => {
-    if (contextMenu.visible && contextMenu.taskId && !currentTask) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-    }
-  }, [contextMenu.visible, contextMenu.taskId, currentTask]);
-
-  const handleToggleAttribute = async (attribute: "isInMyDay" | "importance") => {
-    if (!contextMenu.taskId) return;
-    const idsToUpdate = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-    await Promise.all(idsToUpdate.map((id) => {
-      const task = tasks.find((t) => t.id === id);
-      if (!task) return Promise.resolve();
-      if (attribute === "importance") {
-        return onUpdateAttributes(id, { importance: task.importance === "high" ? "normal" : "high" });
-      } else {
-        return onUpdateAttributes(id, { isInMyDay: !task.isInMyDay });
-      }
-    }));
-    if (idsToUpdate.length > 1) onClearSelection();
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  const handleCompleteTask = async () => {
-    if (!contextMenu.taskId) return;
-    const idsToToggle = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-    await Promise.all(idsToToggle.map((id) => onToggleTask(id)));
-    if (idsToToggle.length > 1) onClearSelection();
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  const handleDeleteTask = () => {
-    if (!contextMenu.taskId) return;
-    const idsToDelete = selectedTasks.includes(contextMenu.taskId) && selectedTasks.length > 1
-      ? selectedTasks
-      : [contextMenu.taskId];
-    const title = idsToDelete.length === 1
-      ? tasks.find((t) => t.id === idsToDelete[0])?.title || ""
-      : `${idsToDelete.length} tasks`;
-    setDeleteConfirm({ taskIds: idsToDelete, title });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  };
-
-  // Re-compute relative time labels each time the context menu opens and every minute
-  // while it stays open, so options remain correct if the menu spans an hour boundary.
-  const reminderOptions = useMemo(() => getReminderOptions(), [contextMenu.visible, minuteTick]);
-
-  const handleSetReminder = useCallback((dateTime: string) => {
-    if (!contextMenu.taskId) return;
-    onUpdateAttributes(contextMenu.taskId, {
-      reminderDateTime: { dateTime, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-    });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  }, [contextMenu.taskId, onUpdateAttributes]);
-
-  const handleRemoveReminder = useCallback(() => {
-    if (!contextMenu.taskId) return;
-    onUpdateAttributes(contextMenu.taskId, { reminderDateTime: undefined });
-    setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-  }, [contextMenu.taskId, onUpdateAttributes]);
 
   const sections = useMemo((): DateSection[] => {
     const now = new Date();
@@ -296,21 +198,27 @@ export const PlannedView = ({
 
   return (
     <>
-      {deleteConfirm && (
-        <ConfirmDialog
-          message={`Delete ${deleteConfirm.taskIds.length === 1 ? `"${deleteConfirm.title}"` : deleteConfirm.title}?`}
-          confirmLabel="Delete"
-          danger
-          onConfirm={async () => {
-            const results = await Promise.allSettled(deleteConfirm.taskIds.map((id) => onDeleteTask(id)));
-            const failures = results.filter((r) => r.status === "rejected");
-            if (failures.length > 0) logger.error(`${failures.length} delete(s) failed`, failures);
-            if (deleteConfirm.taskIds.length > 1) onClearSelection();
-            setDeleteConfirm(null);
-          }}
-          onCancel={() => setDeleteConfirm(null)}
-        />
-      )}
+      <TaskContextMenu
+        contextMenu={contextMenu}
+        currentTask={currentTask}
+        menuRef={menuRef}
+        deleteConfirm={deleteConfirm}
+        reminderSubmenuOpen={reminderSubmenuOpen}
+        setReminderSubmenuOpen={setReminderSubmenuOpen}
+        moveSubmenuOpen={moveSubmenuOpen}
+        setMoveSubmenuOpen={setMoveSubmenuOpen}
+        reminderOptions={reminderOptions}
+        onClose={closeMenu}
+        onCompleteTask={handleCompleteTask}
+        onToggleAttribute={handleToggleAttribute}
+        onSetReminder={handleSetReminder}
+        onRemoveReminder={handleRemoveReminder}
+        onDeleteTask={handleDeleteTask}
+        onDeleteConfirmed={handleDeleteConfirmed}
+        onCancelDelete={() => setDeleteConfirm(null)}
+        onMoveTaskToList={onMoveTaskToList}
+        allLists={allLists}
+      />
       <div className="tasks-container">
         {/* Column Headers */}
         <div className="task-list-header" onClick={(e) => e.stopPropagation()}>
@@ -348,108 +256,6 @@ export const PlannedView = ({
             )}
           </div>
         ))}
-
-        {/* Context Menu */}
-        {contextMenu.visible && currentTask && (
-          <ul
-            ref={menuRef}
-            className="context-menu"
-            role="menu"
-            aria-label="Task actions"
-            tabIndex={-1}
-            data-no-close-detail
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-              } else if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab") {
-                e.preventDefault();
-                const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
-                if (!items || items.length === 0) return;
-                const active = document.activeElement as HTMLElement;
-                const idx = Array.from(items).indexOf(active);
-                const forward = e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey);
-                const next = forward
-                  ? items[(idx + 1) % items.length]
-                  : items[(idx - 1 + items.length) % items.length];
-                next?.focus();
-              }
-            }}
-            style={{ top: contextMenu.y, left: contextMenu.x, position: "fixed" }}
-          >
-            <li className="context-menu-item" role="menuitem" tabIndex={-1} onClick={handleCompleteTask}>
-              {currentTask.completed ? "Mark as Incomplete" : "Mark as Complete"}
-            </li>
-
-            <li className="context-menu-divider" />
-
-            <li className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => handleToggleAttribute("isInMyDay")}>
-              {currentTask.isInMyDay ? "Remove from My Day" : "Add to My Day"}
-            </li>
-
-            <li className="context-menu-item" role="menuitem" tabIndex={-1} onClick={() => handleToggleAttribute("importance")}>
-              {currentTask.importance === "high" ? "Mark as Normal" : "Mark as Important"}
-            </li>
-
-            <li className="context-menu-item context-menu-expandable" onClick={() => setReminderSubmenuOpen(!reminderSubmenuOpen)}>
-              <span>Remind me</span>
-              <span className={`context-menu-arrow ${reminderSubmenuOpen ? "expanded" : ""}`}>▸</span>
-            </li>
-            <div className={`context-menu-expand-panel ${reminderSubmenuOpen ? "open" : ""}`}>
-              <div className="context-menu-expand-inner">
-                {reminderOptions.map((opt) => (
-                  <li
-                    key={opt.label}
-                    className="context-menu-item context-menu-inline-option"
-                    onClick={() => handleSetReminder(opt.getDateTime())}
-                  >
-                    <span>{opt.label}</span>
-                    <span className="context-menu-hint">{opt.subLabel}</span>
-                  </li>
-                ))}
-                {currentTask.reminderDateTime && (
-                  <li className="context-menu-item context-menu-inline-option context-menu-item-danger" onClick={handleRemoveReminder}>
-                    Remove reminder
-                  </li>
-                )}
-              </div>
-            </div>
-
-            {onMoveTaskToList && allLists && allLists.filter(l => !l.isGroup && l.id !== currentTask.listId).length > 0 && (
-              <>
-                <li className="context-menu-item context-menu-expandable" onClick={() => setMoveSubmenuOpen(!moveSubmenuOpen)}>
-                  <span>Move to list</span>
-                  <span className={`context-menu-arrow ${moveSubmenuOpen ? "expanded" : ""}`}>▸</span>
-                </li>
-                <div className={`context-menu-expand-panel ${moveSubmenuOpen ? "open" : ""}`}>
-                  <div className="context-menu-expand-inner">
-                    {allLists
-                      .filter(l => !l.isGroup && l.id !== currentTask.listId)
-                      .map(l => (
-                        <li
-                          key={l.id}
-                          className="context-menu-item context-menu-inline-option"
-                          onClick={() => {
-                            onMoveTaskToList(currentTask.id, l.id);
-                            setContextMenu({ visible: false, x: 0, y: 0, taskId: null });
-                          }}
-                        >
-                          <span>{l.emoji || "📝"}</span>
-                          <span>{l.displayName}</span>
-                        </li>
-                      ))
-                    }
-                  </div>
-                </div>
-              </>
-            )}
-
-            <li className="context-menu-divider" />
-
-            <li className="context-menu-item context-menu-item-danger" role="menuitem" tabIndex={-1} onClick={handleDeleteTask}>
-              Delete Task
-            </li>
-          </ul>
-        )}
       </div>
     </>
   );

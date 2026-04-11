@@ -286,7 +286,9 @@ async fn write_log(level: String, message: String) -> Result<(), String> {
         if let Ok(meta) = std::fs::metadata(&path) {
             if meta.len() > MAX_LOG_SIZE {
                 let prev = path.with_extension("log.old");
-                let _ = std::fs::rename(&path, &prev);
+                if std::fs::rename(&path, &prev).is_err() {
+                    let _ = std::fs::File::create(&path);
+                }
             }
         }
 
