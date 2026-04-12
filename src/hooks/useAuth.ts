@@ -87,29 +87,47 @@ export const useAuth = () => {
 
         if (storedMeta && storedMeta.length > 0) {
           // The keyring daemon (GNOME Keyring / KWallet) may not be ready immediately
-          // when the app autolaunchs at login. Retry with exponential backoff before
-          // giving up and forcing re-authentication.
-          const MAX_ATTEMPTS = 5;
+          // when the app autolaunches at login. Two failure modes:
+          //   1. Keyring throws (D-Bus not yet available) — retry on error.
+          //   2. Keyring returns null instead of throwing (backend returns NoEntry
+          //      when locked) — retry on null tokens too.
+          // Use a wall-clock budget so slower machines still get enough time.
+          const MAX_WAIT_MS = 15_000;
+          const startTime = Date.now();
           let hydrated: StoredAccount[] | null = null;
+          let attempt = 0;
 
-          for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          while (true) {
+            const elapsed = Date.now() - startTime;
             try {
-              hydrated = await Promise.all(
+              const loaded = await Promise.all(
                 storedMeta.map(async (meta) => {
                   const tokens = await loadTokens(meta.id);
                   return { ...meta, ...tokens };
                 })
               );
-              break;
-            } catch (err) {
-              if (attempt < MAX_ATTEMPTS - 1) {
-                const delay = Math.min(300 * 2 ** attempt, 2000);
-                logger.warn(`Keyring not ready (attempt ${attempt + 1}/${MAX_ATTEMPTS}), retrying in ${delay}ms`, err);
-                await new Promise((res) => setTimeout(res, delay));
-              } else {
-                logger.error("Failed to load tokens from keyring after retries — user must re-authenticate", err);
+              const hasTokens = loaded.some((a) => a.accessToken || a.refreshToken);
+              if (hasTokens) {
+                hydrated = loaded;
+                break;
               }
+              // Tokens came back null — keyring may not be unlocked yet.
+              if (elapsed >= MAX_WAIT_MS) {
+                logger.error("Timed out waiting for keyring — tokens still null after retries");
+                hydrated = loaded;
+                break;
+              }
+              logger.warn(`No tokens in keyring yet (attempt ${attempt + 1}), retrying...`);
+            } catch (err) {
+              if (elapsed >= MAX_WAIT_MS) {
+                logger.error("Failed to reach keyring after timeout — user must re-authenticate", err);
+                break;
+              }
+              logger.warn(`Keyring not ready (attempt ${attempt + 1}), retrying...`, err);
             }
+            const delay = Math.min(300 * 2 ** attempt, 3_000);
+            await new Promise((res) => setTimeout(res, delay));
+            attempt++;
           }
 
           if (hydrated) {
