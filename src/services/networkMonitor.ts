@@ -19,6 +19,10 @@ async function probeNetwork(): Promise<boolean> {
       cache: "no-store",
     });
     clearTimeout(timer);
+    // Discard the body immediately — we only need the status code.
+    // Without this, WebKitGTK buffers the entire ~1-2 MB $metadata response
+    // in memory on every poll, causing a multi-GB leak over hours of uptime.
+    resp.body?.cancel();
     // Any HTTP response (even 4xx/5xx) means the network and Graph endpoint
     // are reachable. Only a fetch exception (timeout, DNS failure) means offline.
     return resp.status > 0;
