@@ -24,7 +24,7 @@ url = "2"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tauri-plugin-notification = "2.3.3"
-keyring = { version = "3", features = ["linux-native"] }
+keyring = { version = "3", features = ["linux-native-sync-persistent", "crypto-rust"] }
 chrono = "0.4"
 dirs = "6"
 
