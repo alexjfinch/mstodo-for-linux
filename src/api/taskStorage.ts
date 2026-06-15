@@ -13,10 +13,6 @@ export interface PendingOperation {
 export const MAX_PENDING_OP_RETRIES = 5;
 
 export async function initializeTables(db: Database): Promise<void> {
-  // Note: FK enforcement is already enabled by openDatabase(). CREATE TABLE and
-  // CREATE INDEX do not trigger FK checks, so no need to disable it here.
-  // Application-level pending ops handle local-xxx list IDs that may not yet
-  // exist in the lists table.
   await db.execute(`
     CREATE TABLE IF NOT EXISTS lists (
       id TEXT PRIMARY KEY,
@@ -111,9 +107,18 @@ export async function loadListsFromDB(db: Database): Promise<TaskList[]> {
 
 export async function saveListToDB(db: Database, list: TaskList): Promise<void> {
   await db.execute(
-    `INSERT OR REPLACE INTO lists
+    `INSERT INTO lists
       (id, displayName, isOwner, isShared, wellknownListName, isGroup, parentGroupId, emoji, themeColor)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        displayName = excluded.displayName,
+        isOwner = excluded.isOwner,
+        isShared = excluded.isShared,
+        wellknownListName = excluded.wellknownListName,
+        isGroup = excluded.isGroup,
+        parentGroupId = excluded.parentGroupId,
+        emoji = excluded.emoji,
+        themeColor = excluded.themeColor`,
     [
       list.id,
       list.displayName,
@@ -132,13 +137,11 @@ export async function deleteListFromDB(db: Database, listId: string): Promise<vo
   await db.execute("DELETE FROM lists WHERE id = ?", [listId]);
 }
 
-// Allowlists guard the dynamic UPDATE builders against accidental use of user-controlled column names.
 const ALLOWED_LIST_META_COLS = new Set(["isGroup", "parentGroupId", "emoji", "themeColor"]);
 const ALLOWED_TASK_ATTR_COLS = new Set(["isInMyDay", "importance", "dueDateTime", "title", "body", "recurrence", "categories", "reminderDateTime", "hasAttachments", "updatedAt"]);
 
 function assertAllowedColumns(updates: string[], allowedCols: Set<string>): void {
   for (const fragment of updates) {
-    // Each fragment is "col = ?"; extract the column name
     const col = fragment.replace(/ = \?$/, "");
     if (!allowedCols.has(col)) {
       throw new Error(`Disallowed column in dynamic UPDATE: "${col}"`);
@@ -209,10 +212,6 @@ export async function loadTasksFromDB(db: Database): Promise<Task[]> {
   }));
 }
 
-/**
- * Upsert a full task record (INSERT OR REPLACE). Use this for synced tasks where
- * the server is the source of truth — it overwrites any existing row with the same id.
- */
 export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   await db.execute(
     `INSERT OR REPLACE INTO tasks
@@ -237,11 +236,6 @@ export async function saveTaskToDB(db: Database, task: Task): Promise<void> {
   );
 }
 
-/**
- * Insert a minimal placeholder row (plain INSERT, fails if id already exists).
- * Use this for newly created local tasks before they have a server id.
- * Distinct from saveTaskToDB which does INSERT OR REPLACE (full upsert).
- */
 export async function insertTaskToDB(
   db: Database,
   id: string,
@@ -341,10 +335,6 @@ export async function getLocalTask(db: Database, id: string): Promise<Task | nul
   };
 }
 
-/**
- * Enqueues a pending operation, deduplicating update/toggle ops for the same task
- * so only the most recent edit is kept when multiple offline changes stack up.
- */
 export async function queuePendingOp(
   db: Database,
   taskId: string | null,
@@ -429,20 +419,10 @@ export async function clearDeltaTokens(db: Database): Promise<void> {
   await db.execute("DELETE FROM deltaTokens");
 }
 
-/** Clear isInMyDay flag for all tasks (used for daily My Day reset). */
 export async function clearMyDayFlags(db: Database, now: number): Promise<void> {
-  // My Day is local-only — no Graph writes needed. Bumping updatedAt so that
-  // the local version wins any lastModified conflict check for other task fields.
   await db.execute("UPDATE tasks SET isInMyDay = 0, updatedAt = ? WHERE isInMyDay = 1", [now]);
 }
 
-/**
- * Wipe all cached data (tasks, lists, delta tokens, pending ops) for account switching.
- * Deduplicated per Database instance: if multiple hooks call this concurrently
- * (useTasks + useLists), only the first call actually runs; subsequent calls
- * await the same promise. Using a WeakMap keyed on the db instance ensures
- * multiple Database instances (e.g. in tests) don't share the same in-flight slot.
- */
 const clearInFlightMap = new WeakMap<Database, Promise<void>>();
 
 export function clearAllData(db: Database): Promise<void> {
