@@ -69,6 +69,12 @@
   </supports>
 
   <releases>
+      </release>
+    <release version="0.1.11" date="2026-06-15">
+      <description>
+        <p>See github release pages for updates.</p>
+      </description>
+    </release>
     <release version="0.1.6" date="2026-03-21">
       <description>
         <p>Security hardening: dynamic OAuth redirect port, CSRF verification, FIFO ownership check.</p>
