@@ -366,8 +366,11 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         // Assigned (Planner) tasks
         for (const assigned of assignedTasks) {
           seenIds.add(assigned.id);
-          merged.push(assigned);
-          await saveTaskToDB(database, assigned);
+          // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+          const local = localMap.get(assigned.id);
+          const taskToMerge = { ...assigned, isInMyDay: local?.isInMyDay ?? false };
+          merged.push(taskToMerge);
+          await saveTaskToDB(database, taskToMerge);
         }
 
         // Remove stale assigned tasks
@@ -419,7 +422,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               }
             }
             for (const assigned of assignedTasks) {
-              taskMap.set(assigned.id, assigned);
+              // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+              const local = taskMap.get(assigned.id);
+              taskMap.set(assigned.id, { ...assigned, isInMyDay: local?.isInMyDay ?? false });
             }
 
             return Array.from(taskMap.values());
@@ -443,7 +448,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
             }
           }
           for (const assigned of assignedTasks) {
-            await saveTaskToDB(database, assigned);
+            // Preserve local My Day state — isInMyDay is local-only, never overwritten by Graph
+            const local = localMap.get(assigned.id);
+            await saveTaskToDB(database, { ...assigned, isInMyDay: local?.isInMyDay ?? false });
           }
         }
       }
