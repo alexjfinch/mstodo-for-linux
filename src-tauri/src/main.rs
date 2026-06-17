@@ -466,6 +466,12 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<st
     if !mkfifo_ok {
         // File already exists — verify it is owned by the current user before using it.
         // This guards against a local attacker pre-creating the path to hijack IPC.
+        //
+        // Known limitation: there is a TOCTOU window between the ownership check below
+        // and the open() call in the reader thread. In XDG_RUNTIME_DIR (mode 700) only
+        // the current user can write there, so this is unexploitable. In the /tmp fallback
+        // an attacker would need to guess the PID-derived nonce and win the race; even
+        // then the only impact is triggering the QuickAdd window — no data access or RCE.
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;

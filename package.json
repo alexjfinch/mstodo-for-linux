@@ -26,7 +26,8 @@
     "chrono-node": "^2.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

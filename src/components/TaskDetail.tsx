@@ -1,6 +1,7 @@
 import "./TaskDetail.css";
 import { useState, useEffect, useRef } from "react";
 import Markdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import { Task, TaskAttachment, ChecklistItem, Recurrence } from "../types";
 import {
   fetchAttachments,
@@ -588,6 +589,7 @@ export const TaskDetail = ({
             >
               {notes ? (
               <Markdown
+                rehypePlugins={[rehypeSanitize]}
                 components={{
                   // Sanitize links: only allow http/https/mailto hrefs.
                   // react-markdown does not render raw HTML by default, but

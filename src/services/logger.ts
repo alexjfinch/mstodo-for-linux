@@ -8,8 +8,8 @@ const isDev = import.meta.env.DEV;
 function redactSecrets(text: string): string {
   return text
     .replace(/Bearer\s+\S+/g, "Bearer [REDACTED]")
-    .replace(/access_token["\s:=]+\S+/g, "access_token=[REDACTED]")
-    .replace(/refresh_token["\s:=]+\S+/g, "refresh_token=[REDACTED]");
+    .replace(/(access_token|refresh_token|id_token)(["'\s:=]+)\S+/gi, "$1$2[REDACTED]")
+    .replace(/"(access_token|refresh_token|id_token)"\s*:\s*"[^"]+"/gi, '"$1":"[REDACTED]"');
 }
 
 function formatError(err: unknown): string {
