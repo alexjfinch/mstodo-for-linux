@@ -102,7 +102,7 @@ export function setTokenRefreshCallback(cb: (() => Promise<string>) | null) {
 }
 
 /** Strip auth tokens from an Axios error before it reaches logs. */
-function sanitizeAxiosError(err: unknown): unknown {
+export function sanitizeAxiosError(err: unknown): unknown {
   if (err && typeof err === "object") {
     if ("config" in err) {
       const axiosErr = err as { config?: { headers?: Record<string, unknown> } };
@@ -472,7 +472,7 @@ export async function fetchAllTasksDelta(
 }
 
 /** Validates that a Graph pagination link originates from graph.microsoft.com over HTTPS. */
-function isValidGraphNextLink(url: string | undefined): url is string {
+export function isValidGraphNextLink(url: string | undefined): url is string {
   if (!url) return false;
   try {
     const u = new URL(url);
@@ -488,7 +488,7 @@ function isValidGraphNextLink(url: string | undefined): url is string {
 }
 
 /** Validates that a listId looks reasonable before using it in an API URL. */
-function validateListId(listId: string): void {
+export function validateListId(listId: string): void {
   if (!listId || listId.startsWith("local-") || listId === "__assigned__") {
     throw new Error(`Invalid listId for Graph API: "${listId}"`);
   }

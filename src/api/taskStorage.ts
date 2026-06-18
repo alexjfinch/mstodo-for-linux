@@ -75,7 +75,7 @@ export async function initializeTables(db: Database): Promise<void> {
 }
 
 /** Safely parse JSON, returning undefined on invalid/corrupt data instead of throwing. */
-function safeJsonParse<T>(value: string | null | undefined): T | undefined {
+export function safeJsonParse<T>(value: string | null | undefined): T | undefined {
   if (!value) return undefined;
   try {
     return JSON.parse(value) as T;
@@ -140,7 +140,7 @@ export async function deleteListFromDB(db: Database, listId: string): Promise<vo
 const ALLOWED_LIST_META_COLS = new Set(["isGroup", "parentGroupId", "emoji", "themeColor"]);
 const ALLOWED_TASK_ATTR_COLS = new Set(["isInMyDay", "importance", "dueDateTime", "title", "body", "recurrence", "categories", "reminderDateTime", "hasAttachments", "updatedAt"]);
 
-function assertAllowedColumns(updates: string[], allowedCols: Set<string>): void {
+export function assertAllowedColumns(updates: string[], allowedCols: Set<string>): void {
   for (const fragment of updates) {
     const col = fragment.replace(/ = \?$/, "");
     if (!allowedCols.has(col)) {
