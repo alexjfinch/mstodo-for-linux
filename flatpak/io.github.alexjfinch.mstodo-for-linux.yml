@@ -1,6 +1,6 @@
 app-id: io.github.alexjfinch.mstodo-for-linux
 runtime: org.gnome.Platform
-runtime-version: '47'
+runtime-version: '51'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -11,27 +11,29 @@ finish-args:
   - --share=network          # Microsoft Graph API + OAuth callback server
   - --share=ipc
   - --socket=wayland
-  - --socket=x11
+  - --socket=fallback-x11    # X11 only when no Wayland session is available
   - --device=dri
-  - --allow=devel             # required for WebKit subprocess IPC in Flatpak
   - --talk-name=org.freedesktop.Notifications
-  - --talk-name=org.freedesktop.secrets        # keyring (libsecret)
+  # Login tokens are stored via the Secret Service API, provided by GNOME Keyring on
+  # GNOME and by KWallet on KDE Plasma. This grants access to the whole keyring.
+  - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.StatusNotifierWatcher  # system tray
   - --talk-name=org.kde.StatusNotifierWatcher          # system tray (KDE Plasma)
   - --talk-name=com.canonical.AppMenu.Registrar        # system tray (Ubuntu)
-  - --talk-name=org.kde.kwalletd6                      # KDE KWallet 6 D-Bus access
-  - --filesystem=xdg-run/keyring               # GNOME Keyring socket
-  - --filesystem=xdg-run/kwallet5              # KDE KWallet keyring socket
+  # The tray library writes its icon to $XDG_RUNTIME_DIR/tray-icon and passes that
+  # path to the desktop's tray host, which runs outside the sandbox and must see it.
+  - --filesystem=xdg-run/tray-icon:create
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1     # KDE Wayland compositor compatibility
-  - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1    # fixes blank window on KDE Plasma 6 Wayland
-  - --env=WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1  # disable WebKit inner sandbox; Flatpak is the sandbox
+  - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1    # blank window workaround on KDE Plasma 6 Wayland
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
   env:
     CARGO_HOME: /run/build/mstodo-for-linux/cargo
     RUSTUP_HOME: /usr/lib/sdk/rust-stable
-    npm_config_cache: /run/build/mstodo-for-linux/npm-cache
+    # Offline npm cache and tool caches, populated by node-sources.json
+    npm_config_cache: /run/build/mstodo-for-linux/flatpak-node/npm-cache
+    XDG_CACHE_HOME: /run/build/mstodo-for-linux/flatpak-node/cache
 
 modules:
   # libayatana-appindicator3 and its deps (not included in GNOME Platform).
@@ -47,8 +49,10 @@ modules:
       # Build the frontend (produces dist/)
       - npm run build
 
-      # Build the Rust binary using pre-fetched cargo sources
-      - cd src-tauri && cargo build --release --frozen
+      # Build the Rust binary using pre-fetched cargo sources. The custom-protocol
+      # feature (normally added by `tauri build`) embeds dist/ in the binary; without
+      # it the app runs in dev mode and loads a blank page from localhost:1420.
+      - cd src-tauri && cargo build --release --frozen --features tauri/custom-protocol
 
       # Install binary
       - install -Dm755 src-tauri/target/release/mstodo-for-linux
@@ -73,9 +77,18 @@ modules:
           /app/share/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml
 
     sources:
-      # Project source (manifest lives in flatpak/, so .. is the repo root)
+      # Project source (manifest lives in flatpak/, so .. is the repo root).
+      # Skip local build output — copying src-tauri/target alone can add tens of GB.
       - type: dir
         path: ..
+        skip:
+          - .git
+          - node_modules
+          - dist
+          - src-tauri/target
+          - flatpak-build
+          - .flatpak-builder
+          - mstodo-for-linux.flatpak
 
       # Generated offline sources — see README steps below to produce these
       - cargo-sources.json

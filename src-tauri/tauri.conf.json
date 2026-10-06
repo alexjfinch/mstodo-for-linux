@@ -35,8 +35,6 @@
             "core:window:allow-unmaximize",
             "core:window:allow-toggle-maximize",
             "core:window:allow-start-dragging",
-            "sql:default",
-            "sql:allow-load",
             "sql:allow-execute",
             "sql:allow-select",
             "store:default",
@@ -49,8 +47,6 @@
             "core:window:allow-set-focus",
             "core:window:allow-is-visible",
             "core:window:allow-unminimize",
-            "dialog:default",
-            "dialog:allow-open",
             "core:tray:default",
             "global-shortcut:default",
             "notification:default",
@@ -77,7 +73,7 @@
   "plugins": {
     "store": null,
     "sql": {
-      "preload": ["sqlite:tasks.db?mode=rwc"]
+      "preload": ["sqlite:tasks.db"]
     }
   },
   "bundle": {

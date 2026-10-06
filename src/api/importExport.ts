@@ -35,7 +35,7 @@ export function buildCsvExport(tasks: Task[], lists: TaskList[]): string {
     csvEscape(t.title),
     csvEscape(t.body?.content || ""),
     csvEscape(t.listId ? (listMap.get(t.listId) || "") : ""),
-    t.dueDateTime?.dateTime ? t.dueDateTime.dateTime.split("T")[0] : "",
+    csvEscape(t.dueDateTime?.dateTime ? t.dueDateTime.dateTime.split("T")[0] : ""),
     t.importance === "high" ? "high" : t.importance === "low" ? "low" : "normal",
     t.completed ? "1" : "0",
     csvEscape((t.categories || []).join(", ")),
@@ -43,33 +43,22 @@ export function buildCsvExport(tasks: Task[], lists: TaskList[]): string {
   return [header, ...rows].map((r) => r.join(",")).join("\n");
 }
 
-function csvEscape(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-    return `"${value.replace(/"/g, '""')}"`;
+// Spreadsheet apps treat cells starting with these characters as formulas. Task text
+// can come from other people via shared lists, so neutralise them with a leading
+// quote rather than let an exported CSV run formulas when opened.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/;
+
+export function csvEscape(value: string): string {
+  const safe = FORMULA_TRIGGER.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
-export async function downloadTextFile(filename: string, content: string, mimeType = "text/plain"): Promise<void> {
-  try {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-    const path = await save({ defaultPath: filename });
-    if (path) {
-      await writeTextFile(path, content);
-    }
-  } catch {
-    // Fallback to browser download if Tauri APIs are unavailable
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
+/** Shows the native Save dialog and writes the file. Resolves false if the user cancelled. */
+export async function saveTextFile(filename: string, content: string): Promise<boolean> {
+  return invoke<boolean>("save_text_file", { defaultName: filename, content });
 }
 
 interface PickedFile {

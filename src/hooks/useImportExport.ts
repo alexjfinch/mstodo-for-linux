@@ -3,7 +3,7 @@ import { Task, TaskList } from "../types";
 import {
   buildJsonExport,
   buildCsvExport,
-  downloadTextFile,
+  saveTextFile,
   pickImportFile,
   importFromJson,
   importFromTodoistCsv,
@@ -23,19 +23,27 @@ interface UseImportExportOptions {
 }
 
 export function useImportExport({ tasks, lists, addTask, pushToast }: UseImportExportOptions) {
+  const exportFile = useCallback(
+    async (filename: string, content: string, successBody: string) => {
+      try {
+        const saved = await saveTextFile(filename, content);
+        if (saved) pushToast({ type: "success", title: "Export complete", body: successBody });
+      } catch (err) {
+        pushToast({ type: "error", title: "Export failed", body: err instanceof Error ? err.message : String(err) });
+      }
+    },
+    [pushToast]
+  );
+
   const handleExportJson = useCallback(() => {
-    const content = buildJsonExport(tasks, lists);
     const date = new Date().toISOString().split("T")[0];
-    downloadTextFile(`mstodo-backup-${date}.json`, content, "application/json");
-    pushToast({ type: "success", title: "Export complete", body: "Tasks downloaded as a JSON backup." });
-  }, [tasks, lists, pushToast]);
+    return exportFile(`mstodo-backup-${date}.json`, buildJsonExport(tasks, lists), "Tasks saved as a JSON backup.");
+  }, [tasks, lists, exportFile]);
 
   const handleExportCsv = useCallback(() => {
-    const content = buildCsvExport(tasks, lists);
     const date = new Date().toISOString().split("T")[0];
-    downloadTextFile(`mstodo-export-${date}.csv`, content, "text/csv");
-    pushToast({ type: "success", title: "Export complete", body: "Tasks downloaded as a CSV file." });
-  }, [tasks, lists, pushToast]);
+    return exportFile(`mstodo-export-${date}.csv`, buildCsvExport(tasks, lists), "Tasks saved as a CSV file.");
+  }, [tasks, lists, exportFile]);
 
   const handleImport = useCallback(
     async (parser: (content: string) => ImportResult): Promise<number | null> => {

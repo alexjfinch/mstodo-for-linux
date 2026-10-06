@@ -205,6 +205,19 @@ describe("graphRequest error handling", () => {
     expect(secondCallHeaders.Authorization).toBe("Bearer new-token");
   });
 
+  it("strips the Authorization header when the retry after a 401 also fails", async () => {
+    setTokenRefreshCallback(vi.fn().mockResolvedValue("new-token"));
+    const retryErr = Object.assign(makeAxiosError(403), {
+      config: { headers: { Authorization: "Bearer new-token" } },
+    });
+    mockGet.mockRejectedValueOnce(makeAxiosError(401)).mockRejectedValueOnce(retryErr);
+
+    const thrown = await fetchTaskLists("old-token").catch((e: unknown) => e);
+
+    expect(thrown).toBe(retryErr);
+    expect(retryErr.config.headers).not.toHaveProperty("Authorization");
+  });
+
   it("deduplicates concurrent 401 refresh calls — callback invoked only once", async () => {
     const refresh = vi.fn().mockResolvedValue("new-token");
     setTokenRefreshCallback(refresh);

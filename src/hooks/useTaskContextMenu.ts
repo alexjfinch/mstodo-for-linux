@@ -83,7 +83,6 @@ export function useTaskContextMenu({
 
   useEffect(() => {
     if (contextMenu.visible && contextMenu.taskId && !currentTask) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       closeMenu();
     }
   }, [contextMenu.visible, contextMenu.taskId, currentTask, closeMenu]);

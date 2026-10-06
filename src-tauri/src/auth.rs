@@ -1,5 +1,5 @@
 use oauth2::{
-  AuthorizationCode, AuthUrl, ClientId, CsrfToken,
+  AuthorizationCode, AuthUrl, ClientId, CsrfToken, EndpointNotSet, EndpointSet,
   PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
   Scope, TokenUrl,
 };
@@ -11,18 +11,22 @@ use url::Url;
 /// Prevents concurrent auth flows from racing each other.
 static AUTH_IN_PROGRESS: Mutex<bool> = Mutex::new(false);
 
+/// OAuth client with the authorization and token endpoints configured.
+pub type OAuthClient = BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>;
+
 /// Build the OAuth client. `redirect_port` should be `Some(port)` for the initial
 /// authorization flow (so the redirect URI matches the callback server) and `None`
 /// for refresh token exchanges (redirect URI is not sent or checked in that grant type).
-pub fn build_oauth_client(client_id: String, redirect_port: Option<u16>) -> BasicClient {
-  let client = BasicClient::new(
-    ClientId::new(client_id),
-    None,
-    AuthUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize".into())
-      .expect("auth URL is a known-good static string"),
-    Some(TokenUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/token".into())
-      .expect("token URL is a known-good static string")),
-  );
+pub fn build_oauth_client(client_id: String, redirect_port: Option<u16>) -> OAuthClient {
+  let client = BasicClient::new(ClientId::new(client_id))
+    .set_auth_uri(
+      AuthUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/authorize".into())
+        .expect("auth URL is a known-good static string"),
+    )
+    .set_token_uri(
+      TokenUrl::new("https://login.microsoftonline.com/common/oauth2/v2.0/token".into())
+        .expect("token URL is a known-good static string"),
+    );
   match redirect_port {
     Some(port) => client.set_redirect_uri(
       RedirectUrl::new(format!("http://localhost:{}/callback", port))
@@ -30,6 +34,15 @@ pub fn build_oauth_client(client_id: String, redirect_port: Option<u16>) -> Basi
     ),
     None => client,
   }
+}
+
+/// HTTP client for token requests. Redirects are disabled because following them
+/// from the token endpoint would expose the app to SSRF (per the oauth2 crate docs).
+pub fn build_http_client() -> Result<oauth2::reqwest::Client, String> {
+  oauth2::reqwest::ClientBuilder::new()
+    .redirect(oauth2::reqwest::redirect::Policy::none())
+    .build()
+    .map_err(|e| format!("Failed to build HTTP client: {e}"))
 }
 
 /// Runs the full OAuth 2.0 PKCE browser flow. Blocks until the user completes sign-in

@@ -140,6 +140,21 @@ async function graphRequest<T>(
   body?: Record<string, unknown> | GraphTaskPatchBody,
   signal?: AbortSignal
 ): Promise<T> {
+  try {
+    return await graphRequestWithRetry<T>(method, url, accessToken, body, signal);
+  } catch (err: unknown) {
+    // Strip the Authorization header before re-throwing so it never reaches log files.
+    throw sanitizeAxiosError(err);
+  }
+}
+
+async function graphRequestWithRetry<T>(
+  method: "get" | "post" | "patch" | "delete",
+  url: string,
+  accessToken: string,
+  body?: Record<string, unknown> | GraphTaskPatchBody,
+  signal?: AbortSignal
+): Promise<T> {
   const call = async (token: string): Promise<T> => {
     const config = { headers: { Authorization: `Bearer ${token}` }, timeout: REQUEST_TIMEOUT, signal };
     let resp;
@@ -203,8 +218,7 @@ async function graphRequest<T>(
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return await call(accessToken);
     }
-    // Strip the Authorization header before re-throwing so it never reaches log files.
-    throw sanitizeAxiosError(err);
+    throw err;
   }
 }
 

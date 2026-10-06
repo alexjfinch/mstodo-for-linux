@@ -180,13 +180,56 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
     Err("Native file picker only supported on Linux".to_string())
 }
 
+/// Open the native "Save As" dialog via the XDG desktop portal and write `content`
+/// to the chosen file. Returns false if the user cancelled. Writing happens here
+/// rather than in the frontend so the webview never needs filesystem permissions.
+#[tauri::command]
+async fn save_text_file(default_name: String, content: String) -> Result<bool, String> {
+    save_text_file_impl(default_name, content).await
+}
+
+#[cfg(target_os = "linux")]
+async fn save_text_file_impl(default_name: String, content: String) -> Result<bool, String> {
+    use ashpd::desktop::file_chooser::SaveFileRequest;
+
+    let request = SaveFileRequest::default()
+        .title("Export tasks")
+        .current_name(default_name.as_str())
+        .send()
+        .await
+        .map_err(|e| format!("Failed to open save dialog: {e}"))?;
+
+    let files = match request.response() {
+        Ok(f) => f,
+        Err(_) => return Ok(false), // user cancelled
+    };
+
+    let Some(uri) = files.uris().first() else {
+        return Ok(false);
+    };
+    let path = uri
+        .to_file_path()
+        .map_err(|_| "Not a local file URI".to_string())?;
+
+    tokio::fs::write(&path, content)
+        .await
+        .map_err(|e| format!("Failed to write file: {e}"))?;
+    Ok(true)
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn save_text_file_impl(_default_name: String, _content: String) -> Result<bool, String> {
+    Err("Native save dialog only supported on Linux".to_string())
+}
+
 #[tauri::command]
 async fn refresh_token(refresh_token: String) -> Result<TokenPayload, String> {
     let client = auth::build_oauth_client(MS_CLIENT_ID.to_string(), None);
+    let http_client = auth::build_http_client()?;
 
     let token = client
         .exchange_refresh_token(&oauth2::RefreshToken::new(refresh_token))
-        .request_async(oauth2::reqwest::async_http_client)
+        .request_async(&http_client)
         .await
         .map_err(|e| format!("Token refresh failed: {e}"))?;
 
@@ -221,6 +264,29 @@ async fn update_tray_status(app: tauri::AppHandle, status: String) -> Result<(),
 // ── Logging ──────────────────────────────────────────────────────────
 
 const MAX_LOG_SIZE: u64 = 2 * 1024 * 1024; // 2 MB
+const MAX_LOG_MESSAGE_LEN: usize = 16 * 1024; // 16 KB per entry
+
+/// Normalise a frontend-supplied log entry: restrict the level to known values,
+/// cap the message length, and indent continuation lines (e.g. stack traces) so a
+/// message cannot forge what looks like a separate log entry.
+fn sanitize_log_entry(level: &str, message: &str) -> (&'static str, String) {
+    let level = match level {
+        "error" => "error",
+        "warn" => "warn",
+        "debug" => "debug",
+        _ => "info",
+    };
+    let mut end = message.len().min(MAX_LOG_MESSAGE_LEN);
+    while !message.is_char_boundary(end) {
+        end -= 1;
+    }
+    let truncated = end < message.len();
+    let mut message = message[..end].replace("\r\n", "\n").replace('\r', "\n").replace('\n', "\n    ");
+    if truncated {
+        message.push_str(" [truncated]");
+    }
+    (level, message)
+}
 
 fn get_log_path() -> std::path::PathBuf {
     let base = dirs::data_local_dir()
@@ -293,6 +359,7 @@ async fn write_log(level: String, message: String) -> Result<(), String> {
         }
 
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+        let (level, message) = sanitize_log_entry(&level, &message);
         let line = format!("[{}] [{}] {}\n", timestamp, level, message);
 
         let mut file = std::fs::OpenOptions::new()
@@ -418,11 +485,12 @@ async fn sign_in() -> Result<TokenPayload, String> {
     .map_err(|e| format!("Failed to start auth flow: {e}"))?;
 
     let client = auth::build_oauth_client(MS_CLIENT_ID.to_string(), Some(redirect_port));
+    let http_client = auth::build_http_client()?;
 
     let token = client
         .exchange_code(code)
         .set_pkce_verifier(verifier)
-        .request_async(oauth2::reqwest::async_http_client)
+        .request_async(&http_client)
         .await
         .map_err(|e| format!("Token exchange failed: {e}"))?;
 
@@ -457,13 +525,7 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<st
         });
 
     // Attempt to create the FIFO. If mkfifo fails the file already exists.
-    let mkfifo_ok = std::process::Command::new("mkfifo")
-        .arg(&fifo_path)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    if !mkfifo_ok {
+    if !make_fifo(&fifo_path) {
         // File already exists — verify it is owned by the current user before using it.
         // This guards against a local attacker pre-creating the path to hijack IPC.
         //
@@ -505,6 +567,17 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<st
             if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
                 break;
             }
+            // The shortcut command (`echo q > path`) creates a regular file if pressed
+            // while the FIFO is missing (e.g. after a reboot, before the app starts).
+            // Reading a regular file never blocks, so this loop would spin forever —
+            // replace it with a real FIFO instead of opening it.
+            if !is_fifo(&path) {
+                let _ = std::fs::remove_file(&path);
+                if !make_fifo(&path) {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    continue;
+                }
+            }
             // open() blocks until a writer opens the other end
             match std::fs::File::open(&path) {
                 Ok(mut file) => {
@@ -524,6 +597,30 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<st
     });
 
     fifo_path
+}
+
+fn make_fifo(path: &str) -> bool {
+    std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// True if `path` is a FIFO. Uses symlink_metadata so a symlink is never followed.
+fn is_fifo(path: &str) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        std::fs::symlink_metadata(path)
+            .map(|m| m.file_type().is_fifo())
+            .unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        true
+    }
 }
 
 /// Wraps `s` in POSIX single-quotes, escaping any embedded single quotes.
@@ -763,8 +860,6 @@ fn main() {
         })
         // Global shortcut plugin
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        // Dialog plugin (native file picker)
-        .plugin(tauri_plugin_dialog::init())
         // Store plugin
         .plugin(StoreBuilder::default().build())
         // Notification plugin (desktop notifications for due-date reminders)
@@ -775,8 +870,50 @@ fn main() {
                 .build()
         )
         // Register commands
-        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
+        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
         // Run the app
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_entry_cannot_forge_new_lines() {
+        let (level, msg) = sanitize_log_entry("error", "boom\n[2026-01-01 00:00:00.000] [info] fake\r\nmore");
+        assert_eq!(level, "error");
+        assert!(!msg.contains("\n["), "continuation lines must be indented: {msg:?}");
+        assert!(!msg.contains('\r'));
+    }
+
+    #[test]
+    fn log_entry_rejects_unknown_level() {
+        assert_eq!(sanitize_log_entry("ERROR] [x", "m").0, "info");
+        assert_eq!(sanitize_log_entry("warn", "m").0, "warn");
+    }
+
+    #[test]
+    fn log_entry_is_truncated_on_char_boundary() {
+        let long = "é".repeat(MAX_LOG_MESSAGE_LEN);
+        let (_, msg) = sanitize_log_entry("info", &long);
+        assert!(msg.ends_with(" [truncated]"));
+        assert!(msg.len() <= MAX_LOG_MESSAGE_LEN + " [truncated]".len());
+        assert_eq!(sanitize_log_entry("info", "short").1, "short");
+    }
+
+    #[test]
+    fn regular_file_is_replaced_with_fifo() {
+        let dir = std::env::temp_dir().join(format!("mstodo-fifo-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quickadd");
+        let path = path.to_str().unwrap();
+        std::fs::write(path, "q\n").unwrap();
+        assert!(!is_fifo(path));
+        std::fs::remove_file(path).unwrap();
+        assert!(make_fifo(path));
+        assert!(is_fifo(path));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
