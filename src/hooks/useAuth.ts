@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import { invoke } from "@tauri-apps/api/core";
-import { setTokenRefreshCallback, resetGraphCaches } from "../api/graph";
+import { setTokenRefreshCallback, resetGraphCaches, fetchUserProfile } from "../api/graph";
 import { logger } from "../services/logger";
 
 /** Metadata stored in settings.json (no secrets). */
@@ -231,7 +231,6 @@ export const useAuth = () => {
     try {
       const tokenResp = await invoke<{ access_token: string; refresh_token?: string }>("sign_in");
 
-      const { fetchUserProfile } = await import("../api/graph");
       const profile = await fetchUserProfile(tokenResp.access_token);
       // Require a stable, unique identifier — displayName is not unique and could collide
       const accountId = profile.userPrincipalName || profile.mail;

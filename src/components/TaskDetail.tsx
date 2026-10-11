@@ -1,8 +1,8 @@
 import "./TaskDetail.css";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useEffectEvent, useRef } from "react";
 import Markdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import { Task, TaskAttachment, ChecklistItem, Recurrence } from "../types";
+import { Task, TaskAttachment, ChecklistItem, Recurrence, LinkedResource } from "../types";
 import {
   fetchAttachments,
   uploadAttachment,
@@ -12,8 +12,23 @@ import {
   createChecklistItem,
   updateChecklistItem,
   deleteChecklistItem,
+  fetchLinkedResources,
 } from "../api/graph";
 import { invoke } from "@tauri-apps/api/core";
+import { logger } from "../services/logger";
+
+/** Opens a link in the default browser; the webview itself can't open new windows. */
+function openExternalUrl(url: string) {
+  invoke("open_external_url", { url }).catch((err) => logger.warn("Failed to open link", err));
+}
+
+function linkedResourceHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CustomSelect } from "./CustomSelect";
 import { localDateToGraphDate } from "../utils/dateParser";
@@ -92,6 +107,7 @@ export const TaskDetail = ({
   const [newCategory, setNewCategory] = useState("");
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [linkedResources, setLinkedResources] = useState<LinkedResource[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -101,15 +117,17 @@ export const TaskDetail = ({
   const [newStepName, setNewStepName] = useState("");
   const [notesEditing, setNotesEditing] = useState(false);
 
-  // Reset local state when task changes
-  useEffect(() => {
+  // Reset local state when switching tasks. The effect event reads the current title without
+  // re-running on title changes, which would overwrite a title being typed when a sync lands.
+  const resetForNewTask = useEffectEvent(() => {
     setTitle(task.title);
     setNewCategory("");
     setUploadError(null);
     setDownloadError(null);
     setNewStepName("");
     setNotesEditing(false);
-  }, [task.id]);
+  });
+  useEffect(() => { resetForNewTask(); }, [task.id]);
 
   // Update notes from external changes (e.g. sync) when not actively editing
   useEffect(() => {
@@ -132,6 +150,16 @@ export const TaskDetail = ({
       .then(setSteps)
       .catch(() => setSteps([]))
       .finally(() => setStepsLoading(false));
+
+    // Ignore a late response for a previously selected task so its link isn't shown here.
+    let cancelled = false;
+    setLinkedResources([]);
+    if (task.listId !== "__assigned__" && !task.listId.startsWith("local-") && !task.id.startsWith("local-")) {
+      fetchLinkedResources(task.listId, task.id, accessToken)
+        .then((resources) => { if (!cancelled) setLinkedResources(resources); })
+        .catch((err) => logger.warn("Failed to fetch linked resources", err));
+    }
+    return () => { cancelled = true; };
   }, [task.id, task.listId, accessToken]);
 
   const handleTitleBlur = () => {
@@ -382,6 +410,21 @@ export const TaskDetail = ({
       </div>
 
       <div className="task-detail-content">
+        {/* Linked resources, e.g. the Outlook email behind a flagged-email task */}
+        {linkedResources.map((resource) => (
+          <button
+            key={resource.id}
+            className="task-detail-row task-detail-linked-resource"
+            onClick={() => openExternalUrl(resource.webUrl)}
+            title={linkedResourceHost(resource.webUrl)}
+          >
+            <span className="task-detail-row-icon">{/outlook/i.test(resource.applicationName) ? "✉️" : "🔗"}</span>
+            <span className="task-detail-row-label">
+              Open in {resource.applicationName || linkedResourceHost(resource.webUrl)}
+            </span>
+          </button>
+        ))}
+
         {/* My Day */}
         <div
           className={`task-detail-row${task.isInMyDay ? " active" : ""}`}
@@ -594,7 +637,15 @@ export const TaskDetail = ({
                         href.startsWith("http://") ||
                         href.startsWith("mailto:"));
                     return safe ? (
-                      <a href={href} target="_blank" rel="noopener noreferrer">
+                      <a
+                        href={href}
+                        onClick={(e) => {
+                          // Open in the browser instead of entering notes edit mode
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openExternalUrl(href);
+                        }}
+                      >
                         {children}
                       </a>
                     ) : (

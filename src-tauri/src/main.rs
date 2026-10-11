@@ -239,6 +239,23 @@ async fn save_file_impl(_title: &str, _default_name: String, _content: Vec<u8>) 
     Err("Native save dialog only supported on Linux".to_string())
 }
 
+/// Open a link from task notes or a task's linked resource (e.g. the Outlook email behind
+/// a flagged-email task) in the default browser or mail client. These URLs come from Graph
+/// data that other people can edit via shared lists, so only web and mailto links are opened.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let url = validate_external_url(&url)?;
+    open::that_detached(url.as_str()).map_err(|e| format!("Failed to open link: {e}"))
+}
+
+fn validate_external_url(url: &str) -> Result<url::Url, String> {
+    let parsed = url::Url::parse(url).map_err(|e| format!("Invalid link: {e}"))?;
+    match parsed.scheme() {
+        "https" | "http" | "mailto" => Ok(parsed),
+        other => Err(format!("Refusing to open a {other}: link")),
+    }
+}
+
 #[tauri::command]
 async fn refresh_token(refresh_token: String) -> Result<TokenPayload, String> {
     let client = auth::build_oauth_client(MS_CLIENT_ID.to_string(), None);
@@ -887,7 +904,7 @@ fn main() {
                 .build()
         )
         // Register commands
-        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, save_attachment, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
+        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, save_attachment, open_external_url, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
         // Run the app
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
@@ -918,6 +935,21 @@ mod tests {
         assert!(msg.ends_with(" [truncated]"));
         assert!(msg.len() <= MAX_LOG_MESSAGE_LEN + " [truncated]".len());
         assert_eq!(sanitize_log_entry("info", "short").1, "short");
+    }
+
+    #[test]
+    fn external_url_allows_web_and_mailto_links() {
+        assert!(validate_external_url("https://outlook.live.com/mail/0/inbox/id/AQMk").is_ok());
+        assert!(validate_external_url("http://example.com").is_ok());
+        assert!(validate_external_url("mailto:someone@example.com").is_ok());
+    }
+
+    #[test]
+    fn external_url_refuses_other_schemes() {
+        assert!(validate_external_url("file:///etc/passwd").is_err());
+        assert!(validate_external_url("javascript:alert(1)").is_err());
+        assert!(validate_external_url("smb://host/share").is_err());
+        assert!(validate_external_url("not a url").is_err());
     }
 
     #[test]

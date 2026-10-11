@@ -5,7 +5,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { PlannedView } from "./components/PlannedView";
 import { NewTaskInput } from "./components/NewTaskInput";
-import { SearchBar } from "./components/SearchBar";
+import { SearchBar, SearchBarHandle } from "./components/SearchBar";
 import { SignIn } from "./components/SignIn";
 import { Settings } from "./components/Settings";
 import { TaskDetail } from "./components/TaskDetail";
@@ -13,7 +13,7 @@ import { ConfirmDialog } from "./components/ConfirmDialog";
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ListName } from "./types";
+import { ListName, Task } from "./types";
 import { parseTaskInput } from "./utils/dateParser";
 import { useAuth } from "./hooks/useAuth";
 import { useDatabase } from "./hooks/useDatabase";
@@ -25,6 +25,7 @@ import { useSettings } from "./hooks/useSettings";
 import { useSelection } from "./hooks/useSelection";
 import { useImportExport } from "./hooks/useImportExport";
 import { useTraySync } from "./hooks/useTraySync";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { ToastContainer } from "./components/ToastContainer";
 import { ComponentBoundary } from "./components/ComponentBoundary";
 import { ListBanner, SPECIAL_LISTS } from "./components/ListBanner";
@@ -62,6 +63,8 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const profileFetched = useRef(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
+  const searchBarRef = useRef<SearchBarHandle>(null);
+  const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
   const detailPanelRef = useRef<HTMLDivElement>(null);
   const pushToastRef = useRef<((toast: { title: string; body: string; type?: "reminder" | "success" | "error" }) => void) | null>(null);
   // Fetch/update account profile info (handles migrated accounts too)
@@ -135,9 +138,20 @@ export default function App() {
     });
   });
 
+  const flaggedListId = useMemo(() => lists.find(l => l.wellknownListName === "flaggedEmails")?.id, [lists]);
+
+  // Flagged emails are linked to Outlook messages, and To Do doesn't allow moving them in
+  // or out of their list. A move here is create-then-delete, which would drop that link.
+  const handleMoveTaskToList = useCallback(async (taskId: string, targetListId: string) => {
+    if (flaggedListId) {
+      const sourceListId = tasks.find(t => t.id === taskId)?.listId;
+      if (sourceListId === flaggedListId || targetListId === flaggedListId) return;
+    }
+    await moveTaskToList(taskId, targetListId);
+  }, [flaggedListId, tasks, moveTaskToList]);
+
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    const flaggedListId = lists.find(l => l.wellknownListName === "flaggedEmails")?.id;
 
     for (const task of tasks) {
       if (task.completed) continue;
@@ -151,7 +165,7 @@ export default function App() {
       if (task.listId) counts[task.listId] = (counts[task.listId] || 0) + 1;
     }
     return counts;
-  }, [tasks, lists]);
+  }, [tasks, flaggedListId]);
 
   const rawFilteredTasks = useFilteredTasks(tasks, activeList, lists);
 
@@ -203,11 +217,6 @@ export default function App() {
     [detailTaskId, tasks]
   );
 
-  const handleOpenDetail = useCallback((id: string) => {
-    setDetailTaskId((prev) => (prev === id ? null : id));
-    setSelectedTasks([]);
-  }, []);
-
   const handleCloseDetail = useCallback(() => setDetailTaskId(null), []);
 
   // If the task open in the detail panel is deleted externally (e.g. via sync),
@@ -238,6 +247,43 @@ export default function App() {
     handleBulkComplete,
     handleBulkDelete,
   } = useSelection({ filteredTasks, toggleTask, deleteTask, setDetailTaskId });
+
+  const handleOpenDetail = useCallback((id: string) => {
+    setDetailTaskId((prev) => (prev === id ? null : id));
+    setSelectedTasks([]);
+  }, [setSelectedTasks]);
+
+  // Ctrl+D and Delete act on the multi-selection, else the open task, else the focused task row.
+  const singleShortcutTask = (): Task | undefined => {
+    const focusedRow = document.activeElement instanceof HTMLElement
+      ? document.activeElement.closest<HTMLElement>("[data-task-id]")
+      : null;
+    const id = detailTaskId ?? focusedRow?.dataset.taskId;
+    return id ? tasks.find((t) => t.id === id) : undefined;
+  };
+
+  useKeyboardShortcuts({
+    enabled: !!accessToken && !isSettingsOpen,
+    onNewTask: () => newTaskInputRef.current?.focus(),
+    onSearch: () => searchBarRef.current?.focus(),
+    onSync: () => { handleManualSync(); },
+    onComplete: () => {
+      if (selectedTasks.length > 0) {
+        handleBulkComplete();
+      } else {
+        const task = singleShortcutTask();
+        if (task) toggleTask(task.id);
+      }
+    },
+    onDelete: () => {
+      if (selectedTasks.length > 0) {
+        setBulkDeleteConfirm(true);
+      } else {
+        const task = singleShortcutTask();
+        if (task) setPendingDelete(task);
+      }
+    },
+  });
 
   const {
     handleExportJson,
@@ -297,7 +343,7 @@ export default function App() {
     setSelectedTasks([]);
     setDetailTaskId(null);
     setIsSettingsOpen(false);
-  }, [activeList]);
+  }, [activeList, setSelectedTasks]);
 
   // Close detail if the task is removed from the list
   useEffect(() => {
@@ -331,7 +377,7 @@ export default function App() {
     };
     document.addEventListener("keydown", fn);
     return () => document.removeEventListener("keydown", fn);
-  }, []);
+  }, [setSelectedTasks]);
 
   // Redirect if activeList is a group heading (not a navigable list)
   useEffect(() => {
@@ -499,7 +545,7 @@ export default function App() {
           syncError={syncError}
           lastSyncTime={lastSyncTime}
           taskCounts={taskCounts}
-          onMoveTaskToList={moveTaskToList}
+          onMoveTaskToList={handleMoveTaskToList}
           onAddToMyDay={(taskId) => {
             updateAttributes(taskId, { isInMyDay: true });
           }}
@@ -556,6 +602,16 @@ export default function App() {
             />
           )}
 
+          {pendingDelete && (
+            <ConfirmDialog
+              message={`Delete "${pendingDelete.title}"?`}
+              confirmLabel="Delete"
+              danger
+              onConfirm={() => { deleteTask(pendingDelete.id); setPendingDelete(null); }}
+              onCancel={() => setPendingDelete(null)}
+            />
+          )}
+
           {SPECIAL_LISTS.has(activeList) && !searchQuery ? (
             <ListBanner activeList={activeList} displayName={getListDisplayName} />
           ) : null}
@@ -575,7 +631,7 @@ export default function App() {
               );
             })()}
             <div className="main-header-actions">
-              <SearchBar query={searchQuery} onQueryChange={setSearchQuery} />
+              <SearchBar ref={searchBarRef} query={searchQuery} onQueryChange={setSearchQuery} />
               {selectedTasks.length > 0 && (
                 <div className="bulk-actions">
                   <button className="bulk-complete-btn" onClick={handleBulkComplete}>
@@ -600,7 +656,7 @@ export default function App() {
               onToggleTask={toggleTask}
               onUpdateAttributes={updateAttributes}
               onDeleteTask={deleteTask}
-              onMoveTaskToList={moveTaskToList}
+              onMoveTaskToList={handleMoveTaskToList}
               allLists={lists}
               selectedTasks={selectedTasks}
               onToggleSelection={handleToggleSelection}
@@ -638,7 +694,7 @@ export default function App() {
                   onToggleTask={toggleTask}
                   onUpdateAttributes={updateAttributes}
                   onDeleteTask={deleteTask}
-                  onMoveTaskToList={moveTaskToList}
+                  onMoveTaskToList={handleMoveTaskToList}
                   allLists={lists}
                   selectedTasks={selectedTasks}
                   onToggleSelection={handleToggleSelection}
@@ -662,7 +718,7 @@ export default function App() {
                 onToggleTask={toggleTask}
                 onUpdateAttributes={updateAttributes}
                 onDeleteTask={deleteTask}
-                onMoveTaskToList={moveTaskToList}
+                onMoveTaskToList={handleMoveTaskToList}
                 allLists={lists}
                 selectedTasks={selectedTasks}
                 onToggleSelection={handleToggleSelection}
@@ -676,7 +732,7 @@ export default function App() {
             </div>
           )}
 
-          {activeList !== "Assigned to Me" && (
+          {activeList !== "Assigned to Me" && activeList !== "Flagged Emails" && (
             <NewTaskInput
               ref={newTaskInputRef}
               value={newTaskTitle}

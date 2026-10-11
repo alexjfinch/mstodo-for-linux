@@ -279,6 +279,7 @@ export const TaskItem = ({
         isSelected ? "selected" : ""
       }${isDragOver ? " drag-over" : ""}${isOverdue ? " overdue" : ""}`}
       data-no-close-detail
+      data-task-id={task.id}
       onContextMenu={onRightClick}
       onClick={onToggleSelection}
       onKeyDown={(e) => {

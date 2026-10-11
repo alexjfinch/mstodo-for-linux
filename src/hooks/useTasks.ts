@@ -64,7 +64,9 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
   // Track whether the planner (Assigned to Me) warning has been logged for this account
   const plannerWarningLoggedRef = useRef(false);
   const [plannerError, setPlannerError] = useState(false);
+  const onDroppedPendingOpRef = useRef(onDroppedPendingOp);
 
+  useEffect(() => { onDroppedPendingOpRef.current = onDroppedPendingOp; }, [onDroppedPendingOp]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { accessTokenRef.current = accessToken; }, [accessToken]);
   useEffect(() => { dbRef.current = db; }, [db]);
@@ -224,7 +226,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         if (retries >= MAX_PENDING_OP_RETRIES) {
           logger.warn(`Dropping pending op ${op.opType} (id=${op.id}) after ${retries} retries`);
           await deletePendingOp(database, op.id!);
-          onDroppedPendingOp?.({ opType: op.opType, taskId: op.taskId });
+          onDroppedPendingOpRef.current?.({ opType: op.opType, taskId: op.taskId });
         }
       }
     }
@@ -278,6 +280,7 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
         }
       }
 
+      const fetchStartedAt = Date.now();
       let deltaResult;
       try {
         const [delta, assignedTasks] = await Promise.all([
@@ -325,6 +328,16 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
       const localTasks = await loadTasksFromDB(database);
       const localMap = new Map<string, Task>();
       for (const t of localTasks) localMap.set(t.id, t);
+
+      // A task in a snapshot list that the server didn't return has been deleted remotely.
+      // Tasks with unsynced local changes, or changed after the fetch started, are kept.
+      const snapshotLists = new Set(delta.snapshotListIds);
+      const remoteIds = new Set(delta.changes.map((c) => c.task.id));
+      const pendingTaskIds = new Set((await getPendingOps(database)).map((op) => op.taskId));
+      const isDeletedRemotely = (t: Task) =>
+        !!t.listId && snapshotLists.has(t.listId) && !remoteIds.has(t.id) &&
+        !t.id.startsWith("local-") && !pendingTaskIds.has(t.id) && (t.lastModified ?? 0) < fetchStartedAt;
+      const remotelyDeleted = localTasks.filter(isDeletedRemotely);
 
       const hasPreviousTokens = Object.keys(deltaTokens).length > 0;
 
@@ -427,6 +440,10 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
               taskMap.set(assigned.id, { ...assigned, isInMyDay: local?.isInMyDay ?? false });
             }
 
+            for (const [id, t] of taskMap) {
+              if (isDeletedRemotely(t)) taskMap.delete(id);
+            }
+
             return Array.from(taskMap.values());
           });
         }
@@ -457,6 +474,10 @@ export const useTasks = (accessToken: string | null, currentListId: string | nul
 
       // Persist new delta tokens only if still on same account
       if (syncGenerationRef.current === generation) {
+        if (remotelyDeleted.length > 0) {
+          logger.info(`Removing ${remotelyDeleted.length} task(s) no longer present in fully-fetched lists`);
+          for (const t of remotelyDeleted) await deleteTaskFromDB(database, t.id);
+        }
         await saveDeltaTokens(database, delta.newDeltaTokens);
         setLastSyncTime(new Date());
       }

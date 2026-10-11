@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import { Task, TaskList, TaskAttachment, ChecklistItem, Recurrence } from "../types";
+import { Task, TaskList, TaskAttachment, ChecklistItem, Recurrence, LinkedResource } from "../types";
 import { logger } from "../services/logger";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0/me/todo/lists";
@@ -403,26 +403,31 @@ export async function fetchTasksDelta(
 
 /**
  * Perform a delta sync across all lists. Returns all changes and new delta tokens per list.
+ *
+ * `snapshotListIds` lists whose changes are a complete copy of the list (full fetch, or a
+ * delta started without a token) rather than incremental changes. Snapshots carry no
+ * `@removed` entries, so any local task in one of these lists that is missing from the
+ * changes has been deleted remotely (e.g. an email unflagged in Outlook).
  */
 export async function fetchAllTasksDelta(
   accessToken: string,
   deltaTokens: Record<string, string>,
   signal?: AbortSignal
-): Promise<{ changes: DeltaChange[]; newDeltaTokens: Record<string, string> }> {
+): Promise<{ changes: DeltaChange[]; newDeltaTokens: Record<string, string>; snapshotListIds: string[] }> {
   const lists = await fetchTaskLists(accessToken, signal);
 
   const allChanges: DeltaChange[] = [];
   const newTokens: Record<string, string> = {};
+  const snapshotListIds: string[] = [];
 
   // Process lists sequentially to avoid bursting Microsoft Graph rate limits.
   // Promise.all on many lists causes immediate 429 throttling.
-  // Skip flaggedEmails — its tasks endpoint returns 400 (Exchange-backed, not To Do).
-  const syncableLists = lists.filter(l => l.wellknownListName !== "flaggedEmails");
-  logger.info(`fetchAllTasksDelta: ${lists.length} total lists, ${syncableLists.length} syncable, ${Object.keys(deltaTokens).length} existing tokens`);
-  for (const list of syncableLists) {
+  logger.info(`fetchAllTasksDelta: ${lists.length} lists, ${Object.keys(deltaTokens).length} existing tokens`);
+  for (const list of lists) {
     if (unfetchableLists.has(list.id)) continue;
 
     let result: { changes: DeltaChange[]; deltaLink: string };
+    let isSnapshot = false;
 
     if (deltaUnsupportedLists.has(list.id)) {
       try {
@@ -431,6 +436,7 @@ export async function fetchAllTasksDelta(
           changes: tasks.map((task) => ({ task, removed: false })),
           deltaLink: "",
         };
+        isSnapshot = true;
       } catch (err: unknown) {
         if (axios.isCancel(err)) throw err;
         const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
@@ -445,6 +451,7 @@ export async function fetchAllTasksDelta(
       const existing = deltaTokens[list.id] || null;
       try {
         result = await fetchTasksDelta(list.id, accessToken, existing, signal);
+        isSnapshot = existing === null;
       } catch (err: unknown) {
         if (axios.isCancel(err)) throw err;
         const axiosErr = err instanceof Error && "response" in err ? (err as AxiosError) : null;
@@ -457,6 +464,7 @@ export async function fetchAllTasksDelta(
               changes: tasks.map((task) => ({ task, removed: false })),
               deltaLink: "",
             };
+            isSnapshot = true;
           } catch (fallbackErr: unknown) {
             if (axios.isCancel(fallbackErr)) throw fallbackErr;
             const fallbackAxios = fallbackErr instanceof Error && "response" in fallbackErr ? (fallbackErr as AxiosError) : null;
@@ -471,18 +479,20 @@ export async function fetchAllTasksDelta(
           // Delta token expired for this list — fall back to full fetch and get a fresh delta token
           logger.warn(`Delta token expired for list ${list.id}, performing full fetch with fresh delta`);
           result = await fetchTasksDelta(list.id, accessToken, null, signal);
+          isSnapshot = true;
         } else {
           throw err;
         }
       }
     }
 
-    logger.info(`List "${list.displayName}" (${list.id.slice(-8)}): ${result.changes.length} changes, deltaLink=${result.deltaLink ? "yes" : "no"}`);
+    logger.info(`List "${list.displayName}" (${list.id.slice(-8)}): ${result.changes.length} changes, deltaLink=${result.deltaLink ? "yes" : "no"}, snapshot=${isSnapshot ? "yes" : "no"}`);
     allChanges.push(...result.changes);
     if (result.deltaLink) newTokens[list.id] = result.deltaLink;
+    if (isSnapshot) snapshotListIds.push(list.id);
   }
 
-  return { changes: allChanges, newDeltaTokens: newTokens };
+  return { changes: allChanges, newDeltaTokens: newTokens, snapshotListIds };
 }
 
 /** Validates that a Graph pagination link originates from graph.microsoft.com over HTTPS. */
@@ -654,6 +664,34 @@ export async function fetchAttachments(
   }
 
   return allAttachments;
+}
+
+type GraphLinkedResource = {
+  id: string;
+  webUrl?: string | null;
+  applicationName?: string | null;
+  displayName?: string | null;
+};
+
+/** Fetch a task's linked resources, keeping only those with an https link to open. */
+export async function fetchLinkedResources(
+  listId: string,
+  taskId: string,
+  accessToken: string
+): Promise<LinkedResource[]> {
+  validateListId(listId);
+  const resp = await graphRequest<GraphCollection<GraphLinkedResource>>(
+    "get", `${GRAPH_BASE}/${listId}/tasks/${taskId}/linkedResources`, accessToken
+  );
+  return resp.value
+    .filter((r): r is GraphLinkedResource & { webUrl: string } =>
+      typeof r.webUrl === "string" && r.webUrl.startsWith("https://"))
+    .map((r) => ({
+      id: r.id,
+      webUrl: r.webUrl,
+      applicationName: r.applicationName ?? "",
+      displayName: r.displayName ?? "",
+    }));
 }
 
 export async function uploadAttachment(

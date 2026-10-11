@@ -55,6 +55,12 @@ const NAV_ITEMS: { key: Section; label: string; icon: string }[] = [
 ];
 
 const SHORTCUTS = [
+  ["Ctrl + N", "New task"],
+  ["Ctrl + F", "Search all tasks"],
+  ["Ctrl + D", "Complete selected / open task"],
+  ["Delete", "Delete selected / open task"],
+  ["F5", "Sync now"],
+  ["Super + Shift + T", "Quick add from anywhere (GNOME or X11)"],
   ["Click task", "Open task detail panel"],
   ["Click task (panel open)", "Switch to that task / close if same"],
   ["Shift + Click", "Multi-select tasks"],
@@ -63,6 +69,7 @@ const SHORTCUTS = [
   ["Enter (title field)", "Save task title"],
   ["Enter (category field)", "Add category tag"],
   ["Right-click task", "Context menu"],
+  ["Shift + F10 / Menu key", "Context menu for focused task"],
 ];
 
 export const Settings = ({

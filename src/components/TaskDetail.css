@@ -89,6 +89,17 @@
   color: var(--accent-primary);
 }
 
+.task-detail-linked-resource {
+  width: 100%;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font: inherit;
+  text-align: left;
+  color: var(--accent-primary);
+}
+
 .task-detail-row-icon {
   width: 24px;
   text-align: center;

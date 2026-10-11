@@ -76,6 +76,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :floppy_disk: | **Offline-capable** | Local SQLite database lets you work offline; changes sync when you reconnect |
 | :busts_in_silhouette: | **Multiple accounts** | Sign in and switch between multiple Microsoft accounts |
 | :bell: | **Reminders & notifications** | Set reminders (later today, tomorrow, next week) with desktop notifications |
+| :triangular_flag_on_post: | **Flagged emails** | Emails flagged in Outlook appear in their own list, with a link to open each one in Outlook on the web |
 
 ### Views & Organisation
 
@@ -116,6 +117,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count |
 | :zap: | **Auto-sync** | Configurable sync interval (30s, 1m, 5m, or manual) |
 | :rocket: | **Global quick-add** | System-wide shortcut to add a task from anywhere with natural language date parsing |
+| :keyboard: | **Keyboard shortcuts** | Ctrl+N, Ctrl+F, Ctrl+D, Delete and F5 (full list in Settings → Shortcuts) |
 
 ---
 
@@ -131,7 +133,7 @@ Unfortunately the group functionality of Microsoft ToDo isn't exposed via the of
 
 Planned features, roughly in priority order:
 
-- [ ] **Keyboard shortcuts** - Ctrl+N for new task, Ctrl+D to toggle complete, Delete to remove
+- [x] **Keyboard shortcuts** - Ctrl+N for new task, Ctrl+F to search, Ctrl+D to toggle complete, Delete to remove, F5 to sync
 - [ ] **Thunderbird integration** - add emails as tasks from other email accounts
 - [ ] **Flatpak packaging** - for easier cross-distro installation
 

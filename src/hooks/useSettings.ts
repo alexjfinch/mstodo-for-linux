@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
+import { Store } from "@tauri-apps/plugin-store";
 import { ReminderTiming } from "./useReminders";
 import { logger } from "../services/logger";
 
 // Lazily initialised store — cached so we don't re-load from disk on every setting change.
-type TauriStore = Awaited<ReturnType<typeof import("@tauri-apps/plugin-store")["Store"]["load"]>>;
-let _storeCache: TauriStore | null = null;
+let _storeCache: Store | null = null;
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-async function getStore(): Promise<TauriStore> {
+async function getStore(): Promise<Store> {
   if (!_storeCache) {
-    const { Store } = await import("@tauri-apps/plugin-store");
     _storeCache = await Store.load("settings.json");
   }
   return _storeCache;

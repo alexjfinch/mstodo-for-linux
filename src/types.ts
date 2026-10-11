@@ -8,6 +8,14 @@ export type TaskAttachment = {
   lastModifiedDateTime: string;
 };
 
+/** A link from a task back to its source, e.g. the Outlook email behind a flagged-email task. */
+export type LinkedResource = {
+  id: string;
+  webUrl: string;
+  applicationName: string;
+  displayName: string;
+};
+
 export type TaskList = {
   id: string;
   displayName: string;

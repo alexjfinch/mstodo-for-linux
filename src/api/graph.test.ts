@@ -7,6 +7,7 @@ import {
   fetchTaskLists,
   fetchTasksDelta,
   fetchAllTasksDelta,
+  fetchLinkedResources,
   setTokenRefreshCallback,
   resetGraphCaches,
 } from "./graph";
@@ -402,16 +403,42 @@ describe("fetchAllTasksDelta", () => {
     data: { value: [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/delta-link" },
   };
 
-  it("skips lists with wellknownListName flaggedEmails", async () => {
+  it("syncs the flaggedEmails list, falling back to a full fetch reported as a snapshot", async () => {
     mockGet
-      .mockResolvedValueOnce(FLAGGED_LIST_RESPONSE) // fetchTaskLists
-      .mockResolvedValueOnce(EMPTY_DELTA);           // list-1 delta (flagged-1 is skipped)
+      .mockResolvedValueOnce(FLAGGED_LIST_RESPONSE)   // fetchTaskLists
+      .mockResolvedValueOnce(EMPTY_DELTA)              // list-1 incremental delta
+      .mockRejectedValueOnce(makeAxiosError(400))      // flagged-1 delta → unsupported
+      .mockResolvedValueOnce({ data: { value: [{ id: "mail-1", title: "Re: invoice", status: "notStarted", importance: "normal" }] } });
 
-    const { changes } = await fetchAllTasksDelta("token", {});
+    const { changes, snapshotListIds } = await fetchAllTasksDelta("token", {
+      "list-1": "https://graph.microsoft.com/v1.0/old-delta",
+    });
 
-    // Only one delta call made (for list-1), flagged-1 never fetched
-    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(changes).toHaveLength(1);
+    expect(changes[0].task).toMatchObject({ id: "mail-1", listId: "flagged-1" });
+    expect(snapshotListIds).toEqual(["flagged-1"]);
+  });
+
+  it("skips a list whose full fetch also returns 400 and does not report it as a snapshot", async () => {
+    mockGet
+      .mockResolvedValueOnce(LIST_RESPONSE)
+      .mockRejectedValueOnce(makeAxiosError(400))  // delta
+      .mockRejectedValueOnce(makeAxiosError(400)); // full fetch
+
+    const { changes, snapshotListIds } = await fetchAllTasksDelta("token", {});
+
     expect(changes).toHaveLength(0);
+    expect(snapshotListIds).toEqual([]);
+  });
+
+  it("reports a list as a snapshot when it has no delta token yet", async () => {
+    mockGet
+      .mockResolvedValueOnce(LIST_RESPONSE)
+      .mockResolvedValueOnce(DELTA_RESPONSE);
+
+    const { snapshotListIds } = await fetchAllTasksDelta("token", {});
+
+    expect(snapshotListIds).toEqual(["list-1"]);
   });
 
   it("falls back to full fetch when delta returns 400, adds list to unsupported cache", async () => {
@@ -442,12 +469,13 @@ describe("fetchAllTasksDelta", () => {
       .mockRejectedValueOnce(makeAxiosError(410))      // old deltaLink → expired
       .mockResolvedValueOnce(DELTA_RESPONSE);          // fresh delta fetch
 
-    const { changes, newDeltaTokens } = await fetchAllTasksDelta("token", {
+    const { changes, newDeltaTokens, snapshotListIds } = await fetchAllTasksDelta("token", {
       "list-1": oldDeltaLink,
     });
 
     expect(changes).toHaveLength(1);
     expect(newDeltaTokens["list-1"]).toBe("https://graph.microsoft.com/v1.0/delta-link");
+    expect(snapshotListIds).toEqual(["list-1"]);
   });
 
   it("accumulates changes from multiple lists", async () => {
@@ -482,5 +510,40 @@ describe("fetchAllTasksDelta", () => {
     expect(changes).toHaveLength(2);
     expect(newDeltaTokens["list-1"]).toBe("https://graph.microsoft.com/v1.0/dl1");
     expect(newDeltaTokens["list-2"]).toBe("https://graph.microsoft.com/v1.0/dl2");
+  });
+});
+
+// ── fetchLinkedResources ──────────────────────────────────────────────────────
+
+describe("fetchLinkedResources", () => {
+  beforeEach(() => {
+    resetGraphCaches();
+    vi.clearAllMocks();
+    vi.mocked(axios.isCancel).mockReturnValue(false);
+  });
+
+  it("returns only resources with an https link, filling in missing names", async () => {
+    mockGet.mockResolvedValueOnce({
+      data: {
+        value: [
+          { id: "r1", webUrl: "https://outlook.live.com/mail/0/id/AQMk", applicationName: "Outlook", displayName: "Re: invoice" },
+          { id: "r2", webUrl: "javascript:alert(1)", applicationName: "Evil" },
+          { id: "r3", webUrl: null, applicationName: "No link" },
+          { id: "r4", webUrl: "https://example.com/item" },
+        ],
+      },
+    });
+
+    const resources = await fetchLinkedResources("list-1", "task-1", "token");
+
+    expect(resources).toEqual([
+      { id: "r1", webUrl: "https://outlook.live.com/mail/0/id/AQMk", applicationName: "Outlook", displayName: "Re: invoice" },
+      { id: "r4", webUrl: "https://example.com/item", applicationName: "", displayName: "" },
+    ]);
+  });
+
+  it("rejects without a request for lists that aren't on Graph", async () => {
+    await expect(fetchLinkedResources("__assigned__", "task-1", "token")).rejects.toThrow("Invalid listId");
+    expect(mockGet).not.toHaveBeenCalled();
   });
 });

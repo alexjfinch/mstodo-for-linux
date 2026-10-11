@@ -65,7 +65,11 @@ export const TaskContextMenu = ({
     }
   };
 
-  const moveableLists = allLists?.filter((l) => !l.isGroup && l.id !== currentTask?.listId) ?? [];
+  // Flagged emails can't be moved in or out of the Flagged Email list.
+  const isFlaggedEmail = allLists?.some((l) => l.id === currentTask?.listId && l.wellknownListName === "flaggedEmails");
+  const moveableLists = isFlaggedEmail
+    ? []
+    : allLists?.filter((l) => !l.isGroup && l.wellknownListName !== "flaggedEmails" && l.id !== currentTask?.listId) ?? [];
 
   return (
     <>
