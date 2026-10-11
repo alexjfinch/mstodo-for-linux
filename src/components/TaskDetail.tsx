@@ -260,11 +260,17 @@ export const TaskDetail = ({
   const handleAttachFile = async () => {
     if (!task.listId) return;
 
-    const picked = await invoke<{ name: string; content_bytes: string } | null>("pick_and_read_file");
+    setUploadError(null);
+    let picked: { name: string; content_bytes: string } | null;
+    try {
+      picked = await invoke<{ name: string; content_bytes: string } | null>("pick_and_read_file");
+    } catch (err) {
+      setUploadError(String(err));
+      return;
+    }
     if (!picked) return;
 
     setUploading(true);
-    setUploadError(null);
     try {
       await uploadAttachment(task.listId, task.id, {
         name: picked.name,
@@ -283,28 +289,15 @@ export const TaskDetail = ({
 
   const handleDownload = async (attachment: TaskAttachment) => {
     if (!task.listId) return;
+    setDownloadError(null);
     try {
-      const { name, contentType, contentBytes } = await fetchAttachmentContent(
+      const { name, contentBytes } = await fetchAttachmentContent(
         task.listId, task.id, attachment.id, accessToken
       );
-      // Decode base64 → binary using fetch + data URL to avoid atob's issues
-      // with non-ASCII bytes in WebKitGTK.
-      const resp = await fetch(`data:${contentType};base64,${contentBytes}`);
-      const bytes = new Uint8Array(await resp.arrayBuffer());
-      const blob = new Blob([bytes], { type: contentType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      try {
-        a.click();
-      } finally {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      await invoke<boolean>("save_attachment", { defaultName: name, contentBytes });
     } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Download failed. Please try again.");
+      // Tauri commands reject with the Rust error string rather than an Error.
+      setDownloadError(err instanceof Error ? err.message : typeof err === "string" ? err : "Download failed. Please try again.");
     }
   };
 

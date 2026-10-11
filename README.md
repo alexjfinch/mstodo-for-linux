@@ -141,7 +141,7 @@ Planned features, roughly in priority order:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v22+)
 - [Rust](https://rustup.rs/) (stable)
 - Tauri v2 system dependencies (see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/))
 
@@ -167,7 +167,7 @@ The built packages (`.deb`, `.rpm`, `.AppImage`) will be in `src-tauri/target/re
 | Layer | Technology |
 |-------|-----------|
 | Desktop framework | Tauri v2 (Rust) |
-| Frontend | React 18 + TypeScript |
+| Frontend | React 19 + TypeScript |
 | Build tool | Vite |
 | Local storage | SQLite via `@tauri-apps/plugin-sql` |
 | Settings | `@tauri-apps/plugin-store` |

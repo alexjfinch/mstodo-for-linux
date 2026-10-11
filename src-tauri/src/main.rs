@@ -111,6 +111,13 @@ fn base64_encode(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
+fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|e| format!("Invalid base64 content: {e}"))
+}
+
 #[derive(serde::Serialize)]
 struct PickedFile {
     name: String,
@@ -136,7 +143,8 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
 
     let files: ashpd::desktop::file_chooser::SelectedFiles = match request.response() {
         Ok(f) => f,
-        Err(_) => return Ok(None), // user cancelled
+        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(None),
+        Err(e) => return Err(format!("File picker failed: {e}")),
     };
 
     let uris = files.uris();
@@ -185,15 +193,23 @@ async fn pick_and_read_file_impl() -> Result<Option<PickedFile>, String> {
 /// rather than in the frontend so the webview never needs filesystem permissions.
 #[tauri::command]
 async fn save_text_file(default_name: String, content: String) -> Result<bool, String> {
-    save_text_file_impl(default_name, content).await
+    save_file_impl("Export tasks", default_name, content.into_bytes()).await
+}
+
+/// Save a task attachment (base64-encoded, as returned by the Graph API) via the
+/// native "Save As" dialog. Returns false if the user cancelled.
+#[tauri::command]
+async fn save_attachment(default_name: String, content_bytes: String) -> Result<bool, String> {
+    let bytes = base64_decode(&content_bytes)?;
+    save_file_impl("Save attachment", default_name, bytes).await
 }
 
 #[cfg(target_os = "linux")]
-async fn save_text_file_impl(default_name: String, content: String) -> Result<bool, String> {
+async fn save_file_impl(title: &str, default_name: String, content: Vec<u8>) -> Result<bool, String> {
     use ashpd::desktop::file_chooser::SaveFileRequest;
 
     let request = SaveFileRequest::default()
-        .title("Export tasks")
+        .title(title)
         .current_name(default_name.as_str())
         .send()
         .await
@@ -201,7 +217,8 @@ async fn save_text_file_impl(default_name: String, content: String) -> Result<bo
 
     let files = match request.response() {
         Ok(f) => f,
-        Err(_) => return Ok(false), // user cancelled
+        Err(ashpd::Error::Response(ashpd::desktop::ResponseError::Cancelled)) => return Ok(false),
+        Err(e) => return Err(format!("Save dialog failed: {e}")),
     };
 
     let Some(uri) = files.uris().first() else {
@@ -218,7 +235,7 @@ async fn save_text_file_impl(default_name: String, content: String) -> Result<bo
 }
 
 #[cfg(not(target_os = "linux"))]
-async fn save_text_file_impl(_default_name: String, _content: String) -> Result<bool, String> {
+async fn save_file_impl(_title: &str, _default_name: String, _content: Vec<u8>) -> Result<bool, String> {
     Err("Native save dialog only supported on Linux".to_string())
 }
 
@@ -870,7 +887,7 @@ fn main() {
                 .build()
         )
         // Register commands
-        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
+        .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, save_attachment, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
         // Run the app
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

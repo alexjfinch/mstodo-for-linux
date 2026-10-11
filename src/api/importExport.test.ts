@@ -3,6 +3,7 @@ import {
   buildCsvExport,
   buildJsonExport,
   csvEscape,
+  csvUnescape,
   importFromJson,
   importFromTodoistCsv,
   importFromGenericCsv,
@@ -204,7 +205,6 @@ describe("importFromTodoistCsv", () => {
 
 describe("importFromGenericCsv", () => {
   it("imports rows using flexible column detection", () => {
-    // "description" matches the keyword list; "notes" does not due to word-boundary matching
     const csv = "Title,Description,Due Date,Priority,Completed\nPay bills,Monthly rent,2025-09-01,high,0";
     const { tasks } = importFromGenericCsv(csv);
     expect(tasks).toHaveLength(1);
@@ -233,7 +233,6 @@ describe("importFromGenericCsv", () => {
   });
 
   it("handles quoted fields containing commas", () => {
-    // Use "description" (not "notes") because column detection uses word-boundary matching
     const csv = 'Title,Description\n"Buy milk, eggs","From the ""local"" store"';
     const { tasks } = importFromGenericCsv(csv);
     expect(tasks[0].title).toBe("Buy milk, eggs");
@@ -245,5 +244,41 @@ describe("importFromGenericCsv", () => {
     const csv = 'Title,Categories\nDo laundry,"home,chores"';
     const { tasks } = importFromGenericCsv(csv);
     expect(tasks[0].categories).toEqual(["home", "chores"]);
+  });
+
+  it("detects a plural Notes column", () => {
+    const { tasks } = importFromGenericCsv("Title,Notes\nPay bills,Monthly rent");
+    expect(tasks[0].body?.content).toBe("Monthly rent");
+  });
+
+  it("round-trips the app's own CSV export, including formula-guarded text", () => {
+    const exported: Task[] = [
+      { ...TASK, title: "-call mom", body: { content: "- bullet one\n- bullet two", contentType: "text" }, categories: ["@home", "-errand"] },
+      { ...TASK, id: "task-2", title: "=SUM(1)", importance: "low", completed: true, status: "completed", body: undefined, categories: [] },
+      { ...TASK, id: "task-3", title: "+1 for the team", dueDateTime: undefined },
+    ];
+    const { tasks } = importFromGenericCsv(buildCsvExport(exported, [LIST]));
+
+    expect(tasks.map((t) => t.title)).toEqual(["-call mom", "=SUM(1)", "+1 for the team"]);
+    expect(tasks[0].body?.content).toBe("- bullet one\n- bullet two");
+    expect(tasks[0].categories).toEqual(["@home", "-errand"]);
+    expect(tasks[0].importance).toBe("high");
+    expect(tasks[0].dueDateTime?.dateTime).toContain("2025-07-01");
+    expect(tasks[1].importance).toBe("low");
+    expect(tasks[1].completed).toBe(true);
+    expect(tasks[1].body).toBeUndefined();
+    expect(tasks[2].dueDateTime).toBeUndefined();
+  });
+});
+
+describe("csvUnescape", () => {
+  it("strips the quote csvEscape adds before formula triggers", () => {
+    expect(csvUnescape("'=1+1")).toBe("=1+1");
+    expect(csvUnescape("'-1")).toBe("-1");
+  });
+
+  it("leaves other leading quotes alone", () => {
+    expect(csvUnescape("'tis the season")).toBe("'tis the season");
+    expect(csvUnescape("plain")).toBe("plain");
   });
 });

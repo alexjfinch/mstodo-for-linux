@@ -56,6 +56,11 @@ export function csvEscape(value: string): string {
   return safe;
 }
 
+/** Reverses the formula guard added by csvEscape so exported CSVs re-import unchanged. */
+export function csvUnescape(value: string): string {
+  return value.startsWith("'") && FORMULA_TRIGGER.test(value.slice(1)) ? value.slice(1) : value;
+}
+
 /** Shows the native Save dialog and writes the file. Resolves false if the user cancelled. */
 export async function saveTextFile(filename: string, content: string): Promise<boolean> {
   return invoke<boolean>("save_text_file", { defaultName: filename, content });
@@ -254,7 +259,7 @@ export function importFromGenericCsv(content: string): ImportResult {
     matchesKeyword(h, ["title", "task", "name", "content", "subject"])
   );
   const notesIdx = header.findIndex((h) =>
-    matchesKeyword(h, ["note", "description", "body", "detail"])
+    matchesKeyword(h, ["note", "notes", "description", "body", "detail"])
   );
   const dueDateIdx = header.findIndex((h) => matchesKeyword(h, ["due", "due_date", "duedate", "deadline"]));
   const priorityIdx = header.findIndex((h) =>
@@ -272,13 +277,13 @@ export function importFromGenericCsv(content: string): ImportResult {
   const tasks: Omit<Task, "id">[] = [];
   for (let i = 1; i < lines.length; i++) {
     const row = lines[i];
-    const title = row[titleIdx]?.trim();
+    const title = csvUnescape(row[titleIdx]?.trim() ?? "");
     if (!title) continue;
 
     const task: Omit<Task, "id"> = { title, completed: false, status: "notStarted" };
 
     if (notesIdx >= 0 && row[notesIdx]?.trim()) {
-      task.body = { content: row[notesIdx].trim(), contentType: "text" };
+      task.body = { content: csvUnescape(row[notesIdx].trim()), contentType: "text" };
     }
     if (dueDateIdx >= 0 && row[dueDateIdx]?.trim()) {
       const due = new Date(row[dueDateIdx].trim());
@@ -305,7 +310,7 @@ export function importFromGenericCsv(content: string): ImportResult {
       task.status = task.completed ? "completed" : "notStarted";
     }
     if (categoriesIdx >= 0 && row[categoriesIdx]?.trim()) {
-      task.categories = row[categoriesIdx].split(",").map((c) => c.trim()).filter(Boolean);
+      task.categories = row[categoriesIdx].split(",").map((c) => csvUnescape(c.trim())).filter(Boolean);
     }
 
     tasks.push(task);
