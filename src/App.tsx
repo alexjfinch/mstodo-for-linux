@@ -1,6 +1,5 @@
 import "./styles/theme.css";
 import "./styles/global.css";
-import { Titlebar } from "./components/Titlebar";
 import { Sidebar } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { PlannedView } from "./components/PlannedView";
@@ -513,7 +512,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <Titlebar />
       <div className="app-content">
         <ComponentBoundary>
         <Sidebar

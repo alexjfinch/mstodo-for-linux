@@ -558,8 +558,9 @@ fn setup_quickadd_fifo(app_handle: tauri::AppHandle, shutdown: std::sync::Arc<st
             format!("/tmp/mstodo-quickadd-{:016x}", nonce)
         });
 
-    // Attempt to create the FIFO. If mkfifo fails the file already exists.
-    if !make_fifo(&fifo_path) {
+    // Create the FIFO unless something is already at the path (usually the FIFO left from a
+    // previous run). Checking first avoids mkfifo printing "File exists" on every start.
+    if std::fs::symlink_metadata(&fifo_path).is_ok() || !make_fifo(&fifo_path) {
         // File already exists — verify it is owned by the current user before using it.
         // This guards against a local attacker pre-creating the path to hijack IPC.
         //
@@ -691,6 +692,14 @@ fn format_gvariant_strv(items: &[String]) -> String {
     )
 }
 
+/// The command GNOME runs for the Quick Add shortcut. GNOME splits custom-shortcut commands
+/// into arguments without a shell, so the redirect needs an explicit `sh -c`. The script and
+/// the FIFO path inside it are both single-quoted so any characters in the path stay literal.
+fn quickadd_shortcut_command(fifo_path: &str) -> String {
+    let script = format!("echo q > {}", shell_single_quote(fifo_path));
+    format!("sh -c {}", shell_single_quote(&script))
+}
+
 /// Registers a GNOME custom keybinding (Super+Shift+T) that writes to the IPC FIFO.
 /// Detects GNOME via XDG_CURRENT_DESKTOP. Safe to call on non-GNOME DEs (no-op).
 fn register_gnome_shortcut(fifo_path: &str) {
@@ -700,8 +709,7 @@ fn register_gnome_shortcut(fifo_path: &str) {
     }
 
     let binding_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/mstodo/";
-    // Single-quote the FIFO path to guard against metacharacters in XDG_RUNTIME_DIR.
-    let command = format!("echo q > {}", shell_single_quote(fifo_path));
+    let command = quickadd_shortcut_command(fifo_path);
 
     // Fetch current custom-keybindings list and append our path if absent.
     let current_raw = std::process::Command::new("gsettings")
@@ -752,11 +760,18 @@ fn open_quick_add(app: &tauri::AppHandle) {
         .inner_size(480.0, 148.0)
         .resizable(false)
         .decorations(false)
-        .transparent(true)
         .always_on_top(true)
         .center()
         .focused(true)
         .build();
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.unminimize();
+        let _ = win.set_focus();
+    }
 }
 
 fn main() {
@@ -767,9 +782,14 @@ fn main() {
     let fifo_path_cell: std::sync::Arc<std::sync::OnceLock<String>> =
         std::sync::Arc::new(std::sync::OnceLock::new());
     let fifo_path_store = fifo_path_cell.clone();
+    let fifo_path_exit = fifo_path_cell.clone();
 
     // Build Tauri application
     Builder::default()
+        // Registered first: launching the app again (e.g. from the menu while it's in the tray)
+        // shows the running instance, and the new process exits here before any other plugin
+        // or the setup hook (tray, FIFO, shortcut registration) runs.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             {
@@ -813,13 +833,7 @@ fn main() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
-                        "show_hide" => {
-                            if let Some(win) = app.get_webview_window("main") {
-                                let _ = win.show();
-                                let _ = win.unminimize();
-                                let _ = win.set_focus();
-                            }
-                        }
+                        "show_hide" => show_main_window(app),
                         "add_task" => {
                             open_quick_add(app);
                         }
@@ -877,19 +891,32 @@ fn main() {
 
             Ok(())
         })
-        // Signal FIFO thread to stop when the main window is destroyed.
-        // Also write a zero byte to the FIFO to unblock the reader thread, which may be
-        // blocked inside File::open() waiting for a writer — it won't see the shutdown flag
-        // until it returns from the kernel call.
-        .on_window_event(move |_window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                fifo_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-                if let Some(path) = fifo_path_cell.get() {
-                    let _ = std::fs::OpenOptions::new()
-                        .write(true)
-                        .open(path)
-                        .and_then(|mut f| { use std::io::Write; f.write_all(b"\0") });
+        .on_window_event(move |window, event| {
+            // Only the main window matters here; closing the Quick Add popup must keep the
+            // FIFO listener running so the shortcut works again.
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                // The window's close button hides to the tray; the tray's Quit item exits
+                // (that path doesn't send a close request, so it isn't blocked here).
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
+                // Signal the FIFO thread to stop, and write a zero byte to unblock the reader,
+                // which may be blocked inside File::open() waiting for a writer — it won't see
+                // the shutdown flag until it returns from the kernel call.
+                tauri::WindowEvent::Destroyed => {
+                    fifo_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+                    if let Some(path) = fifo_path_cell.get() {
+                        let _ = std::fs::OpenOptions::new()
+                            .write(true)
+                            .open(path)
+                            .and_then(|mut f| { use std::io::Write; f.write_all(b"\0") });
+                    }
+                }
+                _ => {}
             }
         })
         // Global shortcut plugin
@@ -905,9 +932,21 @@ fn main() {
         )
         // Register commands
         .invoke_handler(generate_handler![sign_in, refresh_token, get_system_theme, pick_and_read_file, save_text_file, save_attachment, open_external_url, update_tray_tooltip, update_tray_status, keyring_set, keyring_get, keyring_delete, write_log, get_log_path_cmd, get_autostart_enabled, set_autostart_enabled])
-        // Run the app
-        .run(tauri::generate_context!())
-        .expect("error while running Tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building Tauri application")
+        .run(move |_app, event| {
+            // Remove the FIFO on exit. Otherwise pressing the shortcut while the app is closed
+            // blocks the shortcut's shell until the app next starts, which then opens Quick Add
+            // unprompted. Without the FIFO the shell writes a regular file instead, which the
+            // reader thread replaces with a fresh FIFO on the next start.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(path) = fifo_path_exit.get() {
+                    if is_fifo(path) {
+                        let _ = std::fs::remove_file(path);
+                    }
+                }
+            }
+        });
 }
 
 #[cfg(test)]
@@ -950,6 +989,21 @@ mod tests {
         assert!(validate_external_url("javascript:alert(1)").is_err());
         assert!(validate_external_url("smb://host/share").is_err());
         assert!(validate_external_url("not a url").is_err());
+    }
+
+    #[test]
+    fn quickadd_shortcut_command_writes_to_the_fifo_path() {
+        // A space and a single quote in the path exercise both levels of quoting.
+        let dir = std::env::temp_dir().join(format!("mstodo shortcut 'test' {}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("quickadd");
+        let command = quickadd_shortcut_command(path.to_str().unwrap());
+        assert!(command.starts_with("sh -c "));
+        // GNOME splits the command with POSIX shell quoting rules; an outer `sh -c` does the same.
+        let status = std::process::Command::new("sh").arg("-c").arg(&command).status().unwrap();
+        assert!(status.success());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "q\n");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

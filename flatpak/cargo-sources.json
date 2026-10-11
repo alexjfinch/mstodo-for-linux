@@ -5683,6 +5683,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/tauri-plugin-single-instance/tauri-plugin-single-instance-2.5.3.crate",
+        "sha256": "3c142ed88deee222bd2d979269d35c73b6c1c0f6ebd5b79b4ff80066fcad6af1",
+        "dest": "cargo/vendor/tauri-plugin-single-instance-2.5.3"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"3c142ed88deee222bd2d979269d35c73b6c1c0f6ebd5b79b4ff80066fcad6af1\", \"files\": {}}",
+        "dest": "cargo/vendor/tauri-plugin-single-instance-2.5.3",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/tauri-plugin-sql/tauri-plugin-sql-2.5.0.crate",
         "sha256": "811fca8f6b80ca3026496db4612d93000ce96915ac6e36f7adc73b8232aee9f0",
         "dest": "cargo/vendor/tauri-plugin-sql-2.5.0"

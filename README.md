@@ -113,7 +113,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :art: | **Themes** | Light, dark, and system themes (reads desktop environment preference) |
 | :straight_ruler: | **Compact mode** | Reduce row spacing for denser task views |
 | :abc: | **Font sizes** | Small, normal, and large text sizes |
-| :desktop_computer: | **Custom title bar** | Native window controls without OS decorations |
+| :desktop_computer: | **Native window frame** | Uses your desktop's own title bar, window controls and rounded corners |
 | :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count |
 | :zap: | **Auto-sync** | Configurable sync interval (30s, 1m, 5m, or manual) |
 | :rocket: | **Global quick-add** | System-wide shortcut to add a task from anywhere with natural language date parsing |

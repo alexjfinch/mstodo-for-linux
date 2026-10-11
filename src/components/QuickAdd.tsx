@@ -4,35 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { parseTaskInput } from "../utils/dateParser";
 
-// Theme CSS variables — dark is default, toggled via [data-theme="light"] on <html>.
-const QUICKADD_THEME_CSS = `
-  :root {
-    --qa-bg: #1e1e1e;
-    --qa-border: #333;
-    --qa-text: #e0e0e0;
-    --qa-header: #999;
-    --qa-input-bg: #2a2a2a;
-    --qa-input-border: #444;
-    --qa-input-text: #fff;
-    --qa-hint: #666;
-    --qa-preview: #4fc3f7;
-    --qa-shadow: rgba(0,0,0,0.5);
-  }
-  :root[data-theme="light"] {
-    --qa-bg: #ffffff;
-    --qa-border: #ddd;
-    --qa-text: #333;
-    --qa-header: #666;
-    --qa-input-bg: #f5f5f5;
-    --qa-input-border: #ccc;
-    --qa-input-text: #111;
-    --qa-hint: #999;
-    --qa-preview: #1976d2;
-    --qa-shadow: rgba(0,0,0,0.15);
-  }
-`;
-
-
+// Theme colours live in quickadd-base.css; this switches between its dark and light sets.
 function applyTheme(theme: string) {
   document.documentElement.setAttribute("data-theme", theme);
 }
@@ -54,15 +26,34 @@ export const QuickAdd = () => {
     return `"${parsed.title}" due ${dateStr}`;
   }, [value]);
 
-  // Inject theme CSS variables on mount; remove on unmount.
+  // This window is frameless and always on top, so it must never get stuck open: Escape
+  // closes it wherever focus is (on Wayland the input may not get keyboard focus when the
+  // window opens), and so does clicking away once it has had focus.
   useEffect(() => {
-    if (!document.getElementById("qa-theme")) {
-      const style = document.createElement("style");
-      style.id = "qa-theme";
-      style.textContent = QUICKADD_THEME_CSS;
-      document.head.appendChild(style);
-    }
-    return () => { document.getElementById("qa-theme")?.remove(); };
+    const win = getCurrentWindow();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") win.close().catch(console.error);
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    let cancelled = false;
+    let hadFocus = false;
+    let unlistenFocus: (() => void) | null = null;
+    win.onFocusChanged(({ payload: focused }) => {
+      if (focused) hadFocus = true;
+      else if (hadFocus) win.close().catch(console.error);
+    })
+      .then((fn) => {
+        if (cancelled) fn();
+        else unlistenFocus = fn;
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("keydown", onKeyDown);
+      unlistenFocus?.();
+    };
   }, []);
 
   // Query system theme on mount and listen for live changes
@@ -112,11 +103,7 @@ export const QuickAdd = () => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSubmit();
-    } else if (e.key === "Escape") {
-      getCurrentWindow().close().catch(console.error);
-    }
+    if (e.key === "Enter") handleSubmit();
   };
 
   return (
@@ -159,8 +146,6 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     padding: "16px",
     background: "var(--qa-bg)",
-    borderRadius: "12px",
-    boxShadow: "0 8px 32px var(--qa-shadow)",
     color: "var(--qa-text)",
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

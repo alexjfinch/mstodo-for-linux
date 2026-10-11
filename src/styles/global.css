@@ -19,7 +19,7 @@ textarea:focus-visible,
 }
 
 html, body {
-  background: transparent;
+  background: var(--bg-primary);
 }
 
 body {
@@ -34,7 +34,6 @@ body {
   height: 100vh;
   color: var(--text-primary);
   background-color: var(--bg-primary);
-  border-radius: 10px;
   transition: background-color 0.2s ease, color 0.2s ease;
   overflow: hidden;
 }
@@ -274,7 +273,6 @@ body {
   padding: 40px;
   height: 100vh;
   background-color: var(--bg-primary);
-  border-radius: 10px;
   color: var(--text-secondary);
   font-size: 0.9375rem;
 }

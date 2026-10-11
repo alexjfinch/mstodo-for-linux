@@ -1,6 +1,6 @@
 [package]
 name = "mstodo-for-linux"
-version = "0.1.13"
+version = "0.1.14"
 description = "An Unofficial Microsoft ToDo Client for Linux"
 authors = ["Alex Finch"]
 edition = "2024"
@@ -25,6 +25,7 @@ tauri-plugin-notification = "2.3.3"
 keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 chrono = "0.4"
 dirs = "6"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = { version = "4", default-features = false, features = ["tokio"] }
