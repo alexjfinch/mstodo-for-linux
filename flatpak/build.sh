@@ -11,7 +11,9 @@
 #   python3 <checkout>/cargo/flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
 #   flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
 # The node generator must run where no node_modules directory exists (e.g. a temp
-# directory containing only package.json and package-lock.json).
+# directory containing only package.json and package-lock.json), and with an empty
+# download cache (XDG_CACHE_HOME=$(mktemp -d)), as a cached download can record the
+# wrong file size.
 set -euo pipefail
 
 APP_ID=io.github.alexjfinch.mstodo-for-linux

@@ -142,10 +142,12 @@ jobs:
         run: |
           python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
           flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
-          git diff --exit-code --stat -- flatpak/ || {
+          if ! git diff --quiet -- flatpak/; then
+            git diff --stat -- flatpak/
+            git diff -- flatpak/ | head -n 200
             echo "::error::flatpak/cargo-sources.json or node-sources.json is out of date. Regenerate them as described at the top of flatpak/build.sh."
             exit 1
-          }
+          fi
 
   flatpak:
     needs: [validate, flatpak-sources]
