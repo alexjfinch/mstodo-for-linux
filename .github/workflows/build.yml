@@ -121,19 +121,26 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Checkout flatpak-builder-tools
+        uses: actions/checkout@v5
+        with:
+          repository: flatpak/flatpak-builder-tools
+          ref: caca92bc6898ea40d6521b581fef2402ba3b3aae
+          path: flatpak-builder-tools
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install flatpak-builder-tools generators
-        env:
-          TOOLS: git+https://github.com/flatpak/flatpak-builder-tools.git@caca92bc6898ea40d6521b581fef2402ba3b3aae
-        run: pip install "$TOOLS#subdirectory=cargo" "$TOOLS#subdirectory=node"
+      # The cargo generator is a standalone script (installing its directory only pulls in its
+      # dependencies); the node generator installs the flatpak-node-generator command.
+      - name: Install generators
+        run: pip install ./flatpak-builder-tools/cargo ./flatpak-builder-tools/node
 
       - name: Check offline sources match the lockfiles
         run: |
-          flatpak-cargo-generator src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+          python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
           flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
           git diff --exit-code --stat -- flatpak/ || {
             echo "::error::flatpak/cargo-sources.json or node-sources.json is out of date. Regenerate them as described at the top of flatpak/build.sh."

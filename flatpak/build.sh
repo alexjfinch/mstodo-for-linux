@@ -5,10 +5,10 @@
 #
 # Whenever Cargo.lock or package-lock.json change, regenerate the offline sources or the
 # build will fail (CI checks this). Use https://github.com/flatpak/flatpak-builder-tools at
-# commit caca92bc, the version CI pins so the output matches, installed with
+# commit caca92bc, the version CI pins so the output matches. Install the generators with
 #   pip install --user <checkout>/cargo <checkout>/node
 # and then run:
-#   flatpak-cargo-generator src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+#   python3 <checkout>/cargo/flatpak-cargo-generator.py src-tauri/Cargo.lock -o flatpak/cargo-sources.json
 #   flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
 # The node generator must run where no node_modules directory exists (e.g. a temp
 # directory containing only package.json and package-lock.json).
