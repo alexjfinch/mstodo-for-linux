@@ -52,6 +52,7 @@ export default function App() {
     handleSyncIntervalChange, handleRemindersEnabledChange,
     handleReminderTimingChange, handleReorderTasks: reorderTasks,
     lastMyDayReset, handleMyDayReset, weekStartDay, handleWeekStartDayChange,
+    startMinimized, handleStartMinimizedChange,
     settingsLoaded, settingsError,
   } = useSettings();
   const [activeList, setActiveList] = useState<ListName | string>("Tasks");
@@ -578,6 +579,8 @@ export default function App() {
             onReminderTimingChange={handleReminderTimingChange}
             weekStartDay={weekStartDay}
             onWeekStartDayChange={handleWeekStartDayChange}
+            startMinimized={startMinimized}
+            onStartMinimizedChange={handleStartMinimizedChange}
             isOnline={isOnline}
             syncing={syncing}
             syncError={syncError}

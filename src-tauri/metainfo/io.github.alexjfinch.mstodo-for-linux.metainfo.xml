@@ -54,7 +54,6 @@
   <content_rating type="oars-1.1" />
 
   <categories>
-    <category>Utility</category>
     <category>Office</category>
     <category>ProjectManagement</category>
   </categories>
@@ -69,6 +68,11 @@
   </supports>
 
   <releases>
+    <release version="0.1.15" date="2026-10-11">
+      <description>
+        <p>See github release pages for updates.</p>
+      </description>
+    </release>
     <release version="0.1.14" date="2026-10-11">
       <description>
         <p>See github release pages for updates.</p>

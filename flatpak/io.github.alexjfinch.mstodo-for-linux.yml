@@ -14,16 +14,17 @@ finish-args:
   - --socket=fallback-x11    # X11 only when no Wayland session is available
   - --device=dri
   - --talk-name=org.freedesktop.Notifications
-  # Login tokens are stored via the Secret Service API, provided by GNOME Keyring on
-  # GNOME and by KWallet on KDE Plasma. This grants access to the whole keyring.
+  # Login tokens are kept in an app-private keyring encrypted via the Secret portal, which
+  # needs no permission. Some KDE releases have shipped a broken Secret portal, so when it
+  # fails the app falls back to the desktop keyring (GNOME Keyring / KWallet) over D-Bus.
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.StatusNotifierWatcher  # system tray
   - --talk-name=org.kde.StatusNotifierWatcher          # system tray (KDE Plasma)
-  - --talk-name=com.canonical.AppMenu.Registrar        # system tray (Ubuntu)
   # The tray library writes its icon to $XDG_RUNTIME_DIR/tray-icon and passes that
   # path to the desktop's tray host, which runs outside the sandbox and must see it.
   - --filesystem=xdg-run/tray-icon:create
-  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1     # KDE Wayland compositor compatibility
+  # WebKit's DMA-BUF renderer crashes on NVIDIA under Wayland (protocol error 71).
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
   - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1    # blank window workaround on KDE Plasma 6 Wayland
 
 build-options:

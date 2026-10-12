@@ -420,9 +420,53 @@ async fn get_log_path_cmd() -> String {
 
 const KEYRING_SERVICE: &str = "io.github.alexjfinch.mstodo-for-linux";
 
+fn is_flatpak() -> bool {
+    std::path::Path::new("/.flatpak-info").exists()
+}
+
+/// Inside the Flatpak, logins are kept in an app-private keyring file encrypted with a key
+/// from the Secret portal, so other apps can't read them. If the portal fails (some KDE
+/// releases have had bugs here), this returns None and the desktop keyring over D-Bus is
+/// used for the rest of the session instead. Outside the Flatpak it always returns None.
+async fn sandbox_keyring() -> Option<&'static oo7::Keyring> {
+    static KEYRING: tokio::sync::OnceCell<Option<oo7::Keyring>> = tokio::sync::OnceCell::const_new();
+    if !is_flatpak() {
+        return None;
+    }
+    KEYRING
+        .get_or_init(|| async {
+            let keyring = match oo7::Keyring::new().await {
+                Ok(keyring) => keyring,
+                Err(e) => {
+                    eprintln!("Warning: Secret portal unavailable, using the desktop keyring: {e}");
+                    return None;
+                }
+            };
+            match keyring.unlock().await {
+                Ok(()) => Some(keyring),
+                Err(e) => {
+                    eprintln!("Warning: could not unlock the app keyring, using the desktop keyring: {e}");
+                    None
+                }
+            }
+        })
+        .await
+        .as_ref()
+}
+
+fn sandbox_keyring_attributes(entry_key: &str) -> [(&'static str, &str); 2] {
+    [("service", KEYRING_SERVICE), ("username", entry_key)]
+}
+
 #[tauri::command]
 async fn keyring_set(account: String, key: String, value: String) -> Result<(), String> {
     let entry_key = format!("{}:{}", account, key);
+    if let Some(keyring) = sandbox_keyring().await {
+        return keyring
+            .create_item(&entry_key, &sandbox_keyring_attributes(&entry_key), value, true)
+            .await
+            .map_err(|e| format!("Keyring set error: {e}"));
+    }
     tokio::task::spawn_blocking(move || {
         let entry = keyring::Entry::new(KEYRING_SERVICE, &entry_key)
             .map_err(|e| format!("Keyring entry error: {e}"))?;
@@ -436,6 +480,19 @@ async fn keyring_set(account: String, key: String, value: String) -> Result<(), 
 #[tauri::command]
 async fn keyring_get(account: String, key: String) -> Result<Option<String>, String> {
     let entry_key = format!("{}:{}", account, key);
+    if let Some(keyring) = sandbox_keyring().await {
+        let items = keyring
+            .search_items(&sandbox_keyring_attributes(&entry_key))
+            .await
+            .map_err(|e| format!("Keyring get error: {e}"))?;
+        let Some(item) = items.first() else {
+            return Ok(None);
+        };
+        let secret = item.secret().await.map_err(|e| format!("Keyring get error: {e}"))?;
+        return String::from_utf8(secret.as_bytes().to_vec())
+            .map(Some)
+            .map_err(|e| format!("Keyring get error: {e}"));
+    }
     tokio::task::spawn_blocking(move || {
         let entry = keyring::Entry::new(KEYRING_SERVICE, &entry_key)
             .map_err(|e| format!("Keyring entry error: {e}"))?;
@@ -452,6 +509,12 @@ async fn keyring_get(account: String, key: String) -> Result<Option<String>, Str
 #[tauri::command]
 async fn keyring_delete(account: String, key: String) -> Result<(), String> {
     let entry_key = format!("{}:{}", account, key);
+    if let Some(keyring) = sandbox_keyring().await {
+        return keyring
+            .delete(&sandbox_keyring_attributes(&entry_key))
+            .await
+            .map_err(|e| format!("Keyring delete error: {e}"));
+    }
     tokio::task::spawn_blocking(move || {
         let entry = keyring::Entry::new(KEYRING_SERVICE, &entry_key)
             .map_err(|e| format!("Keyring entry error: {e}"))?;
@@ -467,11 +530,14 @@ async fn keyring_delete(account: String, key: String) -> Result<(), String> {
 
 // ── Autostart ─────────────────────────────────────────────────────────
 
+/// Passed by the autostart entry so the app can tell a login start from a normal launch.
+const AUTOSTART_ARG: &str = "--autostart";
+
 const AUTOSTART_DESKTOP_ENTRY: &str = "\
 [Desktop Entry]\n\
 Type=Application\n\
 Name=Microsoft To Do\n\
-Exec=mstodo-for-linux\n\
+Exec=mstodo-for-linux --autostart\n\
 Icon=mstodo-for-linux\n\
 Comment=An Unofficial Microsoft To Do Client for Linux\n\
 X-GNOME-Autostart-enabled=true\n\
@@ -486,8 +552,39 @@ async fn get_autostart_enabled() -> Result<bool, String> {
     Ok(autostart_path().map_or(false, |p| p.exists()))
 }
 
+/// Inside the Flatpak, the autostart file written below lands in the sandbox's own config
+/// dir, where the desktop never looks, so the Background portal creates the real autostart
+/// entry. The portal can't be asked for the current state, so the file is still written as
+/// the app's record of the setting.
+#[cfg(target_os = "linux")]
+async fn request_portal_autostart(enabled: bool) -> Result<(), String> {
+    use ashpd::desktop::background::Background;
+    let response = Background::request()
+        .reason("Start Microsoft To Do when you log in")
+        .auto_start(enabled)
+        .command(["mstodo-for-linux", AUTOSTART_ARG])
+        .dbus_activatable(false)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to request autostart: {e}"))?
+        .response()
+        .map_err(|e| format!("Autostart was not allowed: {e}"))?;
+    if enabled && !response.auto_start() {
+        return Err("Autostart was not allowed".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn request_portal_autostart(_enabled: bool) -> Result<(), String> {
+    Err("The Background portal is only supported on Linux".to_string())
+}
+
 #[tauri::command]
 async fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
+    if is_flatpak() {
+        request_portal_autostart(enabled).await?;
+    }
     let path = autostart_path().ok_or("Could not determine config directory")?;
     if enabled {
         if let Some(parent) = path.parent() {
@@ -504,6 +601,52 @@ async fn set_autostart_enabled(enabled: bool) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+/// Entries written before 0.1.15 start the app without AUTOSTART_ARG, so it couldn't start
+/// minimised at login. Rewrite them (in the Flatpak, this re-requests the portal entry).
+async fn upgrade_autostart_entry() {
+    let Some(path) = autostart_path() else { return };
+    let Ok(entry) = std::fs::read_to_string(&path) else { return };
+    if !entry.contains(AUTOSTART_ARG) {
+        if let Err(e) = set_autostart_enabled(true).await {
+            eprintln!("Warning: could not update the autostart entry: {e}");
+        }
+    }
+}
+
+/// The "Start minimised" setting, which the frontend keeps in settings.json (on by default).
+fn start_minimized_setting(app: &tauri::AppHandle) -> bool {
+    let settings = app
+        .path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("settings.json")).ok());
+    start_minimized_from_settings(settings.as_deref())
+}
+
+fn start_minimized_from_settings(settings: Option<&str>) -> bool {
+    settings
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
+        .and_then(|v| v.get("startMinimized")?.as_bool())
+        .unwrap_or(true)
+}
+
+/// Whether a tray host is running to restore a minimised window from. Stock GNOME has none
+/// without the AppIndicator extension, and starting hidden there would leave no visible app.
+#[cfg(target_os = "linux")]
+async fn tray_available() -> bool {
+    let Ok(conn) = zbus::Connection::session().await else { return false };
+    let Ok(dbus) = zbus::fdo::DBusProxy::new(&conn).await else { return false };
+    let Ok(watcher) = zbus::names::BusName::try_from("org.kde.StatusNotifierWatcher") else {
+        return false;
+    };
+    dbus.name_has_owner(watcher).await.unwrap_or(false)
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn tray_available() -> bool {
+    true
 }
 
 #[tauri::command]
@@ -700,6 +843,35 @@ fn quickadd_shortcut_command(fifo_path: &str) -> String {
     format!("sh -c {}", shell_single_quote(&script))
 }
 
+const QUICK_ADD_SHORTCUT_ID: &str = "quick-add";
+
+/// Registers Super+Shift+T through the GlobalShortcuts portal, the only way to get a
+/// system-wide shortcut from inside the Flatpak. The desktop may ask the user to confirm or
+/// change the binding the first time. The portal session must stay open for the shortcut to
+/// keep working, so this runs for the app's lifetime.
+#[cfg(target_os = "linux")]
+async fn run_portal_shortcut(app: tauri::AppHandle) -> Result<(), ashpd::Error> {
+    use ashpd::desktop::global_shortcuts::{GlobalShortcuts, NewShortcut};
+    use futures_util::StreamExt;
+
+    let portal = GlobalShortcuts::new().await?;
+    let session = portal.create_session().await?;
+    let shortcut = NewShortcut::new(QUICK_ADD_SHORTCUT_ID, "Quick Add Task")
+        .preferred_trigger("LOGO+SHIFT+t");
+    portal
+        .bind_shortcuts(&session, &[shortcut], &ashpd::WindowIdentifier::default())
+        .await?
+        .response()?;
+
+    let mut activated = portal.receive_activated().await?;
+    while let Some(event) = activated.next().await {
+        if event.shortcut_id() == QUICK_ADD_SHORTCUT_ID {
+            open_quick_add(&app);
+        }
+    }
+    Ok(())
+}
+
 /// Registers a GNOME custom keybinding (Super+Shift+T) that writes to the IPC FIFO.
 /// Detects GNOME via XDG_CURRENT_DESKTOP. Safe to call on non-GNOME DEs (no-op).
 fn register_gnome_shortcut(fifo_path: &str) {
@@ -789,7 +961,12 @@ fn main() {
         // Registered first: launching the app again (e.g. from the menu while it's in the tray)
         // shows the running instance, and the new process exits here before any other plugin
         // or the setup hook (tray, FIFO, shortcut registration) runs.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A login start while the app is already running shouldn't pop the window up.
+            if !args.iter().any(|a| a == AUTOSTART_ARG) {
+                show_main_window(app);
+            }
+        }))
         .setup(move |app| {
             #[cfg(target_os = "linux")]
             {
@@ -867,10 +1044,29 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Set up IPC FIFO for DE-registered shortcut fallback (Wayland / GNOME etc.)
-            let fifo_path = setup_quickadd_fifo(app.handle().clone(), fifo_shutdown_setup.clone());
-            // Store path so the on_window_event handler can unblock the reader on shutdown.
-            let _ = fifo_path_store.set(fifo_path.clone());
+            if is_flatpak() {
+                // The FIFO + gsettings route can't work inside the sandbox (it has its own
+                // runtime dir and dconf), so the shortcut is registered through the portal.
+                #[cfg(target_os = "linux")]
+                {
+                    let handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = run_portal_shortcut(handle).await {
+                            eprintln!("Warning: Quick Add shortcut not registered via the GlobalShortcuts portal: {e}");
+                        }
+                    });
+                }
+            } else {
+                // Set up IPC FIFO for DE-registered shortcut fallback (Wayland / GNOME etc.)
+                let fifo_path = setup_quickadd_fifo(app.handle().clone(), fifo_shutdown_setup.clone());
+                // Store path so the on_window_event handler can unblock the reader on shutdown.
+                let _ = fifo_path_store.set(fifo_path.clone());
+                // Also register via GNOME gsettings so it works on Wayland / GNOME Shell.
+                // Only register if FIFO setup succeeded (non-empty path).
+                if !fifo_path.is_empty() {
+                    register_gnome_shortcut(&fifo_path);
+                }
+            }
 
             // Register global shortcut: Super+Shift+T to open quick-add (works on X11)
             let shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyT);
@@ -883,10 +1079,19 @@ fn main() {
                 eprintln!("Warning: failed to register global shortcut (likely Wayland): {e}");
             }
 
-            // Also register via GNOME gsettings so it works on Wayland / GNOME Shell.
-            // Only register if FIFO setup succeeded (non-empty path).
-            if !fifo_path.is_empty() {
-                register_gnome_shortcut(&fifo_path);
+            tauri::async_runtime::spawn(upgrade_autostart_entry());
+
+            // The main window starts hidden (tauri.conf.json) so a login start can stay in the tray.
+            let started_at_login = std::env::args().any(|a| a == AUTOSTART_ARG);
+            if started_at_login && start_minimized_setting(app.handle()) {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if !tray_available().await {
+                        show_main_window(&handle);
+                    }
+                });
+            } else {
+                show_main_window(app.handle());
             }
 
             Ok(())
@@ -1004,6 +1209,15 @@ mod tests {
         assert!(status.success());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "q\n");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn start_minimized_defaults_to_on() {
+        assert!(start_minimized_from_settings(None));
+        assert!(start_minimized_from_settings(Some(r#"{"theme":"dark"}"#)));
+        assert!(start_minimized_from_settings(Some("not json")));
+        assert!(start_minimized_from_settings(Some(r#"{"startMinimized":true}"#)));
+        assert!(!start_minimized_from_settings(Some(r#"{"startMinimized":false}"#)));
     }
 
     #[test]

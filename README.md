@@ -48,10 +48,41 @@ Grab the latest package from the [Releases](https://github.com/alexjfinch/mstodo
 | `.deb` | Debian, Ubuntu, Pop!_OS, Mint | `sudo dpkg -i mstodo-for-linux-*.deb` |
 | `.rpm` | Fedora, RHEL, openSUSE | `sudo dnf install mstodo-for-linux-*.rpm` |
 | `.AppImage` | Any | `chmod +x *.AppImage && ./mstodo-for-linux-*.AppImage` |
+| `.flatpak` | Any, including immutable distros | See [Flatpak](#flatpak) below |
 
 ### Flatpak
 
-*Coming soon*
+Download `mstodo-for-linux_<version>_x86_64.flatpak` from the [Releases](https://github.com/alexjfinch/mstodo-for-linux/releases/latest) page and install it for your user:
+
+```bash
+flatpak install --user mstodo-for-linux_*_x86_64.flatpak
+```
+
+- The GNOME runtime it needs is downloaded from Flathub automatically. Flatpak offers to add Flathub if it isn't set up yet.
+- Install from a terminal with `--user` rather than opening the file in a software centre. On immutable distros such as Bazzite, Fedora Silverblue and SteamOS, installing a downloaded bundle system-wide needs administrator approval and often fails.
+- The Flatpak doesn't update itself. To update, download the new release and run the same command with `--reinstall` added. Your tasks and sign-in are kept.
+- To uninstall: `flatpak uninstall --user io.github.alexjfinch.mstodo-for-linux` (add `--delete-data` to remove local data too).
+
+<details>
+<summary>Flatpak permissions</summary>
+
+| Permission | Why |
+|---|---|
+| Network | Microsoft Graph API and Microsoft sign-in |
+| Wayland, X11 fallback, GPU, IPC | Displaying the window |
+| `org.freedesktop.Notifications` | Reminder notifications |
+| `org.kde.StatusNotifierWatcher`, `org.freedesktop.StatusNotifierWatcher`, `xdg-run/tray-icon` | System tray icon |
+| `org.freedesktop.secrets` | Fallback only. Sign-in tokens are normally kept in an app-private keyring encrypted via the Secret portal, which other apps can't read. If your desktop's Secret portal fails (some KDE releases have had bugs here), the app uses your desktop keyring (GNOME Keyring or KWallet) instead. |
+
+These features use portals, which need no permission. Your desktop may ask you to confirm them the first time:
+
+- **Secret portal:** stores sign-in tokens.
+- **Global shortcuts:** Super+Shift+T for Quick Add.
+- **Background:** Start on login.
+- **File chooser:** import, export and attachments.
+- **Open URI:** links and sign-in.
+
+</details>
 
 ---
 
@@ -114,7 +145,7 @@ No configuration needed. The app uses a pre-registered public client with the Mi
 | :straight_ruler: | **Compact mode** | Reduce row spacing for denser task views |
 | :abc: | **Font sizes** | Small, normal, and large text sizes |
 | :desktop_computer: | **Native window frame** | Uses your desktop's own title bar, window controls and rounded corners |
-| :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count |
+| :arrow_down_small: | **System tray** | Minimise to tray with a badge showing overdue/due-today count, and optionally start there at login |
 | :zap: | **Auto-sync** | Configurable sync interval (30s, 1m, 5m, or manual) |
 | :rocket: | **Global quick-add** | System-wide shortcut to add a task from anywhere with natural language date parsing |
 | :keyboard: | **Keyboard shortcuts** | Ctrl+N, Ctrl+F, Ctrl+D, Delete and F5 (full list in Settings → Shortcuts) |
@@ -135,7 +166,7 @@ Planned features, roughly in priority order:
 
 - [x] **Keyboard shortcuts** - Ctrl+N for new task, Ctrl+F to search, Ctrl+D to toggle complete, Delete to remove, F5 to sync
 - [ ] **Thunderbird integration** - add emails as tasks from other email accounts
-- [ ] **Flatpak packaging** - for easier cross-distro installation
+- [x] **Flatpak packaging** - for easier cross-distro installation
 
 ---
 
@@ -180,7 +211,7 @@ The built packages (`.deb`, `.rpm`, `.AppImage`) will be in `src-tauri/target/re
 
 ## Security & Privacy
 
-Authentication uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) - a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. Tokens are stored in your system keyring (e.g. GNOME Keyring, KWallet).
+Authentication uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) - a flow designed for native public clients. Your Microsoft credentials are never seen or stored by this app. Tokens are stored in your system keyring (e.g. GNOME Keyring, KWallet), or in the Flatpak, in an app-private keyring encrypted via the Secret portal.
 
 **No telemetry. No analytics. No backend server.** Data only leaves your machine via requests to the Microsoft Graph API on your behalf.
 

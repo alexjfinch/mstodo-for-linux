@@ -5,6 +5,6 @@ Exec=mstodo-for-linux
 Icon=io.github.alexjfinch.mstodo-for-linux
 Terminal=false
 Type=Application
-Categories=Utility;Office;ProjectManagement;
+Categories=Office;ProjectManagement;
 Keywords=todo;tasks;microsoft;productivity;
 StartupWMClass=mstodo-for-linux

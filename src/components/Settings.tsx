@@ -32,6 +32,8 @@ type Props = {
   onReminderTimingChange: (timing: ReminderTiming) => void;
   weekStartDay: 0 | 1 | 6;
   onWeekStartDayChange: (day: 0 | 1 | 6) => void;
+  startMinimized: boolean;
+  onStartMinimizedChange: (minimized: boolean) => void;
   isOnline: boolean;
   syncing: boolean;
   syncError: string | null;
@@ -60,7 +62,7 @@ const SHORTCUTS = [
   ["Ctrl + D", "Complete selected / open task"],
   ["Delete", "Delete selected / open task"],
   ["F5", "Sync now"],
-  ["Super + Shift + T", "Quick add from anywhere (GNOME or X11)"],
+  ["Super + Shift + T", "Quick add from anywhere (Flatpak, GNOME or X11)"],
   ["Click task", "Open task detail panel"],
   ["Click task (panel open)", "Switch to that task / close if same"],
   ["Shift + Click", "Multi-select tasks"],
@@ -96,6 +98,8 @@ export const Settings = ({
   onReminderTimingChange,
   weekStartDay,
   onWeekStartDayChange,
+  startMinimized,
+  onStartMinimizedChange,
   isOnline,
   syncing,
   syncError,
@@ -238,6 +242,26 @@ export const Settings = ({
                 <span className="settings-toggle-knob" />
               </button>
             </div>
+
+            {autostartEnabled && (
+              <div className="settings-item">
+                <div className="settings-item-info">
+                  <div className="settings-item-label">Start Minimised</div>
+                  <div className="settings-item-description">
+                    Start in the system tray when launched at login
+                  </div>
+                </div>
+                <button
+                  className={`settings-toggle${startMinimized ? " active" : ""}`}
+                  onClick={() => onStartMinimizedChange(!startMinimized)}
+                  role="switch"
+                  aria-checked={startMinimized}
+                  aria-label="Toggle start minimised"
+                >
+                  <span className="settings-toggle-knob" />
+                </button>
+              </div>
+            )}
           </>
         );
 

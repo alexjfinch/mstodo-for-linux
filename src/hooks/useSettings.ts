@@ -37,6 +37,8 @@ export const useSettings = () => {
   const [reminderTiming, setReminderTiming] = useState<ReminderTiming>("15min");
   const [lastMyDayReset, setLastMyDayReset] = useState<string | null>(null);
   const [weekStartDay, setWeekStartDay] = useState<0 | 1 | 6>(1);
+  // Read by the Rust side at startup to decide whether a login start stays in the tray.
+  const [startMinimized, setStartMinimized] = useState(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
@@ -64,6 +66,8 @@ export const useSettings = () => {
         if (savedLastMyDayReset) setLastMyDayReset(savedLastMyDayReset);
         const savedWeekStartDay = await store.get<0 | 1 | 6>("weekStartDay");
         if (savedWeekStartDay !== null && savedWeekStartDay !== undefined) setWeekStartDay(savedWeekStartDay);
+        const savedStartMinimized = await store.get<boolean>("startMinimized");
+        if (savedStartMinimized !== null && savedStartMinimized !== undefined) setStartMinimized(savedStartMinimized);
       } catch (err: unknown) {
         logger.error("Failed to load settings from store", err);
         setSettingsError("Failed to load settings");
@@ -128,6 +132,13 @@ export const useSettings = () => {
     catch { setSettingsError("Failed to save setting"); }
   }, []);
 
+  const handleStartMinimizedChange = useCallback(async (minimized: boolean) => {
+    setStartMinimized(minimized);
+    setSettingsError(null);
+    try { await persistSetting("startMinimized", minimized); }
+    catch { setSettingsError("Failed to save setting"); }
+  }, []);
+
   const handleReorderTasks = useCallback((activeList: string, reorderedIds: string[]) => {
     setTaskOrder((prev) => {
       const next = { ...prev, [activeList]: reorderedIds };
@@ -158,6 +169,8 @@ export const useSettings = () => {
     handleMyDayReset,
     weekStartDay,
     handleWeekStartDayChange,
+    startMinimized,
+    handleStartMinimizedChange,
     settingsLoaded,
     settingsError,
   };

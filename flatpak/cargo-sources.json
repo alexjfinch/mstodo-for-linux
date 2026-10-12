@@ -145,6 +145,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/ashpd/ashpd-0.13.13.crate",
+        "sha256": "fb8421aaa9644a5faf26735f258b669b15f063313ef8f8e2bdb28912a1a6f111",
+        "dest": "cargo/vendor/ashpd-0.13.13"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"fb8421aaa9644a5faf26735f258b669b15f063313ef8f8e2bdb28912a1a6f111\", \"files\": {}}",
+        "dest": "cargo/vendor/ashpd-0.13.13",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/async-broadcast/async-broadcast-0.7.2.crate",
         "sha256": "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532",
         "dest": "cargo/vendor/async-broadcast-0.7.2"
@@ -3421,6 +3434,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/num-bigint-dig/num-bigint-dig-0.9.1.crate",
+        "sha256": "a7f9a86e097b0d187ad0e65667c2f58b9254671e86e7dbb78036b16692eae099",
+        "dest": "cargo/vendor/num-bigint-dig-0.9.1"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"a7f9a86e097b0d187ad0e65667c2f58b9254671e86e7dbb78036b16692eae099\", \"files\": {}}",
+        "dest": "cargo/vendor/num-bigint-dig-0.9.1",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/num-complex/num-complex-0.4.6.crate",
         "sha256": "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495",
         "dest": "cargo/vendor/num-complex-0.4.6"
@@ -3772,6 +3798,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/oo7/oo7-0.6.0.crate",
+        "sha256": "78f2bfed90f1618b4b48dcad9307f25e14ae894e2949642c87c351601d62cebd",
+        "dest": "cargo/vendor/oo7-0.6.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"78f2bfed90f1618b4b48dcad9307f25e14ae894e2949642c87c351601d62cebd\", \"files\": {}}",
+        "dest": "cargo/vendor/oo7-0.6.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/open/open-5.4.4.crate",
         "sha256": "aa576c76302b7b808eecc68061e67336c47833ef9d22caa74dda10fa9675eebc",
         "dest": "cargo/vendor/open-5.4.4"
@@ -3871,6 +3910,19 @@
         "type": "inline",
         "contents": "{\"package\": \"2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1\", \"files\": {}}",
         "dest": "cargo/vendor/parking_lot_core-0.9.12",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/pbkdf2/pbkdf2-0.12.2.crate",
+        "sha256": "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2",
+        "dest": "cargo/vendor/pbkdf2-0.12.2"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2\", \"files\": {}}",
+        "dest": "cargo/vendor/pbkdf2-0.12.2",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -4898,6 +4950,19 @@
         "type": "inline",
         "contents": "{\"package\": \"f9faf48a4a2d2693be24c6289dbe26552776eb7737074e6722891fadbe6c5058\", \"files\": {}}",
         "dest": "cargo/vendor/serde-untagged-0.1.9",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/serde_bytes/serde_bytes-0.11.19.crate",
+        "sha256": "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8",
+        "dest": "cargo/vendor/serde_bytes-0.11.19"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8\", \"files\": {}}",
+        "dest": "cargo/vendor/serde_bytes-0.11.19",
         "dest-filename": ".cargo-checksum.json"
     },
     {

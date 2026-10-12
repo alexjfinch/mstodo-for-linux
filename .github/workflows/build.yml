@@ -113,18 +113,116 @@ jobs:
           name: appimage-${{ matrix.arch }}
           path: src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
 
+  # The Flatpak builds offline from flatpak/cargo-sources.json and node-sources.json, so they
+  # must be regenerated whenever a lockfile changes. The generators are pinned to the commit
+  # used locally so their output matches byte for byte.
+  flatpak-sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install flatpak-builder-tools generators
+        env:
+          TOOLS: git+https://github.com/flatpak/flatpak-builder-tools.git@caca92bc6898ea40d6521b581fef2402ba3b3aae
+        run: pip install "$TOOLS#subdirectory=cargo" "$TOOLS#subdirectory=node"
+
+      - name: Check offline sources match the lockfiles
+        run: |
+          flatpak-cargo-generator src-tauri/Cargo.lock -o flatpak/cargo-sources.json
+          flatpak-node-generator npm package-lock.json -o flatpak/node-sources.json
+          git diff --exit-code --stat -- flatpak/ || {
+            echo "::error::flatpak/cargo-sources.json or node-sources.json is out of date. Regenerate them as described at the top of flatpak/build.sh."
+            exit 1
+          }
+
+  flatpak:
+    needs: [validate, flatpak-sources]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Read app version
+        id: version
+        run: echo "version=$(grep -m1 '"version"' package.json | cut -d'"' -f4)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.alexjfinch.mstodo-for-linux.yml
+          bundle: mstodo-for-linux_${{ steps.version.outputs.version }}_x86_64.flatpak
+          artifact-name: flatpak-x86_64
+          repo-dir: repo
+          cache-key: flatpak-builder-${{ hashFiles('flatpak/*.yml', 'flatpak/*.json', 'flatpak/shared-modules/libayatana-appindicator/**') }}
+
+      # Tarred so the OSTree repo reaches the lint job intact.
+      - name: Pack repo for linting
+        run: tar -cf flatpak-repo.tar repo
+
+      - name: Upload repo for linting
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-flatpak-repo
+          path: flatpak-repo.tar
+          retention-days: 1
+
+  # The same checks Flathub runs on submissions. The only exceptions (flatpak/
+  # flatpak-builder-lint-exceptions.json) are for screenshot mirroring, which only
+  # Flathub's own build infrastructure can do.
+  flatpak-lint:
+    needs: flatpak
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Download repo
+        uses: actions/download-artifact@v4
+        with:
+          name: lint-flatpak-repo
+
+      - name: Unpack repo
+        run: tar -xf flatpak-repo.tar
+
+      - name: Flathub linter
+        run: |
+          lint() {
+            docker run --rm -v "$PWD":/mnt ghcr.io/flathub/flatpak-builder-lint:latest \
+              --gha-format --exceptions --user-exceptions /mnt/flatpak/flatpak-builder-lint-exceptions.json "$@"
+          }
+          lint appstream /mnt/src-tauri/metainfo/io.github.alexjfinch.mstodo-for-linux.metainfo.xml
+          lint manifest /mnt/flatpak/io.github.alexjfinch.mstodo-for-linux.yml
+          lint repo /mnt/repo
+
+      - name: Validate desktop file
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y desktop-file-utils
+          desktop-file-validate flatpak/io.github.alexjfinch.mstodo-for-linux.desktop
+
   release:
-    needs: [validate, build-linux]
+    needs: [validate, build-linux, flatpak-lint]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
 
     steps:
-      - name: Download all artifacts
+      - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: "{deb,rpm,appimage,flatpak}-*"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -135,3 +233,4 @@ jobs:
             artifacts/**/*.deb
             artifacts/**/*.rpm
             artifacts/**/*.AppImage
+            artifacts/**/*.flatpak
